@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(node scripts/agente-sql.mjs:*)",
+      "Bash(node scripts/agente-sql.mjs:*)",
+      "Read(./agenti/**)"
+    ]
+  }
+}

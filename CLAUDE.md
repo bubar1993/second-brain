@@ -1,6 +1,6 @@
 # Second Brain GF
 
-Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo aggiornamento: 11.10.2026 sera.
+Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo aggiornamento: 12.10.2026 notte.
 
 ## Chi è Giovanni e come rispondergli
 - Giovanni Fabris, Manno (Ticino). Ha due società: **Ceramex SAGL** (agente di commercio: Marazzi/Ragno, Flaviker/ABK, Garbelotto, Profilitec) e **G&C Home Concepts Sagl** (forniture per interni).
@@ -21,7 +21,7 @@ Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo
 ## ATTENZIONE: cose da non rompere
 - Il connettore Supabase di claude.ai vede solo l'organizzazione "G&C Home Concepts & Ceramex". **Non va spostato.** Le attività programmate "Bozze mail Ceramex" (ore piene, mezz'ora, weekend) lo usano sul progetto Ceramex: se cambia, smettono di funzionare.
 - Gestionale Ceramex: progetto Supabase `nouxqowregwnyqlrvqqo`, cartella `Documenti\ceramex`. Il codice dell'app Ceramex non è sul PC (solo l'app pubblicata e il repo GitHub `bubar1993/ceramex-app`). Nel gestionale c'è l'utente di sola lettura `brain_lettore` (creato l'11.10.2026 con l'ok di Giovanni): legge solo `clienti`, `note_clienti`, `note_regole`, `note_mail_viste` per la copia automatica. Non dargli altri permessi.
-- Gestionale G&C: progetto Supabase `hnpesqsteytwfgrsrygn`, cartella `Documenti\gchomeconcepts`.
+- Gestionale G&C: progetto Supabase `hnpesqsteytwfgrsrygn`, cartella `Documenti\gchomeconcepts`. Anche qui c'è l'utente di sola lettura `brain_lettore` (creato l'11.10.2026 con l'ok di Giovanni): legge solo `clients`, `sites`, `price_list_suppliers`, `email_messages`. Non dargli altri permessi.
 - I gestionali si **leggono** soltanto. Non si modificano senza l'ok di Giovanni.
 - Sul PC girano programmi che non vanno toccati: il lettore mail e il portale Marazzi (`lettore.mjs`, `portale.mjs` del gestionale Ceramex).
 - Lexy (vecchio assistente su Telegram) non si usa più. Non va ripresa.
@@ -92,6 +92,15 @@ In più:
 Offerte, solleciti e allegati PDF restano nei gestionali.
 
 ### G&C (fase 5)
+**Stato (12.10.2026 notte, ok di Giovanni l'11.10 sera):**
+- `copia-gc` (ogni ora): clienti → `aziende` area G, cantieri (`sites`, di solito O0…) → `cantieri`, fornitori principali → `fornitori` (`nome_breve` = come appare nelle note), mail salvate nel gestionale → `posta` con cliente/cantiere. Segreto `GC_DB_URL`.
+- `posta-gc` (ogni 5 minuti): legge info@homeconcepts.ch via IMAP Hostpoint in SOLA LETTURA (non segna come letto), cartelle INBOX e Sent, anche lo storico un pezzo alla volta (`posta_stato`). Poi annulla le bozze superate (qualcuno ha risposto o è arrivata una mail nuova nel thread). Serve il segreto `GC_MAIL_PASSWORD`, che inserisce Giovanni (mai Claude).
+- Bozze: tabella `bozze`, schermata Bozze nell'app (Oggi → "bozze G&C da approvare", sul PC voce nel menu). "Approva e invia" (due tocchi) chiama `invia-bozza`: SMTP Hostpoint da info@ come risposta nel thread + copia in "Sent". Niente mail di prova.
+- Agente G&C: regole in `agenti/agente-gc.md` (una sola fonte). Usa il database solo via `node scripts/agente-sql.mjs` → funzione `agente-sql` → utente Postgres `agente_gc` che vede e scrive SOLO l'area G (niente Privato, niente Ceramex, niente cancellazioni). Token nella variabile di Windows `AGENTE_TOKEN_GC` e nel segreto `AGENTE_TOKEN`; password del ruolo con `node scripts/collega-agente.mjs`.
+- L'agente gira come attività programmata del PC "Agente G&C" (ogni 30 minuti, 7–22): le routine claude.ai in cloud non raggiungono il second brain (il proxy blocca `*.supabase.co`). Per spostarlo in cloud Giovanni deve aprire la rete dell'ambiente su claude.ai.
+- Storico: note ricostruite dalle 1'851 mail salvate nel gestionale (settembre 2025 → oggi); lo storico IMAP lo smaltisce l'agente un pezzo per giro.
+- Scheda azienda G&C: fornitori al posto dei mandanti, linguette dei cantieri, "dalla mail" apre la conversazione nell'app. Chiedi trova anche i cantieri (O0214).
+
 Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tipo "principale" del gestionale G&C (`price_list_suppliers.kind = 'principale'`). Clienti presi da `clients`, cantieri da `sites`. Le 6 sezioni sono le stesse di Ceramex. L'agente legge la casella mail G&C. Si recupera lo storico mail 2026. I collaboratori vedono il gestionale G&C, ma non il second brain.
 
 ### Privato (fase 6)
@@ -141,9 +150,9 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 2. Trasloco note Ceramex ← IN CORSO. Backup su Google Drive FATTO (11.10.2026): funzione `backup` ogni domenica notte → Drive giovannifabris@ceramex.ch, cartella BRAIN/Backup (dati e struttura tenuti 90 giorni, foto nuove in Foto/). Collegamento Google: client OAuth "Second Brain backup" nel progetto Google Cloud "Ceramex Gestionale". Esito in `backup_registro`; se fallisce l'app lo dice in Oggi. Tappa 1 FATTA (11.10.2026): copiate 75 schede (`aziende`, contatti dentro la scheda), 1'438 note (`note` con azienda_id, mandante, sezione…), 8 regole (`regole_agenti`), mail viste (`mail_viste`); stessi id del gestionale, quindi la copia si può rifare senza doppioni. Nell'app: Dentro → Aziende (fatta come nell'app Ceramex: mandanti, sezioni, filiali, vista per sezione o per data; per ora solo lettura). Fino allo switch le note clienti si correggono nel gestionale Ceramex. Tappa 2 FATTA (11.10.2026): copia automatica ogni 10 minuti. Le routine "Bozze mail" restano invariate e scrivono in Ceramex; la funzione `copia-ceramex` (pg_cron, token `copia_token` nel Vault, segreti `CERAMEX_DB_URL` e `COPIA_TOKEN`) legge Ceramex con `brain_lettore` e copia schede, note, regole e mail viste (stessi id); le note sparite da Ceramex vanno nel cestino. Esito in `copia_registro`; Oggi avvisa se fallisce o è ferma da più di un'ora. Password e token si rifanno con `node scripts/collega-ceramex.mjs` (poi va reimpostato l'hash in Ceramex). **Da riguardare con Giovanni (sua richiesta):** come far scrivere l'agente note direttamente nel second brain e lo switch (tappa 3). Parcheggiati: link "dalla mail" verso Spark; cambiare la chiave segreta Ceramex che sta in `Documenti\ceramex\reader\.env.example`.
 3. Calendario.
 4. Chiedi (Haiku + Sonnet).
-5. G&C.
+5. G&C ← IN CORSO (partita l'11.10.2026 sera, prima delle fasi 3-4, su richiesta di Giovanni). Vedi "G&C (fase 5)".
 6. Privato.
-7. WhatsApp.
+7. WhatsApp. Parcheggiato (11.10): il canale ufficiale non legge le chat già esistenti; in alternativa Giovanni esporta le chat attive (Esporta chat, senza media) e Claude le smista.
 8. Rifiniture: senza rete, widget, scorciatoia vocale, foto cercabili.
 
 ## Primo passo

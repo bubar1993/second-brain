@@ -24,8 +24,8 @@ function dataBreve(iso) {
   return a === String(new Date().getFullYear()) ? `${g}.${m}` : `${g}.${m}.${a.slice(2)}`
 }
 
-const battesimo = (nome) => (nome || '').trim().split(/\s+/)[0].replace(/\.$/, '')
-const iniziali = (nome) => {
+export const battesimo = (nome) => (nome || '').trim().split(/\s+/)[0].replace(/\.$/, '')
+export const iniziali = (nome) => {
   const parole = nome.trim().split(/\s+/)
   return (parole[0][0] + (parole.length > 1 ? parole[parole.length - 1][0] : '')).toUpperCase()
 }

@@ -9,6 +9,7 @@ import { Dentro, Inbox, ElencoNote, Cestino } from './Dentro'
 import { Persone, Persona } from './Persone'
 import Nota from './Nota'
 import { Aziende, Azienda } from './Aziende'
+import { Bozze, Bozza, Mail } from './Bozze'
 
 export default function App({ condiviso }) {
   const [sessione, setSessione] = useState(undefined)
@@ -58,11 +59,14 @@ function Guscio({ utente, condiviso }) {
   }, [])
   const vai = (percorso) => { location.hash = percorso }
 
-  // Numero di cose nell'Inbox, aggiornato a ogni cambio schermata.
+  // Numero di cose nell'Inbox e di bozze da approvare, aggiornati a ogni cambio schermata.
+  const [bozze, setBozze] = useState(0)
   useEffect(() => {
     sb.from('note').select('id', { count: 'exact', head: true })
       .is('area', null).is('eliminata_il', null)
       .then(({ count }) => setInbox(count || 0))
+    sb.from('bozze').select('id', { count: 'exact', head: true }).eq('stato', 'proposta')
+      .then(({ count }) => setBozze(count || 0))
   }, [rotta])
 
   const largo = useLargo()
@@ -78,6 +82,15 @@ function Guscio({ utente, condiviso }) {
         </div>
       </div>
     )
+  } else if (largo && (primo === 'bozze' || primo === 'bozza')) {
+    schermata = (
+      <div className="diviso">
+        <div className="diviso-elenco"><Bozze key={bozze} scelta={primo === 'bozza' ? secondo : null} /></div>
+        <div className="diviso-scheda">
+          {primo === 'bozza' ? <Bozza key={secondo} id={secondo} /> : <p className="msg vuoto-diviso">Scegli una bozza a sinistra.</p>}
+        </div>
+      </div>
+    )
   } else switch (primo) {
     case 'aggiungi': schermata = <Aggiungi key={rotta.query.toString()} usaCondiviso={usaCondiviso} personaId={rotta.query.get('persona')} />; break
     case 'chiedi': schermata = <Chiedi />; break
@@ -90,10 +103,13 @@ function Guscio({ utente, condiviso }) {
     case 'aziende': schermata = <Aziende />; break
     case 'azienda': schermata = <Azienda key={secondo} id={secondo} />; break
     case 'nota': schermata = <Nota key={secondo} id={secondo} />; break
-    default: schermata = <Oggi inbox={inbox} />
+    case 'bozze': schermata = <Bozze />; break
+    case 'bozza': schermata = <Bozza key={secondo} id={secondo} />; break
+    case 'mail': schermata = <Mail key={secondo} chiave={secondo} />; break
+    default: schermata = <Oggi inbox={inbox} bozze={bozze} />
   }
   const tasto = ['oggi', 'aggiungi', 'chiedi'].includes(primo) ? primo : primo ? null : 'oggi'
-  const sezioneLato = primo === 'azienda' ? 'aziende' : primo === 'persona' ? 'persone' : primo || 'oggi'
+  const sezioneLato = primo === 'azienda' ? 'aziende' : primo === 'persona' ? 'persone' : primo === 'bozza' ? 'bozze' : primo || 'oggi'
 
   async function esci() {
     scrivi('impronta-rimandata', '')
@@ -108,11 +124,12 @@ function Guscio({ utente, condiviso }) {
         <a href="#/aggiungi" className={'lato-aggiungi' + (sezioneLato === 'aggiungi' ? ' attivo' : '')}>
           <Icona nome="piu" size={20} /><span>Aggiungi</span>
         </a>
-        {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], null, ['aziende', 'Aziende'], ['persone', 'Persone'],
+        {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], null, ['aziende', 'Aziende'], ['bozze', 'Bozze G&C'], ['persone', 'Persone'],
           ['inbox', 'Inbox'], ['note', 'Tutte le note'], ['cestino', 'Cestino']].map((v, i) => v ? (
           <a key={v[0]} href={`#/${v[0]}`} className={'lato-voce' + (sezioneLato === v[0] ? ' attivo' : '')}>
             <Icona nome={v[0] === 'chiedi' ? 'cerca' : v[0]} size={20} /><span>{v[1]}</span>
             {v[0] === 'inbox' && inbox > 0 && <span className="lato-badge">{inbox}</span>}
+            {v[0] === 'bozze' && bozze > 0 && <span className="lato-badge">{bozze}</span>}
           </a>
         ) : <hr key={i} />)}
         <button type="button" className="lato-voce lato-esci" onClick={esci}><Icona nome="esci" size={20} /><span>Esci</span></button>

@@ -51,6 +51,7 @@ const PERCORSI = {
   aziende: 'M4 20V8l5-3v15M9 20V4h11v16M3 20h18M12 8h2M16 8h2M12 12h2M16 12h2M12 16h2M16 16h2',
   persone: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 4.5a3.5 3.5 0 0 1 0 6.5M18 14c2 .7 3 2.8 3 6',
   inbox: 'M3 13h5l1.5 3h5L16 13h5M5 5h14l2 8v6H3v-6z',
+  bozze: 'M3 6h18v12H3zM3 7l9 6 9-6',
   note: 'M6 3h9l4 4v14H6zM14 3v5h5M9 12h7M9 16h5',
   cestino: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13',
   esci: 'M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10',

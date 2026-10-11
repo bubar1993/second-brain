@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { sb, leggi, scrivi } from './supabase'
+import { sb, leggi, scrivi, areaDa } from './supabase'
 import { useApp, useCarica, chk, Stato, Indietro } from './componenti'
 
 // Le 6 sezioni come nel gestionale Ceramex: chiave, nome lungo, nome corto.
@@ -97,7 +97,8 @@ export function Aziende({ scelta }) {
               return (
                 <a key={a.id} className={'riga riga-azienda' + (scelta === a.id || a.filiali.some((f) => f.id === scelta) ? ' scelta' : '')}
                   href={`#/azienda/${a.id}`} aria-current={scelta === a.id ? 'page' : undefined}>
-                  <span className={'iniziali' + (a.problemi ? ' aperti' : '')} aria-hidden="true">{iniziali(a.nome)}</span>
+                  <span className={'iniziali' + (a.problemi ? ' aperti' : '') + (area === 'T' ? ' con-area' : '')} aria-hidden="true"
+                    style={area === 'T' ? { '--c': areaDa(a.area)?.colore } : undefined}>{iniziali(a.nome)}</span>
                   <span className="riga-corpo">
                     <span className="riga-testo">{a.nome}</span>
                     <span className="riga-meta">{[chi, a.note ? `${a.note} note` : 'nessuna nota'].filter(Boolean).join(' · ')}</span>
@@ -120,6 +121,7 @@ export function Aziende({ scelta }) {
 export function Azienda({ id }) {
   const { vai } = useApp()
   const [sede, setSede] = useState(null) // null = tutto il gruppo
+  const [cantiere, setCantiere] = useState(null) // null = tutti (solo G&C)
   const [mandante, setMandante] = useState(null)
   const [sezione, setSezione] = useState(null) // null = tutte
   const [vista, setVista] = useState(() => leggi('note-vista') || 'sezioni')
@@ -131,11 +133,15 @@ export function Azienda({ id }) {
       sb.from('aziende').select('*,gruppo:gruppo_id(id,nome)').eq('id', id).single().then(chk),
       sb.from('aziende').select('id,nome,contatti').eq('gruppo_id', id).is('eliminata_il', null).order('nome').then(chk),
     ])
-    const note = await tutte(() => sb.from('note')
-      .select('id,azienda_id,testo,mandante,sezione,data,contatto,risolto_il,thread_id')
-      .in('azienda_id', [id, ...filiali.map((f) => f.id)]).is('eliminata_il', null).is('scartata_il', null)
-      .order('data', { ascending: false }).order('creata_il', { ascending: false }))
-    return { a, filiali, note }
+    const ids = [id, ...filiali.map((f) => f.id)]
+    const [note, cantieri] = await Promise.all([
+      tutte(() => sb.from('note')
+        .select('id,area,azienda_id,cantiere_id,testo,mandante,sezione,data,contatto,risolto_il,thread_id,message_id')
+        .in('azienda_id', ids).is('eliminata_il', null).is('scartata_il', null)
+        .order('data', { ascending: false }).order('creata_il', { ascending: false })),
+      a.area === 'G' ? sb.from('cantieri').select('id,nome,stato').in('azienda_id', ids).is('eliminata_il', null).then(chk) : [],
+    ])
+    return { a, filiali, note, cantieri }
   }, [id])
 
   // Una scheda unita a un'altra porta a quella giusta.
@@ -146,9 +152,13 @@ export function Azienda({ id }) {
     return <div className="schermata"><Indietro titolo="Azienda" /><Stato carica={carica} errore={errore} /></div>
   }
 
-  const { a, filiali, note } = dati
+  const { a, filiali, note, cantieri } = dati
   const nomeSede = Object.fromEntries([[a.id, a.nome], ...filiali.map((f) => [f.id, f.nome])])
-  const diSede = note.filter((n) => !sede || n.azienda_id === sede)
+  const nomeCantiere = Object.fromEntries(cantieri.map((c) => [c.id, c.nome]))
+  // Cantieri G&C con almeno una nota, dal più recente.
+  const conNote = cantieri.map((c) => ({ ...c, note: note.filter((n) => n.cantiere_id === c.id) }))
+    .filter((c) => c.note.length).sort((x, y) => (y.note[0].data || '').localeCompare(x.note[0].data || ''))
+  const diSede = note.filter((n) => (!sede || n.azienda_id === sede) && (!cantiere || n.cantiere_id === cantiere))
 
   // Mandanti con note, dal più usato. Senza mandante = Altro.
   const perMandante = {}
@@ -162,6 +172,7 @@ export function Azienda({ id }) {
   const diMandante = diSede.filter((n) => (n.mandante || 'Altro') === scelto)
 
   const cambiaSede = (s) => { setSede(s); setMandante(null); setSezione(null) }
+  const cambiaCantiere = (c) => { setCantiere(c); setMandante(null); setSezione(null) }
   const cambiaMandante = (m) => { setMandante(m); setSezione(null) }
   const cambiaVista = (v) => { setVista(v); scrivi('note-vista', v) }
 
@@ -175,7 +186,8 @@ export function Azienda({ id }) {
 
   const riga = (n, conSezione) => (
     <NotaCliente key={n.id} n={n} conSezione={conSezione}
-      sede={mostraSede && n.azienda_id !== a.id ? nomeSede[n.azienda_id] : null} />
+      sede={mostraSede && n.azienda_id !== a.id ? nomeSede[n.azienda_id] : null}
+      cantiere={!cantiere && n.cantiere_id ? nomeCantiere[n.cantiere_id] : null} />
   )
   const tastoRisolti = (testo) => risolti.length > 0 && (
     <button type="button" className="tasto-link" onClick={() => setRisolte(!risolte)}>
@@ -210,6 +222,19 @@ export function Azienda({ id }) {
             .map(([k, nome, quante]) => (
               <button key={k || 'tutto'} type="button" disabled={!quante}
                 className={'chip' + (sede === k ? ' attivo' : '')} onClick={() => cambiaSede(k)}>
+                {nome} <span className="numero">{quante}</span>
+              </button>
+            ))}
+        </div>
+      )}
+
+      {conNote.length > 0 && (
+        <div className="linguette" role="group" aria-label="Cantieri">
+          {[[null, 'Tutti i cantieri', note.length], ...conNote.map((c) => [c.id, c.nome, c.note.length, c.stato])]
+            .map(([k, nome, quante, stato]) => (
+              <button key={k || 'tutti'} type="button" title={stato ? STATI_CANTIERE[stato] || stato : undefined}
+                className={'chip' + (cantiere === k ? ' attivo' : '') + (stato === 'persa' || stato === 'completed' ? ' chiuso' : '')}
+                onClick={() => cambiaCantiere(k)}>
                 {nome} <span className="numero">{quante}</span>
               </button>
             ))}
@@ -300,8 +325,16 @@ function perMese(note) {
   return gruppi
 }
 
-function NotaCliente({ n, conSezione, sede }) {
-  const meta = sede || n.contatto || conSezione
+const STATI_CANTIERE = { offerta: 'Offerta', active: 'In corso', completed: 'Finito', persa: 'Persa' }
+
+// Link alla mail d'origine: Gmail per Ceramex, la conversazione nell'app per G&C.
+const linkMail = (n) => (n.area === 'G'
+  ? (n.message_id ? `#/mail/${encodeURIComponent(n.message_id)}` : null)
+  : (n.thread_id ? GMAIL + n.thread_id : null))
+
+function NotaCliente({ n, conSezione, sede, cantiere }) {
+  const meta = sede || cantiere || n.contatto || conSezione
+  const mail = linkMail(n)
   return (
     <div className={'nota-cliente' + (n.risolto_il ? ' risolta' : '')}>
       <span className="data-breve">{dataBreve(n.data)}</span>
@@ -310,16 +343,19 @@ function NotaCliente({ n, conSezione, sede }) {
           {meta && (
             <span className="nota-meta">
               {sede && <span className="etichetta-sede">{sede}</span>}
+              {cantiere && <span className="etichetta-sede">{cantiere}</span>}
               {n.contatto && <b>{n.contatto} —</b>}
               {conSezione && <span className={'etichetta-sezione' + (aperto(n) ? ' rosso' : '')}>{nomeSezione[n.sezione]}</span>}
             </span>
           )}
           {n.testo}
         </p>
-        {(n.risolto_il || n.thread_id) && (
+        {(n.risolto_il || mail) && (
           <p className="nota-piede">
             {n.risolto_il && <span>risolto il {dataBreve(n.risolto_il)}</span>}
-            {n.thread_id && <a href={GMAIL + n.thread_id} target="_blank" rel="noopener noreferrer">dalla mail</a>}
+            {mail && (n.area === 'G'
+              ? <a href={mail}>dalla mail</a>
+              : <a href={mail} target="_blank" rel="noopener noreferrer">dalla mail</a>)}
           </p>
         )}
       </div>

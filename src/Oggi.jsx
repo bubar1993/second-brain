@@ -6,7 +6,7 @@ import Rete from './Rete'
 const corto = (s, n = 16) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s)
 const numero = (n) => (n == null ? '…' : n.toLocaleString('de-CH'))
 
-export default function Oggi({ inbox }) {
+export default function Oggi({ inbox, bozze }) {
   const { area, avvisa, vai } = useApp()
   const rete = useRef(null)
   const [fatti, setFatti] = useState(() => new Set())
@@ -25,11 +25,11 @@ export default function Oggi({ inbox }) {
       qn = qn.eq('area', area)
     }
     // Clienti che hanno scritto per ultimi (dalle note dell'agente).
-    const qa = area === 'T' || area === 'C'
-      ? sb.from('note').select('data,aziende(id,nome,area)').not('azienda_id', 'is', null)
-        .is('eliminata_il', null).is('scartata_il', null)
-        .order('data', { ascending: false }).order('creata_il', { ascending: false }).limit(60)
-      : Promise.resolve({ data: [] })
+    let qa = sb.from('note').select('data,aziende(id,nome,area)').not('azienda_id', 'is', null)
+      .is('eliminata_il', null).is('scartata_il', null)
+      .order('data', { ascending: false }).order('creata_il', { ascending: false }).limit(60)
+    if (area === 'P') qa = Promise.resolve({ data: [] })
+    else if (area !== 'T') qa = qa.eq('area', area)
     const [promemoria, note, recenti] = await Promise.all([qp, qn, qa])
     const aziende = []
     for (const r of chk(recenti)) {
@@ -115,6 +115,14 @@ export default function Oggi({ inbox }) {
         <AttivaImpronta />
         <AvvisoBackup />
         <AvvisoCopia />
+        <AvvisoLavoriGC />
+
+        {bozze > 0 && (area === 'T' || area === 'G') && (
+          <a className="scheda scheda-bozze" href="#/bozze">
+            <span><strong>{bozze}</strong> {bozze === 1 ? 'bozza G&C da approvare' : 'bozze G&C da approvare'}</span>
+            <Icona nome="freccia" size={18} />
+          </a>
+        )}
 
         {inbox > 0 && (
           <a className="scheda scheda-inbox" href="#/inbox">
@@ -222,6 +230,36 @@ function AvvisoCopia() {
           : `La copia delle note da Ceramex non è riuscita (${quando(ultima.iniziata_il, true)}).`}
         {' '}Dillo a Claude.
       </p>
+    </div>
+  )
+}
+
+// Avviso se la posta di info@ o la copia dal gestionale G&C non vanno (posta ogni 5 minuti, copia ogni ora).
+const LAVORI_GC = [
+  ['posta-gc', 'La posta di info@homeconcepts.ch', 30 * 60000],
+  ['copia-gc', 'La copia di clienti e cantieri dal gestionale G&C', 3 * 3600000],
+]
+function AvvisoLavoriGC() {
+  const [ultimi, setUltimi] = useState([])
+
+  useEffect(() => {
+    Promise.all(LAVORI_GC.map(([lavoro]) => sb.from('lavori_registro').select('lavoro,iniziata_il,ok,errore')
+      .eq('lavoro', lavoro).order('id', { ascending: false }).limit(1)))
+      .then((r) => setUltimi(r.map(({ data }) => data?.[0]).filter(Boolean)))
+  }, [])
+
+  const problemi = ultimi.map((u) => {
+    const [, nome, massimo] = LAVORI_GC.find(([l]) => l === u.lavoro)
+    if (u.errore?.includes('GC_MAIL_PASSWORD')) return `${nome} non è ancora collegata: manca la password della casella.`
+    if (!u.ok) return `${nome} non è riuscita (${quando(u.iniziata_il, true)}).`
+    if (Date.now() - new Date(u.iniziata_il).getTime() > massimo) return `${nome} è ferma dal ${quando(u.iniziata_il, true)}.`
+    return null
+  }).filter(Boolean)
+
+  if (!problemi.length) return null
+  return (
+    <div className="scheda scheda-allarme">
+      <p>{problemi.join(' ')} Dillo a Claude.</p>
     </div>
   )
 }

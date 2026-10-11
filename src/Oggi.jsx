@@ -1,35 +1,68 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { sb, areaDa, quando, giorniDaOggi, leggi, scrivi } from './supabase'
 import { useApp, useCarica, chk, messaggioErrore, NotaRiga, Stato, Icona } from './componenti'
+import Rete from './Rete'
+
+const corto = (s, n = 16) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s)
+const numero = (n) => (n == null ? '…' : n.toLocaleString('de-CH'))
 
 export default function Oggi({ inbox }) {
-  const { area, avvisa } = useApp()
+  const { area, avvisa, vai } = useApp()
+  const rete = useRef(null)
+  const [fatti, setFatti] = useState(() => new Set())
+  const [lampo, setLampo] = useState(null)
 
   const { dati, errore, carica, ricarica } = useCarica(async () => {
     let qp = sb.from('promemoria').select('id,testo,area,scade_il,urgente,nota_id')
       .is('fatto_il', null).is('eliminata_il', null)
       .order('scade_il', { ascending: true, nullsFirst: false }).limit(50)
+    // Le note dei clienti stanno nelle schede delle aziende: qui solo quelle scritte da Giovanni.
     let qn = sb.from('note').select('id,area,testo,fonte,creata_il,note_persone(persone(id,nome,cognome)),allegati(id)')
-      .is('eliminata_il', null).not('area', 'is', null)
+      .is('eliminata_il', null).not('area', 'is', null).is('azienda_id', null)
       .order('creata_il', { ascending: false }).limit(5)
     if (area !== 'T') {
       qp = qp.or(`area.eq.${area},area.is.null`)
       qn = qn.eq('area', area)
     }
-    const [promemoria, note] = await Promise.all([qp, qn])
-    return { promemoria: chk(promemoria), note: chk(note) }
+    // Clienti che hanno scritto per ultimi (dalle note dell'agente).
+    const qa = area === 'T' || area === 'C'
+      ? sb.from('note').select('data,aziende(id,nome,area)').not('azienda_id', 'is', null)
+        .is('eliminata_il', null).is('scartata_il', null)
+        .order('data', { ascending: false }).order('creata_il', { ascending: false }).limit(60)
+      : Promise.resolve({ data: [] })
+    const [promemoria, note, recenti] = await Promise.all([qp, qn, qa])
+    const aziende = []
+    for (const r of chk(recenti)) {
+      if (r.aziende && !aziende.some((a) => a.id === r.aziende.id)) aziende.push(r.aziende)
+      if (aziende.length === 6) break
+    }
+    return { promemoria: chk(promemoria), note: chk(note), aziende }
   }, [area])
 
-  async function fatto(id) {
+  // Quanto è grande la memoria: si legge una volta.
+  const [totali, setTotali] = useState({ note: null, aziende: null })
+  useEffect(() => {
+    Promise.all([
+      sb.from('note').select('id', { count: 'exact', head: true }).is('eliminata_il', null),
+      sb.from('aziende').select('id', { count: 'exact', head: true }).is('eliminata_il', null).is('unito_in', null),
+    ]).then(([n, a]) => setTotali({ note: n.count, aziende: a.count }))
+  }, [])
+
+  async function fatto(p) {
+    if (fatti.has(p.id)) return
+    setFatti((s) => new Set(s).add(p.id))
+    rete.current?.assorbi(p.id)
     try {
-      chk(await sb.from('promemoria').update({ fatto_il: new Date().toISOString() }).eq('id', id))
+      chk(await sb.from('promemoria').update({ fatto_il: new Date().toISOString() }).eq('id', p.id))
       avvisa('Fatto')
-      ricarica()
+      setTimeout(ricarica, 450)
     } catch (e) {
+      setFatti((s) => { const x = new Set(s); x.delete(p.id); return x })
       avvisa(messaggioErrore(e))
     }
   }
 
+  const promemoria = (dati?.promemoria || []).filter((p) => !fatti.has(p.id))
   const gruppi = { ritardo: [], oggi: [], prossimi: [], senzaData: [] }
   for (const p of dati?.promemoria || []) {
     if (!p.scade_il) gruppi.senzaData.push(p)
@@ -38,13 +71,44 @@ export default function Oggi({ inbox }) {
     else gruppi.prossimi.push(p)
   }
   const nessunPromemoria = dati && dati.promemoria.length === 0
+  const daFareOggi = promemoria.filter((p) => p.scade_il && giorniDaOggi(p.scade_il) <= 0).length
 
-  const data = new Date().toLocaleDateString('it-CH', { weekday: 'long', day: 'numeric', month: 'long' })
-  const titolo = data.charAt(0).toUpperCase() + data.slice(1)
+  // Neuroni: prima i promemoria aperti, poi le tue ultime note, poi i clienti che hanno scritto per ultimi.
+  const chiaveNodi = dati ? [...promemoria, ...dati.note, ...dati.aziende].map((x) => x.id).join() : ''
+  const nodi = useMemo(() => {
+    if (!dati) return []
+    const pr = promemoria.slice(0, 8).map((p) => ({ id: p.id, area: p.area, etichetta: corto(p.testo), tipo: 'promemoria' }))
+    const no = dati.note.slice(0, Math.max(0, 4 - pr.length))
+      .map((n) => ({ id: n.id, area: n.area, etichetta: corto(n.testo || 'Foto', 14), tipo: 'nota' }))
+    const az = dati.aziende.slice(0, Math.max(0, 7 - pr.length - no.length))
+      .map((a) => ({ id: a.id, area: a.area, etichetta: corto(a.nome, 16), tipo: 'azienda' }))
+    return [...pr, ...no, ...az]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chiaveNodi])
+
+  const tocca = useCallback((n) => {
+    if (n.tipo === 'nota') return vai(`/nota/${n.id}`)
+    if (n.tipo === 'azienda') return vai(`/azienda/${n.id}`)
+    setLampo({ id: n.id, k: Date.now() })
+  }, [vai])
+
+  const oggi = new Date()
+  const giorno = oggi.toLocaleDateString('it-CH', { weekday: 'long' })
 
   return (
-    <div className="schermata">
-      <h1 className="data-oggi">{titolo}</h1>
+    <div className="schermata oggi">
+      <section className="rete" aria-label="La rete di oggi: trascina per ruotarla, tocca un nodo">
+        <Rete ref={rete} nodi={nodi} onTocca={tocca} />
+        <div className="nucleo">
+          <span className="giorno">{giorno.charAt(0).toUpperCase() + giorno.slice(1)}</span>
+          <span className="data">{oggi.toLocaleDateString('it-CH', { day: 'numeric', month: 'long' })}</span>
+        </div>
+        <p className="piede">La tua memoria: <b>{numero(totali.note)}</b> note, <b>{numero(totali.aziende)}</b> aziende</p>
+      </section>
+
+      <h1 className="titolo-oggi">
+        {!dati ? 'Oggi' : daFareOggi === 0 ? 'Niente di urgente oggi' : daFareOggi === 1 ? '1 cosa da fare oggi' : `${daFareOggi} cose da fare oggi`}
+      </h1>
 
       <AttivaImpronta />
       <AvvisoBackup />
@@ -57,26 +121,26 @@ export default function Oggi({ inbox }) {
       )}
 
       <h2>Promemoria</h2>
-      <Stato carica={carica} errore={errore} vuoto={nessunPromemoria ? 'Niente in sospeso.' : null}>
+      <Stato carica={carica} errore={errore} vuoto={nessunPromemoria ? 'Niente in sospeso. Quando aggiungi "Ricordamelo", compare qui e nella rete.' : null}>
         {dati && (
           <>
-            <Gruppo titolo="In ritardo" righe={gruppi.ritardo} fatto={fatto} ritardo />
-            <Gruppo titolo="Oggi" righe={gruppi.oggi} fatto={fatto} />
-            <Gruppo titolo="Prossimi giorni" righe={gruppi.prossimi} fatto={fatto} />
-            <Gruppo titolo="Senza data" righe={gruppi.senzaData} fatto={fatto} />
+            <Gruppo titolo="In ritardo" righe={gruppi.ritardo} fatto={fatto} fatti={fatti} lampo={lampo} ritardo />
+            <Gruppo titolo="Oggi" righe={gruppi.oggi} fatto={fatto} fatti={fatti} lampo={lampo} />
+            <Gruppo titolo="Prossimi giorni" righe={gruppi.prossimi} fatto={fatto} fatti={fatti} lampo={lampo} />
+            <Gruppo titolo="Senza data" righe={gruppi.senzaData} fatto={fatto} fatti={fatti} lampo={lampo} />
           </>
         )}
       </Stato>
 
       <h2>Ultime note</h2>
-      <Stato carica={carica} errore={errore} vuoto={dati && dati.note.length === 0 ? 'Ancora nessuna nota.' : null}>
+      <Stato carica={carica} errore={errore} vuoto={dati && dati.note.length === 0 ? 'Ancora nessuna nota tua. Tocca + per la prima.' : null}>
         {dati && <div className="elenco">{dati.note.map((n) => <NotaRiga key={n.id} nota={n} />)}</div>}
       </Stato>
     </div>
   )
 }
 
-function Gruppo({ titolo, righe, fatto, ritardo }) {
+function Gruppo({ titolo, righe, fatto, fatti, lampo, ritardo }) {
   if (!righe.length) return null
   return (
     <>
@@ -84,16 +148,24 @@ function Gruppo({ titolo, righe, fatto, ritardo }) {
       <div className="elenco">
         {righe.map((p) => {
           const a = areaDa(p.area)
+          const finito = fatti.has(p.id)
           return (
-            <div key={p.id} className="riga riga-promemoria">
-              <button type="button" className="spunta" onClick={() => fatto(p.id)} aria-label={`Segna fatto: ${p.testo}`} />
-              <a className="riga-corpo" href={p.nota_id ? `#/nota/${p.nota_id}` : undefined}>
-                <span className="riga-testo">{p.urgente && <strong className="rosso">! </strong>}{p.testo}</span>
-                <span className="riga-meta">
-                  {a && <span className="etichetta" style={{ color: a.colore }}>{a.nome}</span>}
-                  {p.scade_il && ` ${quando(p.scade_il, true)}`}
-                </span>
-              </a>
+            <div key={p.id} className={'voce-promemoria' + (finito ? ' via' : '')}>
+              <div>
+                <div key={lampo?.id === p.id ? lampo.k : 0} style={{ '--col': a?.colore || 'var(--grigio)' }}
+                  className={'riga riga-promemoria' + (finito ? ' fatto' : '') + (lampo?.id === p.id ? ' lampo' : '')}>
+                  <button type="button" className="spunta" onClick={() => fatto(p)} aria-label={`Segna fatto: ${p.testo}`}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+                  </button>
+                  <a className="riga-corpo" href={p.nota_id ? `#/nota/${p.nota_id}` : undefined}>
+                    <span className="riga-testo">{p.urgente && <strong className="rosso">! </strong>}{p.testo}</span>
+                    <span className="riga-meta">
+                      {a && <span className="etichetta" style={{ color: a.colore }}>{a.nome}</span>}
+                      {p.scade_il && ` ${quando(p.scade_il, true)}`}
+                    </span>
+                  </a>
+                </div>
+              </div>
             </div>
           )
         })}

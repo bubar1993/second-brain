@@ -84,7 +84,8 @@ export function Inbox() {
 export function ElencoNote() {
   const { area } = useApp()
   const { dati, errore, carica } = useCarica(async () => {
-    let q = sb.from('note').select(CAMPI_NOTA).is('eliminata_il', null)
+    // Le note dei clienti si guardano nelle schede delle aziende.
+    let q = sb.from('note').select(CAMPI_NOTA).is('eliminata_il', null).is('azienda_id', null)
       .order('creata_il', { ascending: false }).limit(200)
     if (area !== 'T') q = q.eq('area', area)
     return chk(await q)

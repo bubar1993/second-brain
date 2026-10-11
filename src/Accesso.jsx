@@ -44,9 +44,9 @@ export default function Accesso() {
   return (
     <div className="accesso">
       <div className="logo" aria-hidden="true">
-        <span style={{ background: '#2563eb' }} />
-        <span style={{ background: '#16a34a' }} />
-        <span style={{ background: '#ea580c' }} />
+        <span style={{ background: '#5b93ff', color: '#5b93ff' }} />
+        <span style={{ background: '#34d58a', color: '#34d58a' }} />
+        <span style={{ background: '#ff8f45', color: '#ff8f45' }} />
       </div>
       <h1>Second Brain</h1>
 

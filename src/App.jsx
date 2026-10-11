@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { sb, AREE, leggi, scrivi } from './supabase'
+import { sb, AREE, areaDa, leggi, scrivi } from './supabase'
 import { AppCtx, Icona } from './componenti'
 import Accesso from './Accesso'
 import Oggi from './Oggi'
@@ -86,7 +86,9 @@ function Guscio({ utente, condiviso }) {
   return (
     <AppCtx.Provider value={{ area, setArea, avvisa, vai, utente }}>
       <header className="barra">
-        <div className="interruttore" role="group" aria-label="Aree">
+        <div className="interruttore" role="group" aria-label="Aree"
+          style={{ '--i': ['T', ...AREE.map((a) => a.codice)].indexOf(area), '--cur': area === 'T' ? 'var(--testo)' : areaDa(area).colore }}>
+          <span className="cursore" aria-hidden="true" />
           <button type="button" className={area === 'T' ? 'attivo' : ''} onClick={() => setArea('T')}>Tutte</button>
           {AREE.map((a) => (
             <button key={a.codice} type="button" style={{ '--c': a.colore }}
@@ -108,8 +110,10 @@ function Guscio({ utente, condiviso }) {
         <a href="#/oggi" className={tasto === 'oggi' ? 'attivo' : ''}>
           <Icona nome="oggi" /><span>Oggi</span>
         </a>
-        <a href="#/aggiungi" className={'aggiungi' + (tasto === 'aggiungi' ? ' attivo' : '')}>
-          <Icona nome="piu" size={26} /><span>Aggiungi</span>
+        <a href="#/aggiungi" className={'aggiungi' + (tasto === 'aggiungi' ? ' attivo' : '')} aria-label="Aggiungi">
+          <span className="alone" aria-hidden="true" />
+          <span className="anello" aria-hidden="true" />
+          <span className="cuore"><Icona nome="piu" size={28} /></span>
         </a>
         <a href="#/chiedi" className={tasto === 'chiedi' ? 'attivo' : ''}>
           <Icona nome="cerca" /><span>Chiedi</span>

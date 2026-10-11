@@ -8,11 +8,11 @@ export const sb = createClient(SUPABASE_URL, CHIAVE_PUBBLICA, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
 })
 
-// Le tre aree (stesse righe della tabella public.aree).
+// Le tre aree (stesse righe della tabella public.aree). Tinte schiarite per il fondo scuro dell'app.
 export const AREE = [
-  { codice: 'C', nome: 'Ceramex', colore: '#2563eb' },
-  { codice: 'G', nome: 'G&C', colore: '#16a34a' },
-  { codice: 'P', nome: 'Privato', colore: '#ea580c' },
+  { codice: 'C', nome: 'Ceramex', colore: '#5b93ff' },
+  { codice: 'G', nome: 'G&C', colore: '#34d58a' },
+  { codice: 'P', nome: 'Privato', colore: '#ff8f45' },
 ]
 export const areaDa = (codice) => AREE.find((a) => a.codice === codice)
 

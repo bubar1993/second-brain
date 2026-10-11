@@ -1,0 +1,15 @@
+{
+  "projectId": "c93ff18d-0bdd-4b8b-8eeb-5192b81b8a72",
+  "targets": {
+    "oggi": {
+      "baselineDraftId": "54a440e0-9805-4a66-a8a5-56d2edf6711b",
+      "activeDraftId": null,
+      "branches": {
+        "rete-neurale (gemini-3.1-pro)": "e6964f7c-6892-4a7a-b0b1-72224e90609b",
+        "sintesi-cinematografica (deepseek-v4-pro)": "26dfda26-1db0-4a0c-9c2e-69b7db77c74e",
+        "olografico-chiaro (grok-4.5)": "32de933e-5155-445e-847f-b5c272a16450"
+      },
+      "contextFiles": [".superdesign/design-system.md", "src/Oggi.jsx", "src/App.jsx", "src/componenti.jsx", "src/stile.css"]
+    }
+  }
+}

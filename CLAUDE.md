@@ -27,7 +27,8 @@ Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo
 - Lexy (vecchio assistente su Telegram) non si usa più. Non va ripresa.
 
 ## Accesso alla nuova organizzazione Supabase
-- Organizzazione nuova: **"Second Brain GF"**, piano Pro, ancora senza progetti.
+- Organizzazione nuova: **"Second Brain GF"**, piano Pro. Progetto **second-brain** (`vgurncqvgulldolhetyr`, Zurigo), creato l'11.10.2026.
+- App pubblicata come Worker Cloudflare `second-brain`: https://second-brain.aged-king-4bbd.workers.dev (pubblicare con `npm run deploy`). L'accesso con impronta è legato a questo indirizzo: se cambia, Giovanni deve registrare di nuovo l'impronta.
 - Accesso tramite **token personale di Supabase** (supabase.com → Account → Access Tokens), che vede tutte le organizzazioni.
 - Il token si salva solo come variabile d'ambiente di Windows (`SUPABASE_ACCESS_TOKEN`) o con `supabase login`. **Mai** nella chat, mai in file del progetto, mai su git.
 - Per Cloudflare si usa lo stesso metodo delle altre due app (guarda come sono pubblicate in `Documenti\ceramex` e `Documenti\gchomeconcepts`).
@@ -132,8 +133,8 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 - Uso senza rete e modalità scura: da valutare.
 
 ## Fasi
-1. **Base** ← SI PARTE DA QUI: progetto Supabase, app installabile, 3 tasti, tre aree, Inbox, Persone, accesso con volto/impronta, backup.
-2. Trasloco note Ceramex.
+1. **Base** — FATTA (11.10.2026): progetto Supabase, app installabile, 3 tasti, tre aree, Inbox, Persone, accesso con volto/impronta. Il backup su Drive è stato spostato a inizio fase 2 (decisione di Giovanni): finora bastano i backup giornalieri di Supabase Pro (7 giorni, senza foto).
+2. Trasloco note Ceramex ← PROSSIMA. **Primo passo: backup settimanale su Google Drive** (dati + foto), prima di traslocare le note.
 3. Calendario.
 4. Chiedi (Haiku + Sonnet).
 5. G&C.

@@ -114,6 +114,7 @@ export default function Oggi({ inbox }) {
 
         <AttivaImpronta />
         <AvvisoBackup />
+        <AvvisoCopia />
 
         {inbox > 0 && (
           <a className="scheda scheda-inbox" href="#/inbox">
@@ -195,6 +196,30 @@ function AvvisoBackup() {
         {ultimo.ok
           ? `Il backup su Drive non parte da più di una settimana (ultimo: ${quando(ultimo.eseguito_il)}).`
           : `Il backup su Drive non è riuscito (${quando(ultimo.eseguito_il)}).`}
+        {' '}Dillo a Claude.
+      </p>
+    </div>
+  )
+}
+
+// Avviso se la copia automatica delle note da Ceramex (ogni 10 minuti) non va o è ferma da più di un'ora.
+function AvvisoCopia() {
+  const [ultima, setUltima] = useState(null)
+
+  useEffect(() => {
+    sb.from('copia_registro').select('iniziata_il,ok').order('id', { ascending: false }).limit(1)
+      .then(({ data }) => setUltima(data?.[0] || null))
+  }, [])
+
+  if (!ultima) return null
+  const ferma = Date.now() - new Date(ultima.iniziata_il).getTime() > 3600000
+  if (ultima.ok && !ferma) return null
+  return (
+    <div className="scheda scheda-allarme">
+      <p>
+        {ultima.ok
+          ? `Le note da Ceramex non arrivano da più di un'ora (ultima copia: ${quando(ultima.iniziata_il, true)}).`
+          : `La copia delle note da Ceramex non è riuscita (${quando(ultima.iniziata_il, true)}).`}
         {' '}Dillo a Claude.
       </p>
     </div>

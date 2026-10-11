@@ -106,36 +106,39 @@ export default function Oggi({ inbox }) {
         <p className="piede">La tua memoria: <b>{numero(totali.note)}</b> note, <b>{numero(totali.aziende)}</b> aziende</p>
       </section>
 
-      <h1 className="titolo-oggi">
-        {!dati ? 'Oggi' : daFareOggi === 0 ? 'Niente di urgente oggi' : daFareOggi === 1 ? '1 cosa da fare oggi' : `${daFareOggi} cose da fare oggi`}
-      </h1>
+      {/* Sul PC questa colonna sta a destra della rete. */}
+      <div className="oggi-colonna">
+        <h1 className="titolo-oggi">
+          {!dati ? 'Oggi' : daFareOggi === 0 ? 'Niente di urgente oggi' : daFareOggi === 1 ? '1 cosa da fare oggi' : `${daFareOggi} cose da fare oggi`}
+        </h1>
 
-      <AttivaImpronta />
-      <AvvisoBackup />
+        <AttivaImpronta />
+        <AvvisoBackup />
 
-      {inbox > 0 && (
-        <a className="scheda scheda-inbox" href="#/inbox">
-          <span><strong>{inbox}</strong> {inbox === 1 ? 'cosa' : 'cose'} nell'Inbox da smistare</span>
-          <Icona nome="freccia" size={18} />
-        </a>
-      )}
-
-      <h2>Promemoria</h2>
-      <Stato carica={carica} errore={errore} vuoto={nessunPromemoria ? 'Niente in sospeso. Quando aggiungi "Ricordamelo", compare qui e nella rete.' : null}>
-        {dati && (
-          <>
-            <Gruppo titolo="In ritardo" righe={gruppi.ritardo} fatto={fatto} fatti={fatti} lampo={lampo} ritardo />
-            <Gruppo titolo="Oggi" righe={gruppi.oggi} fatto={fatto} fatti={fatti} lampo={lampo} />
-            <Gruppo titolo="Prossimi giorni" righe={gruppi.prossimi} fatto={fatto} fatti={fatti} lampo={lampo} />
-            <Gruppo titolo="Senza data" righe={gruppi.senzaData} fatto={fatto} fatti={fatti} lampo={lampo} />
-          </>
+        {inbox > 0 && (
+          <a className="scheda scheda-inbox" href="#/inbox">
+            <span><strong>{inbox}</strong> {inbox === 1 ? 'cosa' : 'cose'} nell'Inbox da smistare</span>
+            <Icona nome="freccia" size={18} />
+          </a>
         )}
-      </Stato>
 
-      <h2>Ultime note</h2>
-      <Stato carica={carica} errore={errore} vuoto={dati && dati.note.length === 0 ? 'Ancora nessuna nota tua. Tocca + per la prima.' : null}>
-        {dati && <div className="elenco">{dati.note.map((n) => <NotaRiga key={n.id} nota={n} />)}</div>}
-      </Stato>
+        <h2>Promemoria</h2>
+        <Stato carica={carica} errore={errore} vuoto={nessunPromemoria ? 'Niente in sospeso. Quando aggiungi "Ricordamelo", compare qui e nella rete.' : null}>
+          {dati && (
+            <>
+              <Gruppo titolo="In ritardo" righe={gruppi.ritardo} fatto={fatto} fatti={fatti} lampo={lampo} ritardo />
+              <Gruppo titolo="Oggi" righe={gruppi.oggi} fatto={fatto} fatti={fatti} lampo={lampo} />
+              <Gruppo titolo="Prossimi giorni" righe={gruppi.prossimi} fatto={fatto} fatti={fatti} lampo={lampo} />
+              <Gruppo titolo="Senza data" righe={gruppi.senzaData} fatto={fatto} fatti={fatti} lampo={lampo} />
+            </>
+          )}
+        </Stato>
+
+        <h2>Ultime note</h2>
+        <Stato carica={carica} errore={errore} vuoto={dati && dati.note.length === 0 ? 'Ancora nessuna nota tua. Tocca + per la prima.' : null}>
+          {dati && <div className="elenco">{dati.note.map((n) => <NotaRiga key={n.id} nota={n} />)}</div>}
+        </Stato>
+      </div>
     </div>
   )
 }

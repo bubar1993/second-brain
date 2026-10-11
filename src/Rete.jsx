@@ -66,7 +66,8 @@ export default function Rete({ nodi, onTocca, ref }) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       cx = W / 2
       cy = H * 0.56
-      R = Math.min(W * 0.31, 150)
+      // Sul telefono resta 150 al massimo; sul PC la rete è più alta e cresce.
+      R = Math.min(W * 0.31, Math.max(150, H * 0.3), 260)
     }
 
     function proietta(x, y, z) {

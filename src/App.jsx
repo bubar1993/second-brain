@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { sb, AREE, areaDa, leggi, scrivi } from './supabase'
-import { AppCtx, Icona } from './componenti'
+import { AppCtx, Icona, useLargo } from './componenti'
 import Accesso from './Accesso'
 import Oggi from './Oggi'
 import Aggiungi from './Aggiungi'
@@ -65,9 +65,20 @@ function Guscio({ utente, condiviso }) {
       .then(({ count }) => setInbox(count || 0))
   }, [rotta])
 
+  const largo = useLargo()
   const [primo, secondo] = rotta.parti
   let schermata
-  switch (primo) {
+  // Sul PC: elenco aziende a sinistra e scheda a destra, come la posta.
+  if (largo && (primo === 'aziende' || primo === 'azienda')) {
+    schermata = (
+      <div className="diviso">
+        <div className="diviso-elenco"><Aziende scelta={primo === 'azienda' ? secondo : null} /></div>
+        <div className="diviso-scheda">
+          {primo === 'azienda' ? <Azienda key={secondo} id={secondo} /> : <p className="msg vuoto-diviso">Scegli un'azienda a sinistra.</p>}
+        </div>
+      </div>
+    )
+  } else switch (primo) {
     case 'aggiungi': schermata = <Aggiungi key={rotta.query.toString()} usaCondiviso={usaCondiviso} personaId={rotta.query.get('persona')} />; break
     case 'chiedi': schermata = <Chiedi />; break
     case 'dentro': schermata = <Dentro inbox={inbox} />; break
@@ -82,9 +93,31 @@ function Guscio({ utente, condiviso }) {
     default: schermata = <Oggi inbox={inbox} />
   }
   const tasto = ['oggi', 'aggiungi', 'chiedi'].includes(primo) ? primo : primo ? null : 'oggi'
+  const sezioneLato = primo === 'azienda' ? 'aziende' : primo === 'persona' ? 'persone' : primo || 'oggi'
+
+  async function esci() {
+    scrivi('impronta-rimandata', '')
+    await sb.auth.signOut()
+  }
 
   return (
     <AppCtx.Provider value={{ area, setArea, avvisa, vai, utente }}>
+      {/* Menu a sinistra: si vede solo sul PC (stile.css). */}
+      <nav className="lato" aria-label="Menu">
+        <a href="#/oggi" className="marchio">Second Brain</a>
+        <a href="#/aggiungi" className={'lato-aggiungi' + (sezioneLato === 'aggiungi' ? ' attivo' : '')}>
+          <Icona nome="piu" size={20} /><span>Aggiungi</span>
+        </a>
+        {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], null, ['aziende', 'Aziende'], ['persone', 'Persone'],
+          ['inbox', 'Inbox'], ['note', 'Tutte le note'], ['cestino', 'Cestino']].map((v, i) => v ? (
+          <a key={v[0]} href={`#/${v[0]}`} className={'lato-voce' + (sezioneLato === v[0] ? ' attivo' : '')}>
+            <Icona nome={v[0] === 'chiedi' ? 'cerca' : v[0]} size={20} /><span>{v[1]}</span>
+            {v[0] === 'inbox' && inbox > 0 && <span className="lato-badge">{inbox}</span>}
+          </a>
+        ) : <hr key={i} />)}
+        <button type="button" className="lato-voce lato-esci" onClick={esci}><Icona nome="esci" size={20} /><span>Esci</span></button>
+      </nav>
+
       <header className="barra">
         <div className="interruttore" role="group" aria-label="Aree"
           style={{ '--i': ['T', ...AREE.map((a) => a.codice)].indexOf(area), '--cur': area === 'T' ? 'var(--testo)' : areaDa(area).colore }}>

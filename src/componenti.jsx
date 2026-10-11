@@ -34,7 +34,26 @@ export function useCarica(fn, deps) {
   return { ...stato, ricarica }
 }
 
+// Schermo largo (PC): menu a sinistra e schermate divise. Stesso valore di stile.css.
+const LARGO = '(min-width: 1024px)'
+export function useLargo() {
+  const [largo, setLargo] = useState(() => typeof matchMedia !== 'undefined' && matchMedia(LARGO).matches)
+  useEffect(() => {
+    const m = matchMedia(LARGO)
+    const cambia = () => setLargo(m.matches)
+    m.addEventListener('change', cambia)
+    return () => m.removeEventListener('change', cambia)
+  }, [])
+  return largo
+}
+
 const PERCORSI = {
+  aziende: 'M4 20V8l5-3v15M9 20V4h11v16M3 20h18M12 8h2M16 8h2M12 12h2M16 12h2M12 16h2M16 16h2',
+  persone: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 4.5a3.5 3.5 0 0 1 0 6.5M18 14c2 .7 3 2.8 3 6',
+  inbox: 'M3 13h5l1.5 3h5L16 13h5M5 5h14l2 8v6H3v-6z',
+  note: 'M6 3h9l4 4v14H6zM14 3v5h5M9 12h7M9 16h5',
+  cestino: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13',
+  esci: 'M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10',
   oggi: 'M12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8zM2.5 12c0-2 4.3-3.7 9.5-3.7s9.5 1.7 9.5 3.7-4.3 3.7-9.5 3.7S2.5 14 2.5 12z',
   piu: 'M12 5v14M5 12h14',
   cerca: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4',

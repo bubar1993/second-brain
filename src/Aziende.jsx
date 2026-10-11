@@ -42,7 +42,7 @@ async function tutte(crea) {
 }
 
 // Elenco schede: prima chi ha problemi aperti, poi chi ha scritto per ultimo. Le filiali contano nel gruppo.
-export function Aziende() {
+export function Aziende({ scelta }) {
   const { area } = useApp()
   const [cerca, setCerca] = useState('')
 
@@ -95,7 +95,8 @@ export function Aziende() {
                 : persone.length ? persone.slice(0, 3).join(', ') + (persone.length > 3 ? '…' : '')
                   : a.ragione_sociale && a.ragione_sociale !== a.nome ? a.ragione_sociale : ''
               return (
-                <a key={a.id} className="riga riga-azienda" href={`#/azienda/${a.id}`}>
+                <a key={a.id} className={'riga riga-azienda' + (scelta === a.id || a.filiali.some((f) => f.id === scelta) ? ' scelta' : '')}
+                  href={`#/azienda/${a.id}`} aria-current={scelta === a.id ? 'page' : undefined}>
                   <span className={'iniziali' + (a.problemi ? ' aperti' : '')} aria-hidden="true">{iniziali(a.nome)}</span>
                   <span className="riga-corpo">
                     <span className="riga-testo">{a.nome}</span>

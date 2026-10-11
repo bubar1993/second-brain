@@ -3,8 +3,9 @@
 // non sposta e non cancella. Poi allinea le conversazioni e annulla le bozze superate
 // (qualcuno ha già risposto o è arrivata una mail nuova nella stessa conversazione).
 // Storico: a ogni giro legge anche un pezzo di mail vecchie (scendendo), finché arriva all'inizio.
+// Per stare nei limiti della funzione (poco calcolo) si scarica solo il testo della mail:
+// gli allegati restano nella casella, qui si salvano solo nome, tipo e peso.
 import { ImapFlow } from 'npm:imapflow@1.0.171'
-import PostalMime from 'npm:postal-mime@2.4.3'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -12,8 +13,8 @@ const COPIA_TOKEN = Deno.env.get('COPIA_TOKEN')
 const UTENTE = 'f220cb9e-6628-4fd4-b2ef-f7e5f49d9a54'
 const IO = 'info@homeconcepts.ch'
 const CARTELLE: [string, 'arrivata' | 'inviata'][] = [['INBOX', 'arrivata'], ['Sent', 'inviata']]
-const PEZZO_NUOVE = 150    // mail nuove per cartella e per giro
-const PEZZO_STORICO = 120  // mail vecchie per cartella e per giro
+const PEZZO_NUOVE = 60     // mail nuove per cartella e per giro
+const PEZZO_STORICO = 40   // mail vecchie per cartella e per giro
 const LIMITE_MS = 110000   // poi si ferma e riprende al giro dopo
 
 const sbHeaders = { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json' }
@@ -27,36 +28,61 @@ const rpc = (fn: string) => rest(`rpc/${fn}`, { method: 'POST', body: '{}' })
 const pulisciId = (s?: string | null) => (s || '').trim().replace(/^<|>$/g, '')
 const listaId = (s?: string | null) => ((s || '').match(/<[^>]+>/g) || []).map(pulisciId).filter(Boolean)
 const indirizzo = (a?: { address?: string }) => (a?.address || '').toLowerCase()
-const indirizzi = (l?: { address?: string, group?: { address?: string }[] }[]) =>
-  (l || []).flatMap((a) => a.group ? a.group.map(indirizzo) : [indirizzo(a)]).filter(Boolean)
+const indirizzi = (l?: { address?: string }[]) => (l || []).map(indirizzo).filter(Boolean)
 
-// Testo leggibile: il testo semplice, altrimenti l'HTML ripulito.
-function testoDa(m: { text?: string, html?: string }) {
-  if (m.text?.trim()) return m.text
-  return (m.html || '')
-    .replace(/<(style|script)[\s\S]*?<\/\1>/gi, '')
-    .replace(/<br\s*\/?>|<\/(p|div|tr|li|h\d)>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
-    .replace(/\n{3,}/g, '\n\n')
+// HTML → testo leggibile.
+const daHtml = (html: string) => html
+  .replace(/<(style|script|head)[\s\S]*?<\/\1>/gi, '')
+  .replace(/<br\s*\/?>|<\/(p|div|tr|li|h\d)>/gi, '\n')
+  .replace(/<[^>]+>/g, '')
+  .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+  .replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n')
+
+// Dalla struttura della mail: quale parte è il testo e quali sono gli allegati.
+type Nodo = { part?: string, type?: string, size?: number, disposition?: string, parameters?: Record<string, string>,
+  dispositionParameters?: Record<string, string>, childNodes?: Nodo[] }
+function parti(n: Nodo | undefined, out = { testo: '', html: '', allegati: [] as { nome?: string, tipo?: string, kb: number }[] }) {
+  if (!n) return out
+  if (n.childNodes?.length) { n.childNodes.forEach((c) => parti(c, out)); return out }
+  const nome = n.dispositionParameters?.filename || n.parameters?.name
+  if (nome || n.disposition === 'attachment') out.allegati.push({ nome, tipo: n.type, kb: Math.round((n.size || 0) / 1024) })
+  else if (n.type === 'text/plain' && !out.testo) out.testo = n.part || '1'
+  else if (n.type === 'text/html' && !out.html) out.html = n.part || '1'
+  return out
 }
 
-async function riga(uid: number, sorgente: Uint8Array, cartella: 'arrivata' | 'inviata') {
-  const m = await PostalMime.parse(sorgente)
-  const header = (n: string) => m.headers.find((h) => h.key === n)?.value
-  const id = pulisciId(m.messageId) || `uid-${cartella}-${uid}@${IO}`
-  const rif = listaId(header('references'))
-  const risponde = listaId(m.inReplyTo || header('in-reply-to'))[0] || null
-  return {
-    message_id: id, utente_id: UTENTE, area: 'G', cartella,
-    thread_key: rif[0] || risponde || id, in_reply_to: risponde, riferimenti: rif,
-    da: indirizzo(m.from), da_nome: m.from?.name || null, a: indirizzi(m.to), cc: indirizzi(m.cc),
-    oggetto: m.subject || null, data: m.date ? new Date(m.date).toISOString() : null,
-    testo: testoDa(m).slice(0, 60000),
-    allegati: (m.attachments || []).filter((a) => a.disposition !== 'inline' || a.filename)
-      .map((a) => ({ nome: a.filename, tipo: a.mimeType, kb: Math.round(((a.content as ArrayBuffer)?.byteLength || 0) / 1024) })),
-    fonte: 'imap', imap_uid: uid,
+async function scarica(client: ImapFlow, uid: number, parte: string) {
+  const { content } = await client.download(String(uid), parte, { uid: true, maxBytes: 150000 })
+  const pezzi: Uint8Array[] = []
+  for await (const p of content) pezzi.push(typeof p === 'string' ? new TextEncoder().encode(p) : p)
+  return new TextDecoder().decode(await new Blob(pezzi).arrayBuffer())
+}
+
+// Legge un blocco di mail: prima busta e struttura (leggere), poi solo la parte di testo di ognuna.
+async function leggiBlocco(client: ImapFlow, da: number, a: number, cartella: 'arrivata' | 'inviata', fino: number) {
+  const msgs = await client.fetchAll(`${da}:${a}`, { uid: true, envelope: true, bodyStructure: true, headers: ['references'] }, { uid: true })
+  const righe = []
+  for (const m of msgs) {
+    if (Date.now() > fino) break
+    try {
+      const e = m.envelope || {}
+      const p = parti(m.bodyStructure as Nodo)
+      let testo = ''
+      if (p.testo) testo = await scarica(client, m.uid, p.testo)
+      else if (p.html) testo = daHtml(await scarica(client, m.uid, p.html))
+      const id = pulisciId(e.messageId) || `uid-${cartella}-${m.uid}@${IO}`
+      const rif = listaId(m.headers ? new TextDecoder().decode(m.headers) : '')
+      const risponde = listaId(e.inReplyTo)[0] || null
+      righe.push({
+        message_id: id, utente_id: UTENTE, area: 'G', cartella,
+        thread_key: rif[0] || risponde || id, in_reply_to: risponde, riferimenti: rif,
+        da: indirizzo(e.from?.[0]), da_nome: e.from?.[0]?.name || null, a: indirizzi(e.to), cc: indirizzi(e.cc),
+        oggetto: e.subject || null, data: e.date ? new Date(e.date).toISOString() : null,
+        testo: testo.slice(0, 60000), allegati: p.allegati, fonte: 'imap', imap_uid: m.uid,
+      })
+    } catch (_) { /* mail illeggibile: si salta */ }
   }
+  return righe
 }
 
 // Salva: se la mail c'era già (copiata dal gestionale) aggiorna i campi della casella e tiene cliente/cantiere/nota.
@@ -98,26 +124,21 @@ async function leggi() {
       // 1) Mail nuove.
       if (prossimo > s.ultimo_uid && box.exists > 0) {
         const fino = Math.min(prossimo, s.ultimo_uid + PEZZO_NUOVE)
-        const righe = []
-        for await (const msg of client.fetch(`${s.ultimo_uid + 1}:${fino}`, { uid: true, source: true }, { uid: true })) {
-          try { righe.push(await riga(msg.uid, msg.source, tipo)) } catch (_) { /* mail illeggibile: si salta */ }
-        }
+        const righe = await leggiBlocco(client, s.ultimo_uid + 1, fino, tipo, inizio + LIMITE_MS)
         await salva(righe)
         nuove = righe.length
-        s.ultimo_uid = fino
+        // Se il tempo è finito a metà, si riparte dall'ultima letta.
+        const completo = Date.now() < inizio + LIMITE_MS
+        s.ultimo_uid = completo ? fino : Math.max(s.ultimo_uid, ...righe.map((r) => r.imap_uid))
       }
 
-      // 2) Un pezzo di storico, se c'è tempo.
+      // 2) Un pezzo di storico, se c'è tempo (se non finisce, al giro dopo si rilegge lo stesso pezzo).
       if (s.storico_uid && s.storico_uid > 0 && Date.now() - inizio < LIMITE_MS / 2) {
         const da = Math.max(1, s.storico_uid - PEZZO_STORICO + 1)
-        const righe = []
-        for await (const msg of client.fetch(`${da}:${s.storico_uid}`, { uid: true, source: true }, { uid: true })) {
-          try { righe.push(await riga(msg.uid, msg.source, tipo)) } catch (_) { /* si salta */ }
-          if (Date.now() - inizio > LIMITE_MS) break
-        }
+        const righe = await leggiBlocco(client, da, s.storico_uid, tipo, inizio + LIMITE_MS)
         await salva(righe)
         vecchie = righe.length
-        s.storico_uid = da === 1 ? 0 : da - 1
+        if (Date.now() < inizio + LIMITE_MS) s.storico_uid = da === 1 ? 0 : da - 1
       }
 
       await rest('posta_stato?on_conflict=cartella', {

@@ -2,7 +2,9 @@
 // La chiama pg_cron ogni 5 minuti. Apre le cartelle in SOLA LETTURA: non segna niente come letto,
 // non sposta e non cancella. Poi allinea le conversazioni e annulla le bozze superate
 // (qualcuno ha già risposto o è arrivata una mail nuova nella stessa conversazione).
-// Storico: a ogni giro legge anche un pezzo di mail vecchie (scendendo), finché arriva all'inizio.
+// Legge tutte le cartelle (anche l'archivio per cliente/cantiere), tranne cestino, spam e bozze:
+// il percorso della cartella si salva in posta.cartella_imap e aiuta l'agente a trovare cliente e cantiere.
+// Storico: a ogni giro legge anche pezzi di mail vecchie (scendendo), finché arriva all'inizio.
 // Per stare nei limiti della funzione (poco calcolo) si scarica solo il testo della mail:
 // gli allegati restano nella casella, qui si salvano solo nome, tipo e peso.
 import { ImapFlow } from 'npm:imapflow@1.0.171'
@@ -12,10 +14,11 @@ const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const COPIA_TOKEN = Deno.env.get('COPIA_TOKEN')
 const UTENTE = 'f220cb9e-6628-4fd4-b2ef-f7e5f49d9a54'
 const IO = 'info@homeconcepts.ch'
-const CARTELLE: [string, 'arrivata' | 'inviata'][] = [['INBOX', 'arrivata'], ['Sent', 'inviata']]
+const ESCLUSE = /^(Trash|spam|Junk|Drafts)(\/|$)/i
 const PEZZO_NUOVE = 60     // mail nuove per cartella e per giro
-const PEZZO_STORICO = 40   // mail vecchie per cartella e per giro
-const LIMITE_MS = 110000   // poi si ferma e riprende al giro dopo
+const PEZZO_STORICO = 20   // mail vecchie per pezzo
+type Stato = { cartella: string, uidvalidity: number, ultimo_uid: number, storico_uid: number | null }
+const LIMITE_MS = 60000    // poi si ferma e riprende al giro dopo (la funzione ha poco calcolo)
 
 const sbHeaders = { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json' }
 async function rest(percorso: string, init: RequestInit = {}) {
@@ -52,14 +55,14 @@ function parti(n: Nodo | undefined, out = { testo: '', html: '', allegati: [] as
 }
 
 async function scarica(client: ImapFlow, uid: number, parte: string) {
-  const { content } = await client.download(String(uid), parte, { uid: true, maxBytes: 150000 })
+  const { content } = await client.download(String(uid), parte, { uid: true, maxBytes: 60000 })
   const pezzi: Uint8Array[] = []
   for await (const p of content) pezzi.push(typeof p === 'string' ? new TextEncoder().encode(p) : p)
   return new TextDecoder().decode(await new Blob(pezzi).arrayBuffer())
 }
 
 // Legge un blocco di mail: prima busta e struttura (leggere), poi solo la parte di testo di ognuna.
-async function leggiBlocco(client: ImapFlow, da: number, a: number, cartella: 'arrivata' | 'inviata', fino: number) {
+async function leggiBlocco(client: ImapFlow, da: number, a: number, percorso: string, fino: number) {
   const msgs = await client.fetchAll(`${da}:${a}`, { uid: true, envelope: true, bodyStructure: true, headers: ['references'] }, { uid: true })
   const righe = []
   for (const m of msgs) {
@@ -70,23 +73,31 @@ async function leggiBlocco(client: ImapFlow, da: number, a: number, cartella: 'a
       let testo = ''
       if (p.testo) testo = await scarica(client, m.uid, p.testo)
       else if (p.html) testo = daHtml(await scarica(client, m.uid, p.html))
-      const id = pulisciId(e.messageId) || `uid-${cartella}-${m.uid}@${IO}`
+      const id = pulisciId(e.messageId) || `uid-${percorso}-${m.uid}@${IO}`
       const rif = listaId(m.headers ? new TextDecoder().decode(m.headers) : '')
       const risponde = listaId(e.inReplyTo)[0] || null
+      const mia = indirizzo(e.from?.[0]) === IO
       righe.push({
-        message_id: id, utente_id: UTENTE, area: 'G', cartella,
+        message_id: id, utente_id: UTENTE, area: 'G', cartella: mia ? 'inviata' : 'arrivata', cartella_imap: percorso,
         thread_key: rif[0] || risponde || id, in_reply_to: risponde, riferimenti: rif,
         da: indirizzo(e.from?.[0]), da_nome: e.from?.[0]?.name || null, a: indirizzi(e.to), cc: indirizzi(e.cc),
         oggetto: e.subject || null, data: e.date ? new Date(e.date).toISOString() : null,
         testo: testo.slice(0, 60000), allegati: p.allegati, fonte: 'imap', imap_uid: m.uid,
       })
-    } catch (_) { /* mail illeggibile: si salta */ }
+    } catch (e) {
+      // Mail illeggibile: si salta, ma si conta (e si tiene il primo errore per capire).
+      errori.n++
+      errori.primo ||= `uid ${m.uid}: ${String((e as Error)?.message || e).slice(0, 200)}`
+    }
   }
   return righe
 }
+const errori = { n: 0, primo: '' }
 
 // Salva: se la mail c'era già (copiata dal gestionale) aggiorna i campi della casella e tiene cliente/cantiere/nota.
-async function salva(righe: Record<string, unknown>[]) {
+async function salva(tutte: Record<string, unknown>[]) {
+  // La stessa mail può stare due volte nella stessa cartella: una sola riga per message_id.
+  const righe = [...new Map(tutte.map((r) => [r.message_id, r])).values()]
   for (let i = 0; i < righe.length; i += 100) {
     await rest('posta?on_conflict=message_id', {
       method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
@@ -108,48 +119,63 @@ async function leggi() {
     logger: false, emitLogs: false, connectionTimeout: 20000, greetingTimeout: 15000, socketTimeout: 60000,
   })
   await client.connect()
-  const esito: Record<string, unknown> = {}
+  const esito: Record<string, unknown> = { nuove: 0, vecchie: 0, cartelle_lette: 0, storico_da_finire: 0 }
+  const tempo = () => Date.now() - inizio
   try {
-    for (const [cartella, tipo] of CARTELLE) {
-      const box = await client.mailboxOpen(cartella, { readOnly: true })
-      const validity = Number(box.uidValidity)
-      let s = stati.get(cartella)
-      if (!s || Number(s.uidvalidity) !== validity) s = { cartella, uidvalidity: validity, ultimo_uid: 0, storico_uid: null }
-      const prossimo = Number(box.uidNext) - 1
-      let nuove = 0, vecchie = 0
+    // Tutte le cartelle (Giovanni archivia per cliente e cantiere: Archive/CLIENTI/<cliente>/<O0…>),
+    // tranne cestino, spam e bozze. STATUS dice subito se ci sono mail nuove, senza aprire la cartella.
+    const cartelle = (await client.list({ statusQuery: { uidNext: true, uidValidity: true, messages: true } }))
+      .filter((b) => b.status && !ESCLUSE.test(b.path) && !b.flags?.has('\\Noselect'))
+    // Prima INBOX e Inviata, poi le altre.
+    cartelle.sort((x, y) => Number(!/^(INBOX|Sent)$/.test(x.path)) - Number(!/^(INBOX|Sent)$/.test(y.path)))
 
-      // Prima volta: si parte dalle ultime e lo storico scende da lì.
-      if (!s.ultimo_uid) { s.ultimo_uid = Math.max(0, prossimo - PEZZO_NUOVE); s.storico_uid = s.ultimo_uid }
+    const salvaStato = (s: Stato) => rest('posta_stato?on_conflict=cartella', {
+      method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ ...s, modificata_il: new Date().toISOString() }),
+    })
 
-      // 1) Mail nuove.
-      if (prossimo > s.ultimo_uid && box.exists > 0) {
-        const fino = Math.min(prossimo, s.ultimo_uid + PEZZO_NUOVE)
-        const righe = await leggiBlocco(client, s.ultimo_uid + 1, fino, tipo, inizio + LIMITE_MS)
-        await salva(righe)
-        nuove = righe.length
-        // Se il tempo è finito a metà, si riparte dall'ultima letta.
-        const completo = Date.now() < inizio + LIMITE_MS
-        s.ultimo_uid = completo ? fino : Math.max(s.ultimo_uid, ...righe.map((r) => r.imap_uid))
+    // 1) Mail nuove in tutte le cartelle.
+    const daStorico: [typeof cartelle[number], Stato][] = []
+    for (const b of cartelle) {
+      const validity = Number(b.status!.uidValidity)
+      const prossimo = Number(b.status!.uidNext) - 1
+      let s = stati.get(b.path) as Stato | undefined
+      // Cartella mai vista: tutto quello che c'è è storico, si legge un pezzo alla volta.
+      if (!s || Number(s.uidvalidity) !== validity) {
+        s = { cartella: b.path, uidvalidity: validity, ultimo_uid: prossimo, storico_uid: b.status!.messages ? prossimo : 0 }
+        await salvaStato(s)
       }
-
-      // 2) Un pezzo di storico, se c'è tempo (se non finisce, al giro dopo si rilegge lo stesso pezzo).
-      if (s.storico_uid && s.storico_uid > 0 && Date.now() - inizio < LIMITE_MS / 2) {
-        const da = Math.max(1, s.storico_uid - PEZZO_STORICO + 1)
-        const righe = await leggiBlocco(client, da, s.storico_uid, tipo, inizio + LIMITE_MS)
-        await salva(righe)
-        vecchie = righe.length
-        if (Date.now() < inizio + LIMITE_MS) s.storico_uid = da === 1 ? 0 : da - 1
-      }
-
-      await rest('posta_stato?on_conflict=cartella', {
-        method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify({ cartella, uidvalidity: validity, ultimo_uid: s.ultimo_uid, storico_uid: s.storico_uid, modificata_il: new Date().toISOString() }),
-      })
-      esito[cartella] = { nuove, vecchie, storico_fino_uid: s.storico_uid }
+      if (s.storico_uid) daStorico.push([b, s])
+      if (prossimo <= s.ultimo_uid || tempo() > LIMITE_MS) continue
+      await client.mailboxOpen(b.path, { readOnly: true })
+      const fino = Math.min(prossimo, s.ultimo_uid + PEZZO_NUOVE)
+      const righe = await leggiBlocco(client, s.ultimo_uid + 1, fino, b.path, inizio + LIMITE_MS)
+      await salva(righe)
+      esito.nuove = Number(esito.nuove) + righe.length
+      esito.cartelle_lette = Number(esito.cartelle_lette) + 1
+      // Se il tempo è finito a metà, si riparte dall'ultima letta.
+      s.ultimo_uid = tempo() < LIMITE_MS ? fino : Math.max(s.ultimo_uid, ...righe.map((r) => r.imap_uid))
+      await salvaStato(s)
     }
+
+    // 2) Storico, cartella per cartella, finché c'è tempo (un pezzo non finito si rilegge al giro dopo).
+    for (const [b, s] of daStorico) {
+      if (tempo() > LIMITE_MS * 0.5) break
+      await client.mailboxOpen(b.path, { readOnly: true })
+      while (s.storico_uid && tempo() < LIMITE_MS * 0.5) {
+        const da = Math.max(1, s.storico_uid - PEZZO_STORICO + 1)
+        const righe = await leggiBlocco(client, da, s.storico_uid, b.path, inizio + LIMITE_MS)
+        await salva(righe)
+        esito.vecchie = Number(esito.vecchie) + righe.length
+        if (tempo() < LIMITE_MS) s.storico_uid = da === 1 ? 0 : da - 1
+        await salvaStato(s)
+      }
+    }
+    esito.storico_da_finire = daStorico.filter(([, s]) => s.storico_uid).length
   } finally {
     await client.logout().catch(() => client.close())
   }
+  if (errori.n) esito.errori = { ...errori }
   esito.thread_allineati = await rpc('posta_allinea_thread')
   esito.bozze_annullate = await rpc('annulla_bozze_superate')
   return esito
@@ -158,6 +184,16 @@ async function leggi() {
 Deno.serve(async (req: Request) => {
   if (!COPIA_TOKEN || req.headers.get('x-copia-token') !== COPIA_TOKEN) {
     return new Response('Non autorizzato', { status: 401 })
+  }
+  // Solo per controllo: elenco delle cartelle della casella con il numero di mail (non legge le mail).
+  if ((await req.clone().json().catch(() => ({})))?.cartelle) {
+    const c = new ImapFlow({ host: 'imap.mail.hostpoint.ch', port: 993, secure: true, logger: false,
+      auth: { user: Deno.env.get('GC_MAIL_USER') || IO, pass: Deno.env.get('GC_MAIL_PASSWORD') || '' } })
+    await c.connect()
+    const elenco = []
+    for (const b of await c.list({ statusQuery: { messages: true } })) elenco.push({ cartella: b.path, mail: b.status?.messages, uso: b.specialUse })
+    await c.logout()
+    return new Response(JSON.stringify(elenco), { headers: { 'Content-Type': 'application/json' } })
   }
   const iniziata_il = new Date().toISOString()
   let esito

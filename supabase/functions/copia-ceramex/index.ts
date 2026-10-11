@@ -9,6 +9,11 @@ const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const CERAMEX_DB_URL = Deno.env.get('CERAMEX_DB_URL')
 const COPIA_TOKEN = Deno.env.get('COPIA_TOKEN')
 const UTENTE = 'f220cb9e-6628-4fd4-b2ef-f7e5f49d9a54'
+// La scheda "G&C" del gestionale Ceramex raccoglie vendite G&C: qui quelle note vanno nell'area G&C
+// (scheda di parcheggio "G&C" dell'area G), poi l'agente G&C le sposta nella scheda del cliente giusto.
+// Le note già spostate in G&C non si toccano più (decisione di Giovanni, 12.10.2026).
+const CERAMEX_GC = '2a1997af-facc-4fc2-a611-0f3917256ada'
+const PARCHEGGIO_G = '823be55a-9f6b-4a48-b518-5f7d4f4c2081'
 
 const sbHeaders = { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json' }
 
@@ -60,15 +65,22 @@ async function copia() {
   }
   const [clienti, note, tutteIds, regole, viste] = dati
 
-  await upsert('aziende', clienti.map((c) => ({
+  await upsert('aziende', clienti.filter((c) => c.id !== CERAMEX_GC).map((c) => ({
     id: c.id, utente_id: UTENTE, area: 'C', nome: c.nome, ragione_sociale: c.azienda,
     email: c.email, domini: c.domini, contatti: c.persone, gruppo_id: c.gruppo_id, unito_in: c.unito_in,
     creata_il: c.creato_il, modificata_il: c.aggiornato_il,
   })))
 
-  await upsert('note', note.map((n) => ({
-    id: n.id, utente_id: UTENTE, area: 'C', testo: n.testo, fonte: n.fonte === 'mano' ? 'scritta' : n.fonte,
-    azienda_id: n.cliente_id, mandante: n.mandante, sezione: n.sezione, data: n.data, contatto: n.persona,
+  // Note già passate in G&C: restano come le ha sistemate l'agente G&C.
+  const inG = new Set<string>()
+  for (let i = 0; i < note.length; i += 150) {
+    const ids = note.slice(i, i + 150).map((n) => n.id).join(',')
+    const t = await rest(`note?select=id&area=eq.G&id=in.(${ids})`) as { id: string }[]
+    t.forEach((x) => inG.add(x.id))
+  }
+  await upsert('note', note.filter((n) => !inG.has(n.id)).map((n) => ({
+    id: n.id, utente_id: UTENTE, area: n.cliente_id === CERAMEX_GC ? 'G' : 'C', testo: n.testo, fonte: n.fonte === 'mano' ? 'scritta' : n.fonte,
+    azienda_id: n.cliente_id === CERAMEX_GC ? PARCHEGGIO_G : n.cliente_id, mandante: n.mandante, sezione: n.sezione, data: n.data, contatto: n.persona,
     risolto_il: n.risolto_il, scartata_il: n.scartata_il, thread_id: n.thread_id, message_id: n.message_id,
     testo_agente: n.testo_agente, sezione_agente: n.sezione_agente, imparata: n.imparata,
     creata_il: n.creato_il, modificata_il: n.aggiornato_il,

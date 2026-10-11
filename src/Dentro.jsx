@@ -14,6 +14,7 @@ export function Dentro({ inbox }) {
       <h1>Dentro</h1>
       <div className="elenco">
         <Voce href="#/inbox" titolo="Inbox" dettaglio={inbox ? `${inbox} da smistare` : 'vuota'} />
+        <Voce href="#/aziende" titolo="Aziende" dettaglio="Schede clienti con le note" />
         <Voce href="#/persone" titolo="Persone" />
         <Voce href="#/note" titolo="Tutte le note" />
         <Voce href="#/cestino" titolo="Cestino" dettaglio="30 giorni" />

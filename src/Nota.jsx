@@ -4,8 +4,9 @@ import {
   useApp, useCarica, chk, messaggioErrore, Stato, Indietro, SceltaArea, SceltaPersone, Icona,
   caricaFoto, aggiungiAreaPersone,
 } from './componenti'
+import { nomeSezione } from './Aziende'
 
-const FONTI = { scritta: 'Scritta', voce: 'Dettata', foto: 'Foto', condivisa: 'Condivisa' }
+const FONTI = { scritta: 'Scritta', voce: 'Dettata', foto: 'Foto', condivisa: 'Condivisa', mail: 'Da mail' }
 
 export default function Nota({ id }) {
   const { avvisa, utente } = useApp()
@@ -17,7 +18,7 @@ export default function Nota({ id }) {
 
   const { dati, errore, carica, ricarica } = useCarica(async () => chk(
     await sb.from('note')
-      .select('*,note_persone(persone(id,nome,cognome)),allegati(id,percorso),promemoria(id,testo,scade_il,fatto_il,eliminata_il)')
+      .select('*,aziende(id,nome),note_persone(persone(id,nome,cognome)),allegati(id,percorso),promemoria(id,testo,scade_il,fatto_il,eliminata_il)')
       .eq('id', id).single(),
   ), [id])
 
@@ -109,6 +110,13 @@ export default function Nota({ id }) {
     <div className="schermata">
       <Indietro titolo={a ? a.nome : 'Inbox'} />
       <p className="nota-piccola">{FONTI[dati.fonte]} {quando(dati.creata_il, true)}</p>
+      {dati.aziende && (
+        <p className="nota-piccola">
+          <a href={`#/azienda/${dati.aziende.id}`}>{dati.aziende.nome}</a>
+          {[dati.mandante, nomeSezione[dati.sezione], dati.contatto].filter(Boolean).map((x) => ` · ${x}`)}
+          {dati.risolto_il && ` · risolto ${quando(dati.risolto_il)}`}
+        </p>
+      )}
 
       <textarea value={testo} onChange={(e) => setTesto(e.target.value)} rows={6} />
       {testo.trim() !== dati.testo && (

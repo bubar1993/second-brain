@@ -25,19 +25,21 @@ function giorno(d) {
 // "oggi 14:30", "ieri 09:10", "12 ott", "12 ott 14:30" (conOra)
 export function quando(iso, conOra = false) {
   if (!iso) return ''
-  const d = new Date(iso)
+  // "2026-10-09" (solo data, come le note clienti): niente ora.
+  const soloData = iso.length === 10
+  const d = new Date(soloData ? `${iso}T00:00` : iso)
   const ora = new Date()
   const diff = Math.round((giorno(d) - giorno(ora)) / 86400000)
-  const hh = d.toLocaleTimeString('it-CH', { hour: '2-digit', minute: '2-digit' })
-  if (diff === 0) return `oggi ${hh}`
-  if (diff === -1) return `ieri ${hh}`
-  if (diff === 1) return `domani ${hh}`
+  const hh = soloData ? '' : ' ' + d.toLocaleTimeString('it-CH', { hour: '2-digit', minute: '2-digit' })
+  if (diff === 0) return `oggi${hh}`
+  if (diff === -1) return `ieri${hh}`
+  if (diff === 1) return `domani${hh}`
   const data = d.toLocaleDateString('it-CH', {
     day: 'numeric',
     month: 'short',
     ...(d.getFullYear() !== ora.getFullYear() ? { year: 'numeric' } : {}),
   })
-  return conOra ? `${data} ${hh}` : data
+  return conOra ? `${data}${hh}` : data
 }
 
 // Differenza in giorni di calendario tra una data e oggi (negativa = passata).

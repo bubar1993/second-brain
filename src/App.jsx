@@ -8,6 +8,7 @@ import Chiedi from './Chiedi'
 import { Dentro, Inbox, ElencoNote, Cestino } from './Dentro'
 import { Persone, Persona } from './Persone'
 import Nota from './Nota'
+import { Aziende, Azienda } from './Aziende'
 
 export default function App({ condiviso }) {
   const [sessione, setSessione] = useState(undefined)
@@ -75,6 +76,8 @@ function Guscio({ utente, condiviso }) {
     case 'cestino': schermata = <Cestino />; break
     case 'persone': schermata = <Persone />; break
     case 'persona': schermata = <Persona key={secondo} id={secondo} />; break
+    case 'aziende': schermata = <Aziende />; break
+    case 'azienda': schermata = <Azienda key={secondo} id={secondo} />; break
     case 'nota': schermata = <Nota key={secondo} id={secondo} />; break
     default: schermata = <Oggi inbox={inbox} />
   }

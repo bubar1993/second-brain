@@ -232,6 +232,12 @@ main {
 .modulo input { color: var(--testo); font-weight: 400; font-size: 16px; }
 .due { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
+/* Aziende */
+.contatti summary { font-weight: 600; padding: 8px 0; cursor: pointer; }
+.sezione { display: flex; flex-direction: column; gap: 8px; }
+.sezione h3 { margin: 8px 0 0; }
+.sezione .riga-testo { -webkit-line-clamp: 4; }
+
 .promemoria-nota { display: flex; align-items: center; gap: 10px; color: var(--testo); font-weight: 400; }
 .promemoria-nota input { width: 22px; height: 22px; }
 .barrato { text-decoration: line-through; color: var(--tenue); }

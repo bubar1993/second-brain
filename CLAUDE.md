@@ -154,7 +154,7 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 4. Chiedi (Haiku + Sonnet).
 5. G&C ← IN CORSO (partita l'11.10.2026 sera, prima delle fasi 3-4, su richiesta di Giovanni). Vedi "G&C (fase 5)".
 6. Privato.
-7. WhatsApp. Parcheggiato: il canale ufficiale non legge le chat già esistenti e Giovanni (12.10) NON vuole WhatsApp Business. Alternativa possibile: esportare le chat (Esporta chat, senza media) e farle smistare a Claude.
+7. WhatsApp. Giovanni usa già l'app WhatsApp Business sul telefono e la VUOLE collegare (12.10). Strada: piattaforma ufficiale WhatsApp Business (Cloud API di Meta) in modalità "coesistenza": il numero resta nell'app del telefono e i messaggi arrivano anche al second brain; all'aggancio si possono importare contatti e storico recente (da verificare quanto). Account e verifiche su Meta li fa Giovanni. Da fare insieme dopo G&C.
 8. Rifiniture: senza rete, widget, scorciatoia vocale, foto cercabili.
 
 ## Primo passo

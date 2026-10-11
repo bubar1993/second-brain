@@ -1,6 +1,6 @@
 # Second Brain GF
 
-Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo aggiornamento: 11.10.2026.
+Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo aggiornamento: 11.10.2026 sera.
 
 ## Chi è Giovanni e come rispondergli
 - Giovanni Fabris, Manno (Ticino). Ha due società: **Ceramex SAGL** (agente di commercio: Marazzi/Ragno, Flaviker/ABK, Garbelotto, Profilitec) e **G&C Home Concepts Sagl** (forniture per interni).
@@ -20,7 +20,7 @@ Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo
 
 ## ATTENZIONE: cose da non rompere
 - Il connettore Supabase di claude.ai vede solo l'organizzazione "G&C Home Concepts & Ceramex". **Non va spostato.** Le attività programmate "Bozze mail Ceramex" (ore piene, mezz'ora, weekend) lo usano sul progetto Ceramex: se cambia, smettono di funzionare.
-- Gestionale Ceramex: progetto Supabase `nouxqowregwnyqlrvqqo`, cartella `Documenti\ceramex`.
+- Gestionale Ceramex: progetto Supabase `nouxqowregwnyqlrvqqo`, cartella `Documenti\ceramex`. Il codice dell'app Ceramex non è sul PC (solo l'app pubblicata e il repo GitHub `bubar1993/ceramex-app`). Nel gestionale c'è l'utente di sola lettura `brain_lettore` (creato l'11.10.2026 con l'ok di Giovanni): legge solo `clienti`, `note_clienti`, `note_regole`, `note_mail_viste` per la copia automatica. Non dargli altri permessi.
 - Gestionale G&C: progetto Supabase `hnpesqsteytwfgrsrygn`, cartella `Documenti\gchomeconcepts`.
 - I gestionali si **leggono** soltanto. Non si modificano senza l'ok di Giovanni.
 - Sul PC girano programmi che non vanno toccati: il lettore mail e il portale Marazzi (`lettore.mjs`, `portale.mjs` del gestionale Ceramex).
@@ -54,6 +54,9 @@ Intelligenza artificiale (dettagli da decidere prima della fase 4):
 
 ### Struttura dell'app
 - **Stile (scelto da Giovanni l'11.10.2026): "rete neurale".** Fondo spaziale scuro, vetro, Instrument Serif corsivo per i titoli e Geist per il testo, aree in tinte chiare (C #5b93ff, G #34d58a, P #ff8f45). In Oggi c'è la rete 3D animata (`src/Rete.jsx`): promemoria = neuroni, poi note e clienti recenti; si gira col dito e si ferma quando non si vede. Le altre schermate solo vestite; gli effetti speciali si aggiungono uno alla volta. Brief e bozze Superdesign in `.superdesign/`.
+- **Sul PC** (schermo da 1024 px in su): menu a sinistra al posto dei 3 tasti, Oggi su due colonne, Aziende divise (elenco a sinistra, scheda a destra). Sul telefono non cambia niente.
+- **Chiedi** trova i clienti mentre scrivi (nome, ragione sociale, email, persone).
+- **Agenti di sola lettura** in `.claude/agents/`: `gestionale-ceramex` e `gestionale-gc`, da usare quando serve guardare i gestionali.
 - Interruttore in alto: un'area sola oppure tutte.
 - **Persone come diagramma a cerchi:** chi sta in più aree sta nell'intersezione. Ogni nota resta però nella sua area: le cose private non finiscono mai nella scheda cliente, anche se la persona è un cliente.
 - **Inbox:** il cassetto per le cose buttate dentro di corsa. Le smista l'agente oppure Giovanni.
@@ -135,7 +138,7 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 
 ## Fasi
 1. **Base** — FATTA (11.10.2026): progetto Supabase, app installabile, 3 tasti, tre aree, Inbox, Persone, accesso con volto/impronta. Il backup su Drive è stato spostato a inizio fase 2 (decisione di Giovanni): finora bastano i backup giornalieri di Supabase Pro (7 giorni, senza foto).
-2. Trasloco note Ceramex ← IN CORSO. Backup su Google Drive FATTO (11.10.2026): funzione `backup` ogni domenica notte → Drive giovannifabris@ceramex.ch, cartella BRAIN/Backup (dati e struttura tenuti 90 giorni, foto nuove in Foto/). Collegamento Google: client OAuth "Second Brain backup" nel progetto Google Cloud "Ceramex Gestionale". Esito in `backup_registro`; se fallisce l'app lo dice in Oggi. Tappa 1 FATTA (11.10.2026): copiate 75 schede (`aziende`, contatti dentro la scheda), 1'438 note (`note` con azienda_id, mandante, sezione…), 8 regole (`regole_agenti`), mail viste (`mail_viste`); stessi id del gestionale, quindi la copia si può rifare senza doppioni. Nell'app: Dentro → Aziende. Fino allo switch le note clienti si correggono nel gestionale Ceramex. Prossimo: tappa 2 (agente note che scrive nel second brain).
+2. Trasloco note Ceramex ← IN CORSO. Backup su Google Drive FATTO (11.10.2026): funzione `backup` ogni domenica notte → Drive giovannifabris@ceramex.ch, cartella BRAIN/Backup (dati e struttura tenuti 90 giorni, foto nuove in Foto/). Collegamento Google: client OAuth "Second Brain backup" nel progetto Google Cloud "Ceramex Gestionale". Esito in `backup_registro`; se fallisce l'app lo dice in Oggi. Tappa 1 FATTA (11.10.2026): copiate 75 schede (`aziende`, contatti dentro la scheda), 1'438 note (`note` con azienda_id, mandante, sezione…), 8 regole (`regole_agenti`), mail viste (`mail_viste`); stessi id del gestionale, quindi la copia si può rifare senza doppioni. Nell'app: Dentro → Aziende (fatta come nell'app Ceramex: mandanti, sezioni, filiali, vista per sezione o per data; per ora solo lettura). Fino allo switch le note clienti si correggono nel gestionale Ceramex. Tappa 2 FATTA (11.10.2026): copia automatica ogni 10 minuti. Le routine "Bozze mail" restano invariate e scrivono in Ceramex; la funzione `copia-ceramex` (pg_cron, token `copia_token` nel Vault, segreti `CERAMEX_DB_URL` e `COPIA_TOKEN`) legge Ceramex con `brain_lettore` e copia schede, note, regole e mail viste (stessi id); le note sparite da Ceramex vanno nel cestino. Esito in `copia_registro`; Oggi avvisa se fallisce o è ferma da più di un'ora. Password e token si rifanno con `node scripts/collega-ceramex.mjs` (poi va reimpostato l'hash in Ceramex). **Da riguardare con Giovanni (sua richiesta):** come far scrivere l'agente note direttamente nel second brain e lo switch (tappa 3). Parcheggiati: link "dalla mail" verso Spark; cambiare la chiave segreta Ceramex che sta in `Documenti\ceramex\reader\.env.example`.
 3. Calendario.
 4. Chiedi (Haiku + Sonnet).
 5. G&C.

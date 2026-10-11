@@ -43,18 +43,20 @@ async function copia() {
   const [ultima] = await rest('copia_registro?select=iniziata_il&ok=eq.true&order=id.desc&limit=1') as { iniziata_il: string }[]
   const da = ultima ? new Date(new Date(ultima.iniziata_il).getTime() - 10 * 60000).toISOString() : '1970-01-01T00:00:00Z'
 
-  const sql = postgres(CERAMEX_DB_URL!, { prepare: false, max: 1, ssl: 'require', connect_timeout: 15, idle_timeout: 5 })
+  const sql = postgres(CERAMEX_DB_URL!, { prepare: false, max: 1, connect_timeout: 15, idle_timeout: 5 })
   let dati
   try {
-    dati = await Promise.all([
-      sql`select * from clienti`,
-      sql`select * from note_clienti where aggiornato_il > ${da}`,
-      sql`select id from note_clienti`,
-      sql`select * from note_regole`,
-      sql`select * from note_mail_viste where visto_il > ${da}`,
-    ])
+    // Se Ceramex non risponde, meglio un errore chiaro nel registro che restare appesi.
+    const scaduto = new Promise<never>((_, no) => setTimeout(() => no(new Error('Ceramex non risponde (40 s)')), 40000))
+    dati = await Promise.race([scaduto, (async () => [
+      await sql`select * from clienti`,
+      await sql`select * from note_clienti where aggiornato_il > ${da}`,
+      await sql`select id from note_clienti`,
+      await sql`select * from note_regole`,
+      await sql`select * from note_mail_viste where visto_il > ${da}`,
+    ])()])
   } finally {
-    await sql.end({ timeout: 5 })
+    sql.end({ timeout: 2 }).catch(() => {})
   }
   const [clienti, note, tutteIds, regole, viste] = dati
 

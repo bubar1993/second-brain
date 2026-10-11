@@ -1,0 +1,9 @@
+{
+  // App Second Brain: solo file statici (cartella dist), pubblicati come Worker.
+  "name": "second-brain",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}

@@ -47,6 +47,7 @@ export default function Oggi({ inbox }) {
       <h1 className="data-oggi">{titolo}</h1>
 
       <AttivaImpronta />
+      <AvvisoBackup />
 
       {inbox > 0 && (
         <a className="scheda scheda-inbox" href="#/inbox">
@@ -98,6 +99,30 @@ function Gruppo({ titolo, righe, fatto, ritardo }) {
         })}
       </div>
     </>
+  )
+}
+
+// Avviso se l'ultimo backup su Drive non è riuscito o è troppo vecchio (si fa ogni domenica).
+function AvvisoBackup() {
+  const [ultimo, setUltimo] = useState(null)
+
+  useEffect(() => {
+    sb.from('backup_registro').select('eseguito_il,ok').order('id', { ascending: false }).limit(1)
+      .then(({ data }) => setUltimo(data?.[0] || null))
+  }, [])
+
+  if (!ultimo) return null
+  const vecchio = giorniDaOggi(ultimo.eseguito_il) < -9
+  if (ultimo.ok && !vecchio) return null
+  return (
+    <div className="scheda scheda-allarme">
+      <p>
+        {ultimo.ok
+          ? `Il backup su Drive non parte da più di una settimana (ultimo: ${quando(ultimo.eseguito_il)}).`
+          : `Il backup su Drive non è riuscito (${quando(ultimo.eseguito_il)}).`}
+        {' '}Dillo a Claude.
+      </p>
+    </div>
   )
 }
 

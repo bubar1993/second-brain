@@ -83,7 +83,7 @@ async function copia() {
     azienda_id: n.cliente_id === CERAMEX_GC ? PARCHEGGIO_G : n.cliente_id, mandante: n.mandante, sezione: n.sezione, data: n.data, contatto: n.persona,
     risolto_il: n.risolto_il, scartata_il: n.scartata_il, thread_id: n.thread_id, message_id: n.message_id,
     testo_agente: n.testo_agente, sezione_agente: n.sezione_agente, imparata: n.imparata,
-    creata_il: n.creato_il, modificata_il: n.aggiornato_il,
+    creata_il: n.creato_il, modificata_il: n.aggiornato_il, da_ceramex: true,
   })))
 
   await upsert('regole_agenti', regole.map((g) => ({
@@ -96,9 +96,10 @@ async function copia() {
     esito: v.esito, motivo: v.motivo, vista_il: v.visto_il,
   })), 'message_id')
 
-  // Note cancellate nel gestionale: qui vanno nel cestino (per ora tutte le note clienti vengono da Ceramex).
+  // Note cancellate nel gestionale: qui vanno nel cestino. Solo quelle arrivate da Ceramex:
+  // le note scritte o dettate nell'app non si toccano.
   const inCeramex = new Set(tutteIds.map((r) => r.id as string))
-  const qui = await tutteLeRighe('note?select=id&azienda_id=not.is.null&area=eq.C&eliminata_il=is.null&order=id')
+  const qui = await tutteLeRighe('note?select=id&da_ceramex=is.true&area=eq.C&eliminata_il=is.null&order=id')
   const sparite = qui.map((r) => r.id as string).filter((id) => !inCeramex.has(id))
   for (let i = 0; i < sparite.length; i += 100) {
     await rest(`note?id=in.(${sparite.slice(i, i + 100).join(',')})`, {

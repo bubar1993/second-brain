@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { sb, AREE, areaDa, nomePersona, quando } from './supabase'
+import { sb, AREE, areaDa, nomePersona, quando, CAMPI_PERSONA, etichettePersona } from './supabase'
 
 // Stato condiviso: area scelta, utente, avvisi.
 export const AppCtx = createContext(null)
@@ -65,6 +65,7 @@ const PERCORSI = {
   campana: 'M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zM10 21h4',
   x: 'M6 6l12 12M18 6 6 18',
   freccia: 'M9 5l7 7-7 7',
+  domande: 'M12 21a9 9 0 1 0-8-4.9L3 21l4.9-1A9 9 0 0 0 12 21zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.2M12 16.5v.01',
 }
 
 export function Icona({ nome, size = 22 }) {
@@ -127,7 +128,7 @@ export function SceltaPersone({ valore, onChange }) {
     if (!parole.length || testo.trim().length < 2) { setTrovate([]); return }
     let annullato = false
     const t = setTimeout(async () => {
-      let q = sb.from('persone').select('id,nome,cognome').is('eliminata_il', null).order('nome').limit(6)
+      let q = sb.from('persone').select(CAMPI_PERSONA).is('eliminata_il', null).order('nome').limit(8)
       for (const p of parole) q = q.or(`nome.ilike.%${p}%,cognome.ilike.%${p}%`)
       const { data } = await q
       if (!annullato) setTrovate((data || []).filter((p) => !valore.some((v) => v.id === p.id)))
@@ -154,7 +155,7 @@ export function SceltaPersone({ valore, onChange }) {
         <div className="chips">
           {valore.map((p) => (
             <span key={p.id} className="chip attivo">
-              {nomePersona(p)}
+              <a href={`#/persona/${p.id}`}>{nomePersona(p)}</a>
               <button type="button" aria-label={`Togli ${nomePersona(p)}`}
                 onClick={() => onChange(valore.filter((v) => v.id !== p.id))}>
                 <Icona nome="x" size={14} />
@@ -169,13 +170,28 @@ export function SceltaPersone({ valore, onChange }) {
         <div className="tendina">
           {trovate.map((p) => (
             <button key={p.id} type="button" onClick={() => { onChange([...valore, p]); setTesto('') }}>
-              {nomePersona(p)}
+              {nomePersona(p)} <EtichettePersona p={p} tra />
             </button>
           ))}
           <button type="button" className="crea" onClick={crea}>+ Nuova persona «{testo.trim()}»</button>
         </div>
       )}
     </div>
+  )
+}
+
+// "(Ceramex, Gaffuri · Privato)": dove sta una persona, ogni area nel suo colore.
+export function EtichettePersona({ p, tra = false }) {
+  const voci = etichettePersona(p)
+  if (!voci.length) return null
+  return (
+    <span className="etichette-persona">
+      {tra && '('}
+      {voci.map((v, i) => (
+        <span key={v.area.codice} style={{ color: v.area.colore }}>{i > 0 && ' · '}{v.testo}</span>
+      ))}
+      {tra && ')'}
+    </span>
   )
 }
 

@@ -1,18 +1,22 @@
-// Porta del database per l'agente G&C (routine Claude in cloud).
-// Esegue l'SQL ricevuto come utente "agente_gc": vede e scrive SOLO l'area G
-// (niente Privato, niente Ceramex, niente cancellazioni: lo garantiscono i permessi del database).
+// Porta del database per gli agenti (routine Claude in cloud).
+// Esegue l'SQL ricevuto con l'utente del database legato al token:
+// - AGENTE_TOKEN → "agente_gc": vede e scrive SOLO l'area G (mail G&C);
+// - AGENTE_TOKEN_LAVORO → "agente_lavoro": note Ceramex e G&C + smistamento dell'Inbox;
+// - AGENTE_TOKEN_PRIVATO → "agente_privato": solo il Privato.
+// Cosa vede e scrive ognuno lo garantiscono i permessi del database (niente cancellazioni di note).
 // Uso: POST con header x-agente-token e l'SQL nel corpo (testo semplice o JSON {"sql": "..."}).
 import postgres from 'npm:postgres@3.4.5'
 
-const AGENTE_TOKEN = Deno.env.get('AGENTE_TOKEN')
-const AGENTE_DB_URL = Deno.env.get('AGENTE_DB_URL')
+const PORTE = ['', '_LAVORO', '_PRIVATO']
+  .map((s) => ({ token: Deno.env.get(`AGENTE_TOKEN${s}`), url: Deno.env.get(`AGENTE_DB_URL${s}`) }))
+  .filter((p) => p.token && p.url)
 const MASSIMO = 300000 // caratteri di risposta
 
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return new Response('Usa POST', { status: 405 })
-  if (!AGENTE_TOKEN || req.headers.get('x-agente-token') !== AGENTE_TOKEN) {
-    return new Response('Non autorizzato', { status: 401 })
-  }
+  const dato = req.headers.get('x-agente-token')
+  const porta = dato ? PORTE.find((p) => p.token === dato) : undefined
+  if (!porta) return new Response('Non autorizzato', { status: 401 })
   const corpo = await req.text()
   let query = corpo
   if ((req.headers.get('content-type') || '').includes('json')) {
@@ -20,7 +24,7 @@ Deno.serve(async (req: Request) => {
   }
   if (!query?.trim()) return new Response('SQL vuoto', { status: 400 })
 
-  const sql = postgres(AGENTE_DB_URL!, { prepare: false, max: 1, connect_timeout: 15, idle_timeout: 5 })
+  const sql = postgres(porta.url!, { prepare: false, max: 1, connect_timeout: 15, idle_timeout: 5 })
   try {
     const res = await sql.unsafe(query)
     let testo = JSON.stringify(res)

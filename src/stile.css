@@ -500,3 +500,30 @@ a.riga:active, button.riga:active { background: rgba(255, 255, 255, 0.04); }
   .aggiungi .anello, .aggiungi .alone, .riga-promemoria.lampo, .avviso { animation: none; }
   .interruttore .cursore, .voce-promemoria, .riga-promemoria .spunta, .riga-promemoria .spunta svg { transition: none; }
 }
+
+/* ---------- Persone: schede, etichette, domande ---------- */
+.etichette-persona { font-size: 13px; font-weight: 500; }
+.tendina .etichette-persona { margin-left: 4px; }
+.chip a { color: inherit; }
+.link-persona { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--grigio); }
+.scheda-domande { background: linear-gradient(90deg, rgba(91, 147, 255, 0.14), rgba(91, 147, 255, 0.02)); border-color: rgba(91, 147, 255, 0.28); }
+.scheda-domande strong { color: var(--blu); }
+.persona-chi { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 0; color: var(--tenue); }
+.persona-chi a { color: var(--c); font-weight: 600; }
+.contatti-persona { display: flex; flex-wrap: wrap; gap: 8px; }
+.selezionabile { user-select: text; overflow-wrap: anywhere; }
+.riassunto-persona { padding: 4px 16px 14px; border-radius: var(--raggio); background: var(--superficie); border: 1px solid color-mix(in srgb, var(--c) 30%, transparent); }
+.riassunto-persona h2 { border-top: 0; color: var(--c); }
+.voce-riassunto h3 { margin: 6px 0 2px; font-size: 13px; font-weight: 600; color: var(--tenue); font-family: var(--sans); font-style: normal; }
+.voce-riassunto p { margin: 0; white-space: pre-line; }
+.voce-riassunto.in-evidenza p { color: var(--giallo); }
+.chat-breve { display: flex; flex-direction: column; gap: 6px; }
+.fumetto { margin: 0; max-width: 85%; padding: 8px 12px; border-radius: 14px; background: var(--superficie); border: 1px solid var(--bordo); overflow-wrap: anywhere; }
+.fumetto.mio { align-self: flex-end; background: rgba(52, 213, 138, 0.12); border-color: rgba(52, 213, 138, 0.25); }
+.fumetto .riga-meta { display: block; font-size: 11px; }
+.apri-dati { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding-left: 0; }
+.domande { display: flex; flex-direction: column; gap: 12px; }
+.domanda { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: var(--raggio); background: var(--superficie); border: 1px solid color-mix(in srgb, var(--c) 30%, transparent); }
+.domanda p { margin: 0; }
+.domanda-testo { font-size: 17px; font-weight: 600; }
+.domanda .riga-campo input { flex: 1; min-width: 0; }

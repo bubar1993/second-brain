@@ -1,6 +1,6 @@
 # Second Brain GF
 
-Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo aggiornamento: 12.10.2026 notte.
+Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo aggiornamento: 12.10.2026 notte (schede persona, agenti delle note, WhatsApp).
 
 ## Chi è Giovanni e come rispondergli
 - Giovanni Fabris, Manno (Ticino). Ha due società: **Ceramex SAGL** (agente di commercio: Marazzi/Ragno, Flaviker/ABK, Garbelotto, Profilitec) e **G&C Home Concepts Sagl** (forniture per interni).
@@ -134,6 +134,17 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 - Funziona su più aree insieme e cerca per significato.
 - Ogni risposta ha il link alla fonte.
 
+### Schede persona e agenti delle note (12.10.2026 notte, ok di Giovanni)
+- **Schede persona** (`#/persona/<id>`): chi è, ditte, contatti (Chiama/WhatsApp/mail), riassunto per area scritto dagli agenti (`persone_riassunti`: da chiedere, cose aperte, ultimo contatto, chi è, come parlarle), promemoria, note, mail G&C, WhatsApp. I nomi nelle schede aziende e nelle note si toccano per aprirla. Nella ricerca persone c'è area e ditta: "David (Ceramex, Gaffuri)". Una persona è UNA riga anche se sta in più aree; le note restano nella loro area.
+- Le persone nascono dai contatti delle schede aziende: `sincronizza_persone()` (pg_cron ogni 15 min) le crea/aggiorna (solo campi vuoti), le lega alle ditte (`persone_aziende`) e collega le note con "contatto" se il nome porta a UNA persona. Collega anche i contatti WhatsApp per numero.
+- `copia-ceramex` mette nel cestino solo le note con `da_ceramex = true` (le note scritte nell'app restano anche nelle schede Ceramex).
+- **Agenti delle note** (routine claude.ai, gratis col piano Max, ambiente "Second Brain", solo connettore Claude Docs):
+  - "Agente note lavoro" `trig_012xsQNDrzFNnpAszr9gsGBh` (:15, 7–22), utente DB `agente_lavoro` (C+G, più smistamento Inbox: le note private le sposta in P e basta). Regole: `agenti/agente-note.md`.
+  - "Agente privato" `trig_014BzqnSAWeuSq97vzQdwG15` (:45, 7–22), utente DB `agente_privato` (solo P). Regole: `agenti/agente-privato.md`.
+  - Porta unica `agente-sql`: il token sceglie l'utente (AGENTE_TOKEN = G&C, AGENTE_TOKEN_LAVORO, AGENTE_TOKEN_PRIVATO; variabili di Windows con lo stesso nome). Password/token: `node scripts/collega-agente.mjs lavoro|privato|gc`. Se si cambiano le regole o il token, aggiornare il prompt della routine.
+  - Dubbi → tabella `domande` → schermata "Domande per te" (Oggi la segnala). Lavoro fatto → `note.lavorata_il` e `lavori_registro`.
+  - Attenzione: le routine create via API prendono TUTTI i connettori dell'account: ridurli sempre a Claude Docs.
+
 ### Agenti
 - Regole separate per area. Giovanni le rivede parlando con Claude, non in una pagina dell'app.
 - I dubbi degli agenti vanno in "Domande per Giovanni".
@@ -154,7 +165,7 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 4. Chiedi (Haiku + Sonnet).
 5. G&C ← IN CORSO (partita l'11.10.2026 sera, prima delle fasi 3-4, su richiesta di Giovanni). Vedi "G&C (fase 5)".
 6. Privato.
-7. WhatsApp. Giovanni usa già l'app WhatsApp Business sul telefono e la VUOLE collegare (12.10). Strada: piattaforma ufficiale WhatsApp Business (Cloud API di Meta) in modalità "coesistenza": il numero resta nell'app del telefono e i messaggi arrivano anche al second brain; all'aggancio si possono importare contatti e storico recente (da verificare quanto). Account e verifiche su Meta li fa Giovanni. Da fare insieme dopo G&C.
+7. WhatsApp ← IN CORSO (12.10.2026). Cloud API di Meta in "coesistenza" (il numero resta nell'app WhatsApp Business del telefono). Fatto: app Meta "Second Brain GF" (id 1050142621357706, portfolio Ceramex 196300470244482, Tech Provider, PUBBLICATA da Giovanni), webhook → funzione `whatsapp` (firma con WA_APP_SECRET, provato), funzione `whatsapp-collega` (scambio codice, iscrizione, richiesta contatti + storico 6 mesi, una volta sola entro 24 h), tabelle `wa_collegamento`/`wa_contatti`/`wa_messaggi`, pagina `public/privacy.html`, configurazione "ES Config" 1143212528277399. Segreti: WA_APP_SECRET, WA_VERIFY_TOKEN, WA_COLLEGA_TOKEN (`node scripts/collega-meta.mjs`). **Manca:** la verifica dell'azienda Ceramex da parte di Meta ("in fase di controllo"); poi aggancio con QR insieme a Giovanni (Embedded Signup v4, featureType whatsapp_business_app_onboarding) e chiamata a `whatsapp-collega` entro 24 h. Scrivere dall'app: gratis entro 24 h dall'ultimo messaggio del contatto, fuori solo modelli approvati (a pagamento). Storico: lavoro → schede clienti; privato molto filtrato; Lady di Blackwood (fidanzata) `approfondita = true`, si tiene molto di più.
 8. Rifiniture: senza rete, widget, scorciatoia vocale, foto cercabili.
 
 ## Primo passo

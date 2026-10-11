@@ -10,6 +10,7 @@ import { Persone, Persona } from './Persone'
 import Nota from './Nota'
 import { Aziende, Azienda } from './Aziende'
 import { Bozze, Bozza, Mail } from './Bozze'
+import { Domande } from './Domande'
 
 export default function App({ condiviso }) {
   const [sessione, setSessione] = useState(undefined)
@@ -61,12 +62,15 @@ function Guscio({ utente, condiviso }) {
 
   // Numero di cose nell'Inbox e di bozze da approvare, aggiornati a ogni cambio schermata.
   const [bozze, setBozze] = useState(0)
+  const [domande, setDomande] = useState(0)
   useEffect(() => {
     sb.from('note').select('id', { count: 'exact', head: true })
       .is('area', null).is('eliminata_il', null)
       .then(({ count }) => setInbox(count || 0))
     sb.from('bozze').select('id', { count: 'exact', head: true }).eq('stato', 'proposta')
       .then(({ count }) => setBozze(count || 0))
+    sb.from('domande').select('id', { count: 'exact', head: true }).is('risposta_il', null)
+      .then(({ count }) => setDomande(count || 0))
   }, [rotta])
 
   const largo = useLargo()
@@ -106,7 +110,8 @@ function Guscio({ utente, condiviso }) {
     case 'bozze': schermata = <Bozze />; break
     case 'bozza': schermata = <Bozza key={secondo} id={secondo} />; break
     case 'mail': schermata = <Mail key={secondo} chiave={secondo} />; break
-    default: schermata = <Oggi inbox={inbox} bozze={bozze} />
+    case 'domande': schermata = <Domande />; break
+    default: schermata = <Oggi inbox={inbox} bozze={bozze} domande={domande} />
   }
   const tasto = ['oggi', 'aggiungi', 'chiedi'].includes(primo) ? primo : primo ? null : 'oggi'
   const sezioneLato = primo === 'azienda' ? 'aziende' : primo === 'persona' ? 'persone' : primo === 'bozza' ? 'bozze' : primo || 'oggi'
@@ -125,11 +130,12 @@ function Guscio({ utente, condiviso }) {
           <Icona nome="piu" size={20} /><span>Aggiungi</span>
         </a>
         {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], null, ['aziende', 'Aziende'], ['bozze', 'Bozze G&C'], ['persone', 'Persone'],
-          ['inbox', 'Inbox'], ['note', 'Tutte le note'], ['cestino', 'Cestino']].map((v, i) => v ? (
+          ['domande', 'Domande per te'], ['inbox', 'Inbox'], ['note', 'Tutte le note'], ['cestino', 'Cestino']].map((v, i) => v ? (
           <a key={v[0]} href={`#/${v[0]}`} className={'lato-voce' + (sezioneLato === v[0] ? ' attivo' : '')}>
             <Icona nome={v[0] === 'chiedi' ? 'cerca' : v[0]} size={20} /><span>{v[1]}</span>
             {v[0] === 'inbox' && inbox > 0 && <span className="lato-badge">{inbox}</span>}
             {v[0] === 'bozze' && bozze > 0 && <span className="lato-badge">{bozze}</span>}
+            {v[0] === 'domande' && domande > 0 && <span className="lato-badge">{domande}</span>}
           </a>
         ) : <hr key={i} />)}
         <button type="button" className="lato-voce lato-esci" onClick={esci}><Icona nome="esci" size={20} /><span>Esci</span></button>

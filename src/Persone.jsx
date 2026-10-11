@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { sb, AREE, areaDa, nomePersona } from './supabase'
-import { useApp, useCarica, chk, messaggioErrore, NotaRiga, Stato, Indietro } from './componenti'
+import { sb, AREE, areaDa, nomePersona, quando, CAMPI_PERSONA, etichettePersona, numeroWhatsApp } from './supabase'
+import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, EtichettePersona, Icona } from './componenti'
+import { nomeSezione } from './Aziende'
 
 // Diagramma a cerchi: chi sta in più aree sta nell'intersezione.
 const CERCHI = { C: [115, 105], G: [185, 105], P: [150, 165] }
@@ -13,6 +14,8 @@ const NOMI_CERCHI = { C: [62, 16], G: [238, 16], P: [150, 266] }
 
 const chiaveDi = (aree) => ['C', 'G', 'P'].filter((c) => aree.includes(c)).join('')
 const nomeChiave = (k) => (k ? k.split('').map((c) => areaDa(c).nome).join(' + ') : 'Senza area')
+const areeDi = (p) => [...new Set([...p.persone_aree.map((x) => x.area),
+  ...p.persone_aziende.map((x) => x.aziende?.area).filter(Boolean)])]
 
 function Diagramma({ conteggi, scelta, onScelta }) {
   function tocca(e) {
@@ -54,22 +57,22 @@ export function Persone() {
   const [cerca, setCerca] = useState('')
 
   const { dati, errore, carica } = useCarica(async () => chk(
-    await sb.from('persone').select('id,nome,cognome,persone_aree(area)')
+    await sb.from('persone').select(CAMPI_PERSONA + ',email,ruolo')
       .is('eliminata_il', null).order('nome').order('cognome'),
   ), [])
 
   const conteggi = {}
   const tutte = (dati || []).map((p) => {
-    const k = chiaveDi(p.persone_aree.map((x) => x.area))
+    const k = chiaveDi(areeDi(p))
     conteggi[k] = (conteggi[k] || 0) + 1
-    return { ...p, chiave: k }
+    return { ...p, chiave: k, cercabile: [nomePersona(p), p.email, p.ruolo, ...etichettePersona(p).map((e) => e.testo)].join(' ').toLowerCase() }
   })
 
-  const testo = cerca.trim().toLowerCase()
+  const parole = cerca.trim().toLowerCase().split(/\s+/).filter(Boolean)
   const visibili = tutte.filter((p) =>
     (scelta === null || p.chiave === scelta) &&
     (area === 'T' || p.chiave.includes(area)) &&
-    (!testo || nomePersona(p).toLowerCase().includes(testo)))
+    parole.every((w) => p.cercabile.includes(w)))
 
   async function crea() {
     const parti = cerca.trim().split(/\s+/)
@@ -95,7 +98,7 @@ export function Persone() {
       )}
 
       <input type="search" className="cerca-persone" value={cerca} onChange={(e) => setCerca(e.target.value)}
-        placeholder="Cerca o aggiungi una persona" />
+        placeholder="Cerca persona, ditta o email" />
 
       {scelta !== null && (
         <p className="filtro">
@@ -107,20 +110,24 @@ export function Persone() {
       <Stato carica={carica} errore={errore}>
         {dati && (
           <div className="elenco">
-            {visibili.map((p) => (
+            {visibili.slice(0, 200).map((p) => (
               <a key={p.id} className="riga" href={`#/persona/${p.id}`}>
                 <span className="pallini">
                   {p.chiave.split('').map((c) => (
                     <span key={c} className="pallino" style={{ background: areaDa(c).colore }} />
                   ))}
                 </span>
-                <span className="riga-corpo"><span className="riga-testo">{nomePersona(p)}</span></span>
+                <span className="riga-corpo">
+                  <span className="riga-testo">{nomePersona(p)}</span>
+                  <span className="riga-meta"><EtichettePersona p={p} /></span>
+                </span>
               </a>
             ))}
-            {testo && (
+            {visibili.length > 200 && <p className="msg">Altre {visibili.length - 200}: scrivi un nome per trovarle.</p>}
+            {cerca.trim() && (
               <button type="button" className="riga crea" onClick={crea}>+ Nuova persona «{cerca.trim()}»</button>
             )}
-            {!visibili.length && !testo && <p className="msg">Nessuna persona qui.</p>}
+            {!visibili.length && !cerca.trim() && <p className="msg">Nessuna persona qui.</p>}
           </div>
         )}
       </Stato>
@@ -128,25 +135,48 @@ export function Persone() {
   )
 }
 
+// Le voci del riassunto scritto dagli agenti, nell'ordine in cui servono prima di un incontro.
+const VOCI_RIASSUNTO = [
+  ['da_chiedere', 'Da chiedere'],
+  ['cose_aperte', 'Cose aperte'],
+  ['ultimo_incontro', 'Ultimo contatto'],
+  ['chi_e', 'Chi è'],
+  ['consigli', 'Come parlarle'],
+]
+
+// Scheda persona: chi è, contatti, riassunto degli agenti, promemoria, note, mail e WhatsApp.
+// Le cose restano nella loro area: con un'area scelta in alto si vede solo quella.
 export function Persona({ id }) {
   const { area, avvisa, vai } = useApp()
   const [modulo, setModulo] = useState(null)
   const [modificato, setModificato] = useState(false)
+  const [aperto, setAperto] = useState(false)
 
   const { dati, errore, carica, ricarica } = useCarica(async () => {
-    const [p, np] = await Promise.all([
-      sb.from('persone').select('*,persone_aree(area)').eq('id', id).single(),
-      sb.from('note_persone').select('note(id,area,testo,fonte,creata_il,eliminata_il,allegati(id))').eq('persona_id', id),
+    const p = chk(await sb.from('persone').select('*,' + CAMPI_PERSONA.replace('id,nome,cognome,', '')).eq('id', id).single())
+    const indirizzi = [p.email, ...(p.email_altre || [])].filter(Boolean).map((e) => e.toLowerCase())
+    const [np, riassunti, wa, posta] = await Promise.all([
+      sb.from('note_persone').select('note(id,area,testo,fonte,data,creata_il,eliminata_il,scartata_il,sezione,mandante,risolto_il,azienda_id,aziende(id,nome),promemoria(id,testo,scade_il,fatto_il,eliminata_il))').eq('persona_id', id),
+      sb.from('persone_riassunti').select('*').eq('persona_id', id),
+      sb.from('wa_contatti').select('wa_id,area,wa_messaggi(id,direzione,testo,tipo,data)').eq('persona_id', id)
+        .order('data', { referencedTable: 'wa_messaggi', ascending: false }).limit(20, { referencedTable: 'wa_messaggi' }),
+      indirizzi.length
+        ? sb.from('posta').select('id,area,message_id,da,da_nome,oggetto,data,cartella')
+          .or(indirizzi.flatMap((e) => [`da.ilike.${e}`, `a.cs.{${e}}`]).join(','))
+          .order('data', { ascending: false }).limit(15)
+        : Promise.resolve({ data: [] }),
     ])
-    const note = chk(np).map((x) => x.note).filter((n) => n && !n.eliminata_il)
-      .sort((a, b) => b.creata_il.localeCompare(a.creata_il))
-    return { p: chk(p), note }
+    const note = chk(np).map((x) => x.note).filter((n) => n && !n.eliminata_il && !n.scartata_il)
+      .sort((a, b) => (b.data || b.creata_il).localeCompare(a.data || a.creata_il))
+    const messaggi = chk(wa).flatMap((c) => c.wa_messaggi.map((m) => ({ ...m, area: c.area })))
+      .sort((a, b) => b.data.localeCompare(a.data))
+    return { p, note, riassunti: chk(riassunti), messaggi, posta: chk(posta) }
   }, [id])
 
   useEffect(() => {
     if (!dati || modulo) return
-    const { nome, cognome, telefono, email, compleanno } = dati.p
-    setModulo({ nome: nome || '', cognome: cognome || '', telefono: telefono || '', email: email || '', compleanno: compleanno || '' })
+    const { nome, cognome, telefono, email, compleanno, ruolo } = dati.p
+    setModulo({ nome: nome || '', cognome: cognome || '', telefono: telefono || '', email: email || '', compleanno: compleanno || '', ruolo: ruolo || '' })
   }, [dati, modulo])
 
   const campo = (k) => ({
@@ -163,9 +193,11 @@ export function Persona({ id }) {
         telefono: modulo.telefono.trim() || null,
         email: modulo.email.trim() || null,
         compleanno: modulo.compleanno || null,
+        ruolo: modulo.ruolo.trim() || null,
       }).eq('id', id))
       setModificato(false)
       avvisa('Salvato')
+      ricarica()
     } catch (e) {
       avvisa(messaggioErrore(e))
     }
@@ -196,52 +228,160 @@ export function Persona({ id }) {
     return <div className="schermata"><Indietro titolo="Persona" /><Stato carica={carica} errore={errore} /></div>
   }
 
-  const aree = dati.p.persone_aree.map((x) => x.area)
-  // Le note restano nella loro area: con un'area scelta si vedono solo quelle.
-  const note = area === 'T' ? dati.note : dati.note.filter((n) => n.area === area)
+  const { p } = dati
+  const nell = (x) => area === 'T' || x.area === area
+  const aree = p.persone_aree.map((x) => x.area)
+  const ditte = p.persone_aziende.filter((x) => x.aziende && nell(x.aziende))
+  const riassunti = dati.riassunti.filter(nell).sort((a, b) => 'CGP'.indexOf(a.area) - 'CGP'.indexOf(b.area))
+  const note = dati.note.filter(nell)
+  const promemoria = note.flatMap((n) => (n.promemoria || []).filter((x) => !x.fatto_il && !x.eliminata_il)
+    .map((x) => ({ ...x, area: n.area, nota_id: n.id })))
+  const posta = dati.posta.filter(nell)
+  const messaggi = dati.messaggi.filter((m) => area === 'T' || m.area === area)
+  const wa = numeroWhatsApp(p.telefono)
 
   return (
-    <div className="schermata">
-      <Indietro titolo={nomePersona(dati.p)} />
+    <div className="schermata scheda-persona">
+      <Indietro titolo={nomePersona(p)} />
 
-      <div className="scelta-area">
-        {AREE.map((a) => {
-          const ha = aree.includes(a.codice)
-          return (
-            <button key={a.codice} type="button" style={{ '--c': a.colore }}
-              className={'chip chip-area' + (ha ? ' attivo' : '')} aria-pressed={ha}
-              onClick={() => cambiaArea(a.codice, ha)}>
-              {a.nome}
-            </button>
-          )
-        })}
-      </div>
+      {(p.ruolo || ditte.length > 0) && (
+        <p className="persona-chi">
+          {p.ruolo && <span>{p.ruolo}</span>}
+          {ditte.map((d) => (
+            <a key={d.aziende.id} href={`#/azienda/${d.aziende.id}`} style={{ '--c': areaDa(d.aziende.area)?.colore }}>
+              {d.aziende.nome}{d.ruolo && d.ruolo !== p.ruolo ? ` · ${d.ruolo}` : ''}
+            </a>
+          ))}
+        </p>
+      )}
+      <p className="nota-piccola"><EtichettePersona p={p} /></p>
 
-      <div className="modulo">
-        <div className="due">
-          <label>Nome<input {...campo('nome')} /></label>
-          <label>Cognome<input {...campo('cognome')} /></label>
-        </div>
-        <label>Telefono<input type="tel" inputMode="tel" {...campo('telefono')} /></label>
-        <label>Email<input type="email" inputMode="email" {...campo('email')} /></label>
-        <label>Compleanno<input type="date" {...campo('compleanno')} /></label>
-        {modificato && <button type="button" className="tasto-grande" onClick={salva}>Salva</button>}
-      </div>
-
-      <div className="azioni">
-        {dati.p.telefono && <a className="tasto-piccolo" href={`tel:${dati.p.telefono}`}>Chiama</a>}
-        {dati.p.email && <a className="tasto-piccolo" href={`mailto:${dati.p.email}`}>Scrivi</a>}
+      <div className="contatti-persona">
+        {p.telefono && <a className="tasto-piccolo" href={`tel:${p.telefono}`}>Chiama</a>}
+        {wa && <a className="tasto-piccolo" href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer">WhatsApp</a>}
+        {p.email && <a className="tasto-piccolo" href={`mailto:${p.email}`}>Scrivi mail</a>}
         <button type="button" className="tasto-piccolo" onClick={() => vai(`/aggiungi?persona=${id}`)}>+ Nota</button>
       </div>
+      {(p.telefono || p.email) && (
+        <p className="nota-piccola selezionabile">
+          {[p.telefono, p.email, ...(p.email_altre || [])].filter(Boolean).join(' · ')}
+        </p>
+      )}
+      {p.compleanno && <p className="nota-piccola">Compleanno: {new Date(p.compleanno).toLocaleDateString('it-CH', { day: 'numeric', month: 'long' })}</p>}
 
-      <h2>Note{area !== 'T' ? ` ${areaDa(area).nome}` : ''}</h2>
+      {riassunti.length > 0 ? riassunti.map((r) => (
+        <section key={r.area} className="blocco riassunto-persona" style={{ '--c': areaDa(r.area).colore }}>
+          <h2><span>{areaDa(r.area).nome}</span><span className="nota-piccola">aggiornato {quando(r.aggiornato_il)}</span></h2>
+          {VOCI_RIASSUNTO.filter(([k]) => r[k]).map(([k, titolo]) => (
+            <div key={k} className={'voce-riassunto' + (k === 'da_chiedere' ? ' in-evidenza' : '')}>
+              <h3>{titolo}</h3>
+              <p>{r[k]}</p>
+            </div>
+          ))}
+        </section>
+      )) : (
+        <p className="msg">Il riassunto (chi è, cosa chiedere, come parlarle) lo scrive l'agente entro un'ora, quando ci sono note su questa persona.</p>
+      )}
+
+      {promemoria.length > 0 && (
+        <>
+          <h2>Promemoria</h2>
+          <div className="elenco">
+            {promemoria.map((x) => (
+              <a key={x.id} className="riga" href={`#/nota/${x.nota_id}`}>
+                <span className="pallino" style={{ background: areaDa(x.area)?.colore || 'var(--grigio)' }} />
+                <span className="riga-corpo">
+                  <span className="riga-testo">{x.testo}</span>
+                  <span className="riga-meta">{quando(x.scade_il, true) || 'senza data'}</span>
+                </span>
+              </a>
+            ))}
+          </div>
+        </>
+      )}
+
+      <h2>Note <span className="numero">{note.length}</span></h2>
       {note.length ? (
-        <div className="elenco">{note.map((n) => <NotaRiga key={n.id} nota={n} />)}</div>
+        <div className="elenco">
+          {note.slice(0, 60).map((n) => (
+            <a key={n.id} className="riga" href={`#/nota/${n.id}`}>
+              <span className="pallino" style={{ background: areaDa(n.area)?.colore || 'var(--grigio)' }} />
+              <span className="riga-corpo">
+                <span className="riga-testo">{n.testo}</span>
+                <span className="riga-meta">
+                  {[quando(n.data || n.creata_il), n.aziende?.nome, n.mandante, nomeSezione[n.sezione],
+                    n.sezione === 'problemi' ? (n.risolto_il ? 'risolto' : 'aperto') : null].filter(Boolean).join(' · ')}
+                </span>
+              </span>
+            </a>
+          ))}
+        </div>
       ) : (
         <p className="msg">Nessuna nota{area !== 'T' ? ' in quest\'area' : ''}.</p>
       )}
 
-      <button type="button" className="tasto-link pericolo" onClick={elimina}>Metti nel cestino</button>
+      {posta.length > 0 && (
+        <>
+          <h2>Mail <span className="numero">{posta.length}</span></h2>
+          <div className="elenco">
+            {posta.map((m) => (
+              <a key={m.id} className="riga" href={`#/mail/${encodeURIComponent(m.message_id)}`}>
+                <span className="pallino" style={{ background: areaDa(m.area)?.colore || 'var(--grigio)' }} />
+                <span className="riga-corpo">
+                  <span className="riga-testo">{m.oggetto || '(senza oggetto)'}</span>
+                  <span className="riga-meta">{m.cartella === 'inviata' ? 'Mandata' : 'Arrivata'} {quando(m.data)}</span>
+                </span>
+              </a>
+            ))}
+          </div>
+        </>
+      )}
+
+      {messaggi.length > 0 && (
+        <>
+          <h2>WhatsApp</h2>
+          <div className="chat-breve">
+            {messaggi.slice(0, 20).reverse().map((m) => (
+              <p key={m.id} className={'fumetto ' + (m.direzione === 'out' ? 'mio' : 'suo')}>
+                {m.testo || `(${m.tipo})`}
+                <span className="riga-meta">{quando(m.data, true)}</span>
+              </p>
+            ))}
+          </div>
+        </>
+      )}
+
+      <button type="button" className="tasto-link apri-dati" onClick={() => setAperto(!aperto)} aria-expanded={aperto}>
+        <Icona nome={aperto ? 'x' : 'freccia'} size={16} /> {aperto ? 'Chiudi' : 'Modifica dati e aree'}
+      </button>
+      {aperto && (
+        <>
+          <div className="scelta-area">
+            {AREE.map((a) => {
+              const ha = aree.includes(a.codice)
+              return (
+                <button key={a.codice} type="button" style={{ '--c': a.colore }}
+                  className={'chip chip-area' + (ha ? ' attivo' : '')} aria-pressed={ha}
+                  onClick={() => cambiaArea(a.codice, ha)}>
+                  {a.nome}
+                </button>
+              )
+            })}
+          </div>
+          <div className="modulo">
+            <div className="due">
+              <label>Nome<input {...campo('nome')} /></label>
+              <label>Cognome<input {...campo('cognome')} /></label>
+            </div>
+            <label>Ruolo<input {...campo('ruolo')} placeholder="es. responsabile showroom" /></label>
+            <label>Telefono<input type="tel" inputMode="tel" {...campo('telefono')} /></label>
+            <label>Email<input type="email" inputMode="email" {...campo('email')} /></label>
+            <label>Compleanno<input type="date" {...campo('compleanno')} /></label>
+            {modificato && <button type="button" className="tasto-grande" onClick={salva}>Salva</button>}
+          </div>
+          <button type="button" className="tasto-link pericolo" onClick={elimina}>Metti nel cestino</button>
+        </>
+      )}
     </div>
   )
 }

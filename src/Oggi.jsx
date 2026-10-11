@@ -6,7 +6,7 @@ import Rete from './Rete'
 const corto = (s, n = 16) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s)
 const numero = (n) => (n == null ? '…' : n.toLocaleString('de-CH'))
 
-export default function Oggi({ inbox, bozze }) {
+export default function Oggi({ inbox, bozze, domande }) {
   const { area, avvisa, vai } = useApp()
   const rete = useRef(null)
   const [fatti, setFatti] = useState(() => new Set())
@@ -120,6 +120,13 @@ export default function Oggi({ inbox, bozze }) {
         {bozze > 0 && (area === 'T' || area === 'G') && (
           <a className="scheda scheda-bozze" href="#/bozze">
             <span><strong>{bozze}</strong> {bozze === 1 ? 'bozza G&C da approvare' : 'bozze G&C da approvare'}</span>
+            <Icona nome="freccia" size={18} />
+          </a>
+        )}
+
+        {domande > 0 && (
+          <a className="scheda scheda-domande" href="#/domande">
+            <span><strong>{domande}</strong> {domande === 1 ? 'domanda degli agenti per te' : 'domande degli agenti per te'}</span>
             <Icona nome="freccia" size={18} />
           </a>
         )}

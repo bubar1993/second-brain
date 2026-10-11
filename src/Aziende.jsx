@@ -134,14 +134,18 @@ export function Azienda({ id, cantiere: cantiereIniziale }) {
       sb.from('aziende').select('id,nome,contatti').eq('gruppo_id', id).is('eliminata_il', null).order('nome').then(chk),
     ])
     const ids = [id, ...filiali.map((f) => f.id)]
-    const [note, cantieri] = await Promise.all([
+    const [note, cantieri, gente] = await Promise.all([
       tutte(() => sb.from('note')
-        .select('id,area,azienda_id,cantiere_id,testo,mandante,sezione,data,contatto,risolto_il,thread_id,message_id')
+        .select('id,area,azienda_id,cantiere_id,testo,mandante,sezione,data,contatto,risolto_il,thread_id,message_id,note_persone(persona_id)')
         .in('azienda_id', ids).is('eliminata_il', null).is('scartata_il', null)
         .order('data', { ascending: false }).order('creata_il', { ascending: false })),
       a.area === 'G' ? sb.from('cantieri').select('id,nome,stato').in('azienda_id', ids).is('eliminata_il', null).then(chk) : [],
+      sb.from('persone_aziende').select('azienda_id,ruolo,persone(id,nome,cognome,eliminata_il)').in('azienda_id', ids).then(chk),
     ])
-    return { a, filiali, note, cantieri }
+    // Persone della ditta (con scheda): si toccano per aprire la loro scheda.
+    const persone = gente.filter((g) => g.persone && !g.persone.eliminata_il)
+      .map((g) => ({ ...g.persone, ruolo: g.ruolo, azienda_id: g.azienda_id }))
+    return { a, filiali, note, cantieri, persone }
   }, [id])
 
   // Una scheda unita a un'altra porta a quella giusta.
@@ -176,8 +180,12 @@ export function Azienda({ id, cantiere: cantiereIniziale }) {
   const cambiaMandante = (m) => { setMandante(m); setSezione(null) }
   const cambiaVista = (v) => { setVista(v); scrivi('note-vista', v) }
 
-  const persone = (sede ? (sede === a.id ? a.contatti : filiali.find((f) => f.id === sede)?.contatti)
-    : [...(a.contatti || []), ...filiali.flatMap((f) => f.contatti || [])]) || []
+  // Persone con scheda; se la ditta non ne ha ancora, i contatti scritti nella scheda.
+  const conScheda = dati.persone.filter((x) => !sede || x.azienda_id === sede)
+  const persone = conScheda.length
+    ? conScheda.map((x) => ({ id: x.id, nome: [x.nome, x.cognome].filter(Boolean).join(' '), ruolo: x.ruolo }))
+    : (sede ? (sede === a.id ? a.contatti : filiali.find((f) => f.id === sede)?.contatti)
+      : [...(a.contatti || []), ...filiali.flatMap((f) => f.contatti || [])]) || []
 
   const conta = (k) => diMandante.filter((n) => n.sezione === k && (k !== 'problemi' || !n.risolto_il)).length
   const risolti = diMandante.filter((n) => n.sezione === 'problemi' && n.risolto_il)
@@ -203,11 +211,13 @@ export function Azienda({ id, cantiere: cantiereIniziale }) {
 
       {persone.length > 0 && (
         <div className="chips persone">
-          {(tutteLePersone ? persone : persone.slice(0, 4)).map((c, i) => (
-            <span key={i} className="chip piccolo" title={[c.nome, c.ruolo, c.email].filter(Boolean).join(' · ')}>
-              {tutteLePersone ? [c.nome, c.ruolo].filter(Boolean).join(' · ') : battesimo(c.nome)}
-            </span>
-          ))}
+          {(tutteLePersone ? persone : persone.slice(0, 4)).map((c, i) => {
+            const testo = tutteLePersone ? [c.nome, c.ruolo].filter(Boolean).join(' · ') : battesimo(c.nome)
+            const titolo = [c.nome, c.ruolo, c.email].filter(Boolean).join(' · ')
+            return c.id
+              ? <a key={c.id} className="chip piccolo" href={`#/persona/${c.id}`} title={titolo}>{testo}</a>
+              : <span key={i} className="chip piccolo" title={titolo}>{testo}</span>
+          })}
           {persone.length > 4 && (
             <button type="button" className="chip piccolo" onClick={() => setTutteLePersone(!tutteLePersone)}>
               {tutteLePersone ? 'Meno' : `+${persone.length - 4}`}
@@ -344,7 +354,9 @@ function NotaCliente({ n, conSezione, sede, cantiere }) {
             <span className="nota-meta">
               {sede && <span className="etichetta-sede">{sede}</span>}
               {cantiere && <span className="etichetta-sede">{cantiere}</span>}
-              {n.contatto && <b>{n.contatto} —</b>}
+              {n.contatto && (n.note_persone?.length
+                ? <b><a className="link-persona" href={`#/persona/${n.note_persone[0].persona_id}`}>{n.contatto}</a> —</b>
+                : <b>{n.contatto} —</b>)}
               {conSezione && <span className={'etichetta-sezione' + (aperto(n) ? ' rosso' : '')}>{nomeSezione[n.sezione]}</span>}
             </span>
           )}

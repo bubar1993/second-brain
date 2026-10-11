@@ -1,14 +1,23 @@
-// Dà una password nuova all'utente "agente_gc" del second brain (vede e scrive solo l'area G).
-// Imposta in Postgres solo l'hash SCRAM e salva l'indirizzo completo come segreto AGENTE_DB_URL
-// (lo usa la funzione agente-sql). Non stampa mai i segreti.
-// Uso: node scripts/collega-agente.mjs   (serve SUPABASE_ACCESS_TOKEN)
+// Dà una password nuova a un utente-agente del second brain e salva i segreti per la funzione agente-sql.
+// - gc (predefinito): "agente_gc", vede e scrive solo l'area G → segreto AGENTE_DB_URL.
+// - lavoro: "agente_lavoro", aree C e G + smistamento Inbox → segreti AGENTE_DB_URL_LAVORO e AGENTE_TOKEN_LAVORO.
+// - privato: "agente_privato", solo area P → segreti AGENTE_DB_URL_PRIVATO e AGENTE_TOKEN_PRIVATO.
+// Per lavoro e privato crea anche il token (variabile di Windows AGENTE_TOKEN_LAVORO / AGENTE_TOKEN_PRIVATO)
+// solo se manca. Imposta in Postgres solo l'hash SCRAM. Non stampa mai i segreti.
+// Uso: node scripts/collega-agente.mjs [gc|lavoro|privato]   (serve SUPABASE_ACCESS_TOKEN)
 import { randomBytes, pbkdf2Sync, createHmac, createHash } from 'node:crypto'
+import { execSync } from 'node:child_process'
 
 const REF = 'vgurncqvgulldolhetyr'
 const HOST = 'aws-0-eu-central-2.pooler.supabase.com'
 const tokenApi = process.env.SUPABASE_ACCESS_TOKEN
 if (!tokenApi) { console.log('ERRORE: manca SUPABASE_ACCESS_TOKEN'); process.exit(1) }
 const MGMT = { Authorization: `Bearer ${tokenApi}`, 'Content-Type': 'application/json' }
+
+const quale = process.argv[2] || 'gc'
+if (!['gc', 'lavoro', 'privato'].includes(quale)) { console.log('Uso: node scripts/collega-agente.mjs [gc|lavoro|privato]'); process.exit(1) }
+const ruolo = `agente_${quale}`
+const suffisso = quale === 'gc' ? '' : `_${quale.toUpperCase()}`
 
 const password = randomBytes(24).toString('hex')
 const sale = randomBytes(16)
@@ -20,13 +29,23 @@ const hash = `SCRAM-SHA-256$4096:${sale.toString('base64')}$${stored.toString('b
 
 let r = await fetch(`https://api.supabase.com/v1/projects/${REF}/database/query`, {
   method: 'POST', headers: MGMT,
-  body: JSON.stringify({ query: `alter role agente_gc login password '${hash}';
-    alter role agente_gc set statement_timeout = '20s';` }),
+  body: JSON.stringify({ query: `alter role ${ruolo} login password '${hash}';
+    alter role ${ruolo} set statement_timeout = '20s';` }),
 })
-console.log(r.ok ? 'Password agente_gc: ok' : `ERRORE password: ${r.status}`)
+console.log(r.ok ? `Password ${ruolo}: ok` : `ERRORE password: ${r.status}`)
 
-r = await fetch(`https://api.supabase.com/v1/projects/${REF}/secrets`, {
-  method: 'POST', headers: MGMT,
-  body: JSON.stringify([{ name: 'AGENTE_DB_URL', value: `postgresql://agente_gc.${REF}:${password}@${HOST}:6543/postgres` }]),
-})
-console.log(r.ok ? 'Segreto AGENTE_DB_URL: ok' : `ERRORE segreto: ${r.status}`)
+const segreti = [{ name: `AGENTE_DB_URL${suffisso}`, value: `postgresql://${ruolo}.${REF}:${password}@${HOST}:6543/postgres` }]
+if (quale !== 'gc') {
+  const nome = `AGENTE_TOKEN${suffisso}`
+  const leggiWin = () => execSync(`powershell -NoProfile -Command "[Environment]::GetEnvironmentVariable('${nome}','User')"`, { encoding: 'utf8' }).trim()
+  let token = leggiWin()
+  if (!token) {
+    token = randomBytes(24).toString('hex')
+    execSync(`powershell -NoProfile -Command "[Environment]::SetEnvironmentVariable('${nome}','${token}','User')"`)
+    console.log(`Creato il token (variabile di Windows ${nome}).`)
+  }
+  segreti.push({ name: nome, value: token })
+}
+
+r = await fetch(`https://api.supabase.com/v1/projects/${REF}/secrets`, { method: 'POST', headers: MGMT, body: JSON.stringify(segreti) })
+console.log(r.ok ? `Segreti salvati: ${segreti.map((s) => s.name).join(', ')}` : `ERRORE segreti: ${r.status}`)

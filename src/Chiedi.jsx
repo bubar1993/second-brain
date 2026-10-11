@@ -4,6 +4,7 @@ import { useApp, chk, messaggioErrore, NotaRiga, Icona } from './componenti'
 import { iniziali, battesimo } from './Aziende'
 
 const pulisci = (s) => s.replace(/[,()%*\\.:]/g, '')
+const STATI = { offerta: 'offerta', active: 'in corso', completed: 'finito', persa: 'persa' }
 
 // Fase 1: cerca le parole nelle note e nelle persone. L'intelligenza arriva nella fase 4.
 export default function Chiedi() {
@@ -15,12 +16,19 @@ export default function Chiedi() {
 
   // I clienti sono pochi: si leggono una volta e si filtrano mentre scrivi.
   const [aziende, setAziende] = useState([])
+  const [cantieri, setCantieri] = useState([])
   useEffect(() => {
     sb.from('aziende').select('id,nome,area,ragione_sociale,email,contatti,gruppo:gruppo_id(nome)')
       .is('eliminata_il', null).is('unito_in', null).order('nome')
       .then(({ data }) => setAziende(data || []))
+    sb.from('cantieri').select('id,nome,stato,azienda_id,aziende(nome)').is('eliminata_il', null).order('nome', { ascending: false })
+      .then(({ data }) => setCantieri(data || []))
   }, [])
   const testo = domanda.trim().toLowerCase()
+  // Cantieri G&C: per numero d'offerta (O0214) o nome del cliente.
+  const trovatiCantieri = testo.length < 2 || area === 'C' || area === 'P' ? [] : cantieri
+    .filter((c) => c.azienda_id && [c.nome, c.aziende?.nome].some((s) => s && s.toLowerCase().includes(testo)))
+    .slice(0, 6)
   const clienti = testo.length < 2 ? [] : aziende
     .filter((a) => area === 'T' || a.area === area)
     .filter((a) => [a.nome, a.ragione_sociale, ...(a.email || []), ...(a.contatti || []).map((c) => c.nome)]
@@ -56,13 +64,13 @@ export default function Chiedi() {
     }
   }
 
-  const vuoto = risultati && !risultati.note.length && !risultati.persone.length && !clienti.length
+  const vuoto = risultati && !risultati.note.length && !risultati.persone.length && !clienti.length && !trovatiCantieri.length
 
   return (
     <div className="schermata">
       <form className="cerca" onSubmit={cerca}>
         <input type="search" value={domanda} onChange={(e) => setDomanda(e.target.value)}
-          placeholder="Cerca clienti, note e persone" enterKeyHint="search" autoFocus />
+          placeholder="Cerca clienti, cantieri, note e persone" enterKeyHint="search" autoFocus />
         <button type="submit" className="tasto-pieno" disabled={lavoro} aria-label="Cerca">
           <Icona nome="cerca" />
         </button>
@@ -90,6 +98,24 @@ export default function Chiedi() {
                 </a>
               )
             })}
+          </div>
+        </>
+      )}
+
+      {trovatiCantieri.length > 0 && (
+        <>
+          <h2>Cantieri G&C</h2>
+          <div className="elenco">
+            {trovatiCantieri.map((c) => (
+              <a key={c.id} className="riga" href={`#/azienda/${c.azienda_id}?cantiere=${c.id}`}>
+                <span className="pallino" style={{ background: areaDa('G').colore }} />
+                <span className="riga-corpo">
+                  <span className="riga-testo">{c.nome}</span>
+                  <span className="riga-meta">{[c.aziende?.nome, STATI[c.stato] || c.stato].filter(Boolean).join(' · ')}</span>
+                </span>
+                <Icona nome="freccia" size={18} />
+              </a>
+            ))}
           </div>
         </>
       )}

@@ -78,7 +78,7 @@ function Guscio({ utente, condiviso }) {
       <div className="diviso">
         <div className="diviso-elenco"><Aziende scelta={primo === 'azienda' ? secondo : null} /></div>
         <div className="diviso-scheda">
-          {primo === 'azienda' ? <Azienda key={secondo} id={secondo} /> : <p className="msg vuoto-diviso">Scegli un'azienda a sinistra.</p>}
+          {primo === 'azienda' ? <Azienda key={secondo} id={secondo} cantiere={rotta.query.get('cantiere')} /> : <p className="msg vuoto-diviso">Scegli un'azienda a sinistra.</p>}
         </div>
       </div>
     )
@@ -101,7 +101,7 @@ function Guscio({ utente, condiviso }) {
     case 'persone': schermata = <Persone />; break
     case 'persona': schermata = <Persona key={secondo} id={secondo} />; break
     case 'aziende': schermata = <Aziende />; break
-    case 'azienda': schermata = <Azienda key={secondo} id={secondo} />; break
+    case 'azienda': schermata = <Azienda key={secondo} id={secondo} cantiere={rotta.query.get('cantiere')} />; break
     case 'nota': schermata = <Nota key={secondo} id={secondo} />; break
     case 'bozze': schermata = <Bozze />; break
     case 'bozza': schermata = <Bozza key={secondo} id={secondo} />; break

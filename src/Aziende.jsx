@@ -118,10 +118,10 @@ export function Aziende({ scelta }) {
 
 // Scheda azienda come nel gestionale Ceramex: filiali, mandanti, sezioni; vista per sezione o per data.
 // Per ora si legge soltanto: fino al trasloco le note si correggono nel gestionale Ceramex.
-export function Azienda({ id }) {
+export function Azienda({ id, cantiere: cantiereIniziale }) {
   const { vai } = useApp()
   const [sede, setSede] = useState(null) // null = tutto il gruppo
-  const [cantiere, setCantiere] = useState(null) // null = tutti (solo G&C)
+  const [cantiere, setCantiere] = useState(cantiereIniziale || null) // null = tutti (solo G&C)
   const [mandante, setMandante] = useState(null)
   const [sezione, setSezione] = useState(null) // null = tutte
   const [vista, setVista] = useState(() => leggi('note-vista') || 'sezioni')

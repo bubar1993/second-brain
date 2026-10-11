@@ -300,12 +300,65 @@ a.riga:active, button.riga:active { background: rgba(255, 255, 255, 0.04); }
 .due { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .cerca-persone { margin-top: 4px; }
 
-/* ---------- Aziende ---------- */
-.contatti summary { font-weight: 600; padding: 8px 0; cursor: pointer; }
-.sezione { display: flex; flex-direction: column; gap: 8px; }
-.sezione h3 { margin: 8px 0 0; }
-.sezione .riga-testo { -webkit-line-clamp: 4; }
+/* ---------- Aziende (come le note clienti del gestionale Ceramex) ---------- */
 .nota-piccola a { color: var(--testo); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--grigio); }
+.conteggio-aziende { margin-top: -6px; font-variant-numeric: tabular-nums; }
+.iniziali {
+  flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--superficie); border: 1px solid var(--bordo); font-weight: 700; font-size: 15px; color: var(--tenue);
+}
+.iniziali.aperti { background: rgba(255, 93, 108, 0.14); border-color: rgba(255, 93, 108, 0.4); color: var(--rosso); }
+.badge-aperti {
+  flex: none; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 700;
+  background: rgba(255, 93, 108, 0.14); color: var(--rosso); font-variant-numeric: tabular-nums;
+}
+.data-breve { flex: none; font-size: 13px; color: var(--tenue); font-variant-numeric: tabular-nums; }
+.riga-azienda .riga-testo { -webkit-line-clamp: 1; font-weight: 600; }
+
+.scheda-azienda .chip.piccolo { min-height: 32px; padding: 0 12px; font-size: 14px; font-weight: 500; color: var(--tenue); }
+.chips.persone { gap: 6px; }
+.linguette {
+  display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
+  margin: 0 -16px; padding: 2px 16px;
+}
+.linguette::-webkit-scrollbar { display: none; }
+.linguette .chip { flex: none; }
+.chip .numero { font-weight: 500; opacity: 0.6; font-variant-numeric: tabular-nums; }
+.chip-problemi:not(.attivo) { color: var(--rosso); border-color: rgba(255, 93, 108, 0.35); }
+.mandante {
+  flex: none; min-width: 108px; padding: 10px 14px; border-radius: 16px; text-align: left;
+  display: flex; flex-direction: column; gap: 2px;
+  border: 1px solid var(--bordo); background: var(--superficie);
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+.mandante b { font-size: 16px; }
+.mandante > span { font-size: 13px; color: var(--tenue); font-variant-numeric: tabular-nums; }
+.mandante.attivo { background: var(--testo); border-color: var(--testo); color: var(--vuoto); }
+.mandante.attivo > span { color: #4a4f66; }
+.mandante.attivo .rosso { color: #d42a3c; }
+.barra-vista { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.segmenti { display: inline-grid; grid-template-columns: 1fr 1fr; padding: 3px; border-radius: 999px; background: rgba(0, 0, 0, 0.4); border: 1px solid var(--bordo); }
+.segmenti button { min-height: 34px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; font-size: 14px; font-weight: 600; color: var(--tenue); transition: background-color 160ms ease, color 160ms ease; }
+.segmenti button.attivo { background: var(--testo); color: var(--vuoto); }
+
+.blocco { display: flex; flex-direction: column; gap: 8px; }
+.blocco h2 { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 10px 0 0; padding-top: 10px; border-top: 1px solid var(--bordo); }
+.blocco h2 .numero { font-family: var(--sans); font-style: normal; font-size: 14px; color: var(--tenue); font-variant-numeric: tabular-nums; }
+.blocco-problemi h2 { color: var(--rosso); }
+.blocco h3 { margin: 10px 0 0; }
+.blocco .tasto-link { align-self: flex-start; padding-left: 0; }
+.nota-cliente { display: flex; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--bordo); }
+.elenco > .nota-cliente:last-child { border-bottom: 0; }
+.nota-cliente .data-breve { width: 42px; padding-top: 2px; }
+.nota-corpo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.nota-testo { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
+.nota-meta { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin-right: 6px; }
+.nota-meta b { font-weight: 600; }
+.etichetta-sede, .etichetta-sezione { font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--bordo); color: var(--tenue); }
+.etichetta-sezione.rosso { color: var(--rosso); border-color: rgba(255, 93, 108, 0.4); }
+.nota-piede { margin: 0; display: flex; gap: 12px; font-size: 13px; color: var(--tenue); }
+.nota-piede a { text-decoration: underline; text-underline-offset: 3px; }
+.nota-cliente.risolta .nota-testo { color: var(--tenue); text-decoration: line-through; text-decoration-color: var(--grigio); }
 
 .promemoria-nota { display: flex; align-items: center; gap: 10px; color: var(--testo); font-weight: 400; }
 .promemoria-nota input { width: 22px; height: 22px; accent-color: var(--blu); }

@@ -539,8 +539,15 @@ a.riga:active, button.riga:active { background: rgba(255, 255, 255, 0.04); }
   .lato-voce:hover { color: var(--testo); }
 }
 
+/* Dentro: scorrendo col dito cambia area; l'elenco entra dal lato giusto. */
+.dentro { touch-action: pan-y; min-height: 70vh; }
+.dentro .elenco.da-destra { animation: entra-destra 200ms ease-out; }
+.dentro .elenco.da-sinistra { animation: entra-sinistra 200ms ease-out; }
+@keyframes entra-destra { from { opacity: 0; transform: translateX(24px); } }
+@keyframes entra-sinistra { from { opacity: 0; transform: translateX(-24px); } }
+
 @media (prefers-reduced-motion: reduce) {
-  .aggiungi .anello, .aggiungi .alone, .riga-promemoria.lampo, .avviso { animation: none; }
+  .aggiungi .anello, .aggiungi .alone, .riga-promemoria.lampo, .avviso, .dentro .elenco { animation: none; }
   .interruttore .cursore, .voce-promemoria, .riga-promemoria .spunta, .riga-promemoria .spunta svg { transition: none; }
 }
 

@@ -78,6 +78,41 @@ export function useCarica(fn, deps) {
   return { ...stato, ricarica }
 }
 
+// Scorrendo col dito a sinistra/destra si cambia area (Ceramex ↔ G&C ↔ Privato), comodo con una mano
+// (scelta di Giovanni, 12.10.2026: in Dentro e in Oggi sotto la rete). Da "Tutte": a sinistra Ceramex, a destra Privato.
+// Uso: <div {...useScorriAree()}>. Non scatta partendo da campi di testo o da righe che scorrono di lato.
+export function useScorriAree() {
+  const { area, setArea } = useApp()
+  const tocco = useRef(null)
+  const ref = useRef(null)
+  const onTouchStart = (e) => {
+    const fermo = e.target.closest?.('input, textarea, select, [contenteditable], .scorre-di-lato')
+    tocco.current = fermo || e.touches.length > 1 ? null : { x: e.touches[0].clientX, y: e.touches[0].clientY }
+  }
+  const onTouchCancel = () => { tocco.current = null }
+  const onTouchEnd = (e) => {
+    const t = tocco.current
+    tocco.current = null
+    if (!t) return
+    const dx = e.changedTouches[0].clientX - t.x
+    const dy = e.changedTouches[0].clientY - t.y
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return
+    const codici = AREE.map((a) => a.codice)
+    const i = codici.indexOf(area)
+    const nuova = dx < 0
+      ? (i === -1 ? codici[0] : codici[i + 1])
+      : (i === -1 ? codici[codici.length - 1] : codici[i - 1])
+    if (!nuova) return
+    setArea(nuova)
+    // Il contenuto entra dal lato verso cui vai.
+    if (ref.current?.animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      ref.current.animate([{ opacity: 0, transform: `translateX(${dx < 0 ? 24 : -24}px)` }, { opacity: 1, transform: 'none' }],
+        { duration: 200, easing: 'ease-out' })
+    }
+  }
+  return { ref, onTouchStart, onTouchEnd, onTouchCancel }
+}
+
 // Schermo largo (PC): menu a sinistra e schermate divise. Stesso valore di stile.css.
 const LARGO = '(min-width: 1024px)'
 export function useLargo() {

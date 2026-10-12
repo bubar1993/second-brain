@@ -1,6 +1,5 @@
-import { useRef, useState } from 'react'
 import { sb, AREE, areaDa, nomePersona, giorniDaOggi, scrivi } from './supabase'
-import { useApp, useCarica, chk, messaggioErrore, NotaRiga, Stato, Indietro, Icona, aggiungiAreaPersone } from './componenti'
+import { useApp, useCarica, chk, messaggioErrore, NotaRiga, Stato, Indietro, Icona, aggiungiAreaPersone, useScorriAree } from './componenti'
 
 const CAMPI_NOTA = 'id,area,testo,fonte,creata_il,note_persone(persone(id,nome,cognome)),allegati(id)'
 
@@ -25,41 +24,20 @@ export const voceVisibile = (v, area) => area === 'T' || !v.aree || v.aree.inclu
 
 const DETTAGLIO_BOZZE = { C: 'Risposte da approvare dalla tua Gmail', G: 'Risposte da approvare per info@', T: 'Risposte da approvare: Gmail (Ceramex) e info@ (G&C)' }
 
-// Il cassetto "Dentro": tutto quello che non sta nei 3 tasti.
-// Scorrendo col dito a sinistra/destra si passa da un'area all'altra (Ceramex ↔ G&C ↔ Privato), comodo con una mano
-// (scelta di Giovanni, 12.10.2026). Da "Tutte": a sinistra Ceramex, a destra Privato.
+// Il cassetto "Dentro": tutto quello che non sta nei 3 tasti. Scorrendo col dito si cambia area (useScorriAree).
 export function Dentro({ inbox, bozze, domande, risposte, riordino }) {
-  const { area, setArea } = useApp()
-  const tocco = useRef(null)
-  const [verso, setVerso] = useState('')
+  const { area } = useApp()
+  const scorri = useScorriAree()
   async function esci() {
     scrivi('impronta-rimandata', '')
     await sb.auth.signOut()
   }
-  function fineTocco(e) {
-    const t = tocco.current
-    tocco.current = null
-    if (!t) return
-    const dx = e.changedTouches[0].clientX - t.x
-    const dy = e.changedTouches[0].clientY - t.y
-    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return
-    const codici = AREE.map((a) => a.codice)
-    const i = codici.indexOf(area)
-    const nuova = dx < 0
-      ? (i === -1 ? codici[0] : codici[i + 1])
-      : (i === -1 ? codici[codici.length - 1] : codici[i - 1])
-    if (!nuova) return
-    setVerso(dx < 0 ? 'da-destra' : 'da-sinistra')
-    setArea(nuova)
-  }
   const numeri = { inbox, bozze, domande, agenti: risposte, riordino }
   const dettagli = { inbox: inbox ? `${inbox} da smistare` : 'vuota', bozze: DETTAGLIO_BOZZE[area] || DETTAGLIO_BOZZE.T }
   return (
-    <div className="schermata dentro"
-      onTouchStart={(e) => { tocco.current = { x: e.touches[0].clientX, y: e.touches[0].clientY } }}
-      onTouchEnd={fineTocco} onTouchCancel={() => { tocco.current = null }}>
+    <div className="schermata dentro" {...scorri}>
       <h1>Dentro</h1>
-      <div className={'elenco ' + verso} key={area}>
+      <div className="elenco">
         {VOCI_DENTRO.filter((v) => voceVisibile(v, area)).map((v) => (
           <Voce key={v.chiave} href={`#/${v.chiave}`} titolo={v.titolo} dettaglio={dettagli[v.chiave] || v.dettaglio} numero={numeri[v.chiave]} />
         ))}

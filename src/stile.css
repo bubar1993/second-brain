@@ -577,15 +577,12 @@ a.riga:active, button.riga:active { background: rgba(255, 255, 255, 0.04); }
 @media (min-width: 1024px) { .barra-riordino { bottom: 16px; } } /* sul PC non ci sono i 3 tasti */
 @media (prefers-reduced-motion: reduce) { .spunta-mail { transition: none; } }
 
-/* Dentro: scorrendo col dito cambia area; l'elenco entra dal lato giusto. */
+/* Dentro e Oggi (sotto la rete): scorrendo col dito cambia area (useScorriAree in componenti.jsx). */
 .dentro { touch-action: pan-y; min-height: 70vh; }
-.dentro .elenco.da-destra { animation: entra-destra 200ms ease-out; }
-.dentro .elenco.da-sinistra { animation: entra-sinistra 200ms ease-out; }
-@keyframes entra-destra { from { opacity: 0; transform: translateX(24px); } }
-@keyframes entra-sinistra { from { opacity: 0; transform: translateX(-24px); } }
+.oggi-colonna { touch-action: pan-y; }
 
 @media (prefers-reduced-motion: reduce) {
-  .aggiungi .anello, .aggiungi .alone, .riga-promemoria.lampo, .avviso, .dentro .elenco { animation: none; }
+  .aggiungi .anello, .aggiungi .alone, .riga-promemoria.lampo, .avviso { animation: none; }
   .interruttore .cursore, .voce-promemoria, .riga-promemoria .spunta, .riga-promemoria .spunta svg { transition: none; }
 }
 

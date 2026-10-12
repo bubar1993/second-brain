@@ -170,7 +170,7 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 - Dentro: numeri di Inbox, Bozze e Domande. Contatore domande uguale all'elenco (area scelta). "Scarta" bozza con due tocchi; le scartate si vedono negli ultimi 7 giorni.
 - "Ricordamelo" detto: solo "alle N" è un'ora ("al 15" no); "ricordami domani/lunedì" senza ora → alle 8.
 - Con la tastiera aperta (telefono) i 3 tasti spariscono.
-- Dentro (12.10.2026 sera): in Ceramex e in G&C la voce Persone è nascosta (si vede in Privato e Tutte) (le persone restano, si trovano da Chiedi o dalla scheda azienda). Scorrendo col dito a sinistra/destra si cambia area (Ceramex ↔ G&C ↔ Privato).
+- Dentro (12.10.2026 sera): in Ceramex e in G&C la voce Persone è nascosta (si vede in Privato e Tutte) (le persone restano, si trovano da Chiedi o dalla scheda azienda). Scorrendo col dito a sinistra/destra si cambia area (Ceramex ↔ G&C ↔ Privato): in Dentro e in Oggi sotto la rete (non sulla rete), `useScorriAree` in `componenti.jsx`.
 - Agente calendario: riconosce le ditte anche nei titoli scritti di corsa ("creaceram" = Crea Ceram), sceglie quella dell'area e la capogruppo, e ricontrolla gli eventi C/G senza ditta (punto 1b). Agente lavoro: se la nota ha già la ditta (scelta da Giovanni) la tiene.
 - Sicurezza (migrazione `sicurezza_funzioni`): le 4 funzioni "security definer" non rispondono più ad anon. Per funzioni nuove dello stesso tipo: revoke da public/anon, grant ad authenticated, service_role e ai ruoli agente_*.
 

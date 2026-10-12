@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { sb, areaDa, quando, giorniDaOggi, leggi, scrivi } from './supabase'
-import { useApp, useCarica, chk, messaggioErrore, NotaRiga, Stato, Icona, useModifiche, perCampo } from './componenti'
+import { useApp, useCarica, chk, messaggioErrore, NotaRiga, Stato, Icona, useModifiche, perCampo, useScorriAree } from './componenti'
 import Rete from './Rete'
 import { visiteAperte, valoriEvento, CAMPI_EVENTO, ModificaAppuntamento } from './Visita'
 
@@ -19,6 +19,7 @@ function giorniAlCompleanno(iso) {
 
 export default function Oggi({ inbox, bozze, domande, risposte, riordino }) {
   const { area, avvisa, vai } = useApp()
+  const scorri = useScorriAree()
   const rete = useRef(null)
   const [fatti, setFatti] = useState(() => new Set())
   const [lampo, setLampo] = useState(null)
@@ -196,8 +197,8 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino }) {
         <p className="piede">La tua memoria: <b>{numero(totali.note)}</b> note, <b>{numero(totali.aziende)}</b> aziende</p>
       </section>
 
-      {/* Sul PC questa colonna sta a destra della rete. */}
-      <div className="oggi-colonna">
+      {/* Sul PC questa colonna sta a destra della rete. Scorrendo col dito qui (non sulla rete) si cambia area. */}
+      <div className="oggi-colonna" {...scorri}>
         <h1 className="titolo-oggi">
           {!dati ? 'Oggi' : daFareOggi === 0 ? 'Niente di urgente oggi' : daFareOggi === 1 ? '1 cosa da fare oggi' : `${daFareOggi} cose da fare oggi`}
         </h1>

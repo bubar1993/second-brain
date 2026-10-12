@@ -6,7 +6,11 @@ Senza, l'iscrizione integrata non offre l'aggancio del numero WhatsApp Business 
 Bozza della richiesta su Meta: App "Second Brain GF" → Analisi → Analisi dell'app (non inviata, si salva da sola).
 I testi vanno in inglese: chi controlla lavora in inglese. L'app è in italiano, quindi ogni passo del video è spiegato qui sotto.
 
-## Stato (12.10.2026, 09:45)
+## Stato (13.10.2026 notte): INVIATA da Giovanni, "Analisi in corso" (Meta: di solito entro 20 giorni)
+
+Si controlla su developers.facebook.com → app Second Brain GF → Analisi → Analisi dell'app. Meta avvisa anche per email/notifica.
+
+## Stato precedente (12.10.2026, 09:45)
 
 - Fatto: numero di prova collegato, messaggio ricevuto e mandato dall'app ("consegnato"), modello `conferma_appuntamento` creato. Due video registrati (originali in `Video\Registrazioni dello schermo\Meta video 1 - messaggi.mp4` e `Meta video 2 - modelli.mp4`, caricati compressi).
 - Compilati e salvati su Meta: Verifica, Impostazioni app (icona, piattaforma Sito web), Utilizzo consentito (testi, video, conformità spuntata con l'ok di Giovanni), Gestione dei dati, Istruzioni per chi controlla.

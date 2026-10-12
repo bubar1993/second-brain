@@ -5,6 +5,32 @@ import {
   useDettatura, caricaFoto, collegaPersone,
 } from './componenti'
 
+const GIORNI = ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato']
+
+// "Ricordami oggi alle 19:30", "ricordamelo domani alle 9", "ricordami venerdì alle 10.15":
+// se la nota lo dice, il promemoria si crea subito (senza aspettare l'agente).
+export function quandoRicordare(testo, adesso = new Date()) {
+  const t = testo.toLowerCase()
+  if (!/ricord/.test(t)) return null
+  const ora = t.match(/\balle?\s+(\d{1,2})(?:[:.](\d{2}))?\b/)
+  if (!ora) return null
+  const h = Number(ora[1])
+  const m = Number(ora[2] || 0)
+  if (h > 23 || m > 59) return null
+  const d = new Date(adesso)
+  d.setSeconds(0, 0)
+  let salto = 1 // "alle 9" detto la sera senza giorno: domani
+  if (/dopodomani/.test(t)) d.setDate(d.getDate() + 2)
+  else if (/domani/.test(t)) d.setDate(d.getDate() + 1)
+  else {
+    const g = GIORNI.findIndex((x) => t.includes(x) || t.includes(x.replace('ì', 'i')))
+    if (g >= 0) { d.setDate(d.getDate() + ((g - d.getDay() + 7) % 7)); salto = 7 }
+  }
+  d.setHours(h, m)
+  if (d < adesso) d.setDate(d.getDate() + salto)
+  return d
+}
+
 // Aggiungi: scrivi, parla o foto. Senza area la nota va nell'Inbox.
 export default function Aggiungi({ usaCondiviso, personaId }) {
   const { area, avvisa, utente } = useApp()
@@ -64,13 +90,16 @@ export default function Aggiungi({ usaCondiviso, personaId }) {
         .select('id').single())
       await collegaPersone(nota.id, areaNota, persone)
       for (const f of foto) await caricaFoto(utente.id, nota.id, f.file)
-      if (conPromemoria) {
+      // Promemoria scelto col tasto, oppure detto nella nota ("ricordami alle 19:30").
+      const detto = !conPromemoria ? quandoRicordare(pulito) : null
+      if (conPromemoria || detto) {
         chk(await sb.from('promemoria').insert({
           testo: pulito || 'Foto', area: areaNota, nota_id: nota.id,
-          scade_il: new Date(ricorda).toISOString(),
+          scade_il: (detto || new Date(ricorda)).toISOString(),
         }))
       }
-      avvisa(areaNota ? `Salvata in ${areaDa(areaNota).nome}` : 'Salvata nell\'Inbox')
+      const dove = areaNota ? `Salvata in ${areaDa(areaNota).nome}` : 'Salvata nell\'Inbox'
+      avvisa(detto ? `${dove}. Te lo ricordo ${detto.toLocaleDateString('it-CH', { weekday: 'long' })} alle ${detto.toLocaleTimeString('it-CH', { hour: '2-digit', minute: '2-digit' })}` : dove)
       svuota()
     } catch (e) {
       avvisa(messaggioErrore(e))

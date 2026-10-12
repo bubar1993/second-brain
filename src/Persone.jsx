@@ -155,7 +155,9 @@ export function Persona({ id }) {
   const { dati, errore, carica, ricarica } = useCarica(async () => {
     const p = chk(await sb.from('persone').select('*,' + CAMPI_PERSONA.replace('id,nome,cognome,', '')).eq('id', id).single())
     const indirizzi = [p.email, ...(p.email_altre || [])].filter(Boolean).map((e) => e.toLowerCase())
-    const [np, riassunti, wa, posta] = await Promise.all([
+    const ditte = p.persone_aziende.map((x) => x.aziende?.id).filter(Boolean)
+    const ieri = new Date(Date.now() - 86400000).toISOString()
+    const [np, riassunti, wa, posta, ev] = await Promise.all([
       sb.from('note_persone').select('note(id,area,testo,fonte,data,creata_il,eliminata_il,scartata_il,sezione,mandante,risolto_il,azienda_id,aziende(id,nome),promemoria(id,testo,scade_il,fatto_il,eliminata_il))').eq('persona_id', id),
       sb.from('persone_riassunti').select('*').eq('persona_id', id),
       sb.from('wa_contatti').select('wa_id,area,wa_messaggi(id,direzione,testo,tipo,data)').eq('persona_id', id)
@@ -165,12 +167,15 @@ export function Persona({ id }) {
           .or(indirizzi.flatMap((e) => [`da.ilike.${e}`, `a.cs.{${e}}`]).join(','))
           .order('data', { ascending: false }).limit(15)
         : Promise.resolve({ data: [] }),
+      sb.from('eventi').select('id,titolo,inizio,tutto_il_giorno,luogo,area,stato')
+        .or([`persona_id.eq.${id}`, ...(ditte.length ? [`azienda_id.in.(${ditte.join(',')})`] : [])].join(','))
+        .in('stato', ['confermato', 'da_creare', 'proposto']).gte('inizio', ieri).order('inizio').limit(5),
     ])
     const note = chk(np).map((x) => x.note).filter((n) => n && !n.eliminata_il && !n.scartata_il)
       .sort((a, b) => (b.data || b.creata_il).localeCompare(a.data || a.creata_il))
     const messaggi = chk(wa).flatMap((c) => c.wa_messaggi.map((m) => ({ ...m, area: c.area })))
       .sort((a, b) => b.data.localeCompare(a.data))
-    return { p, note, riassunti: chk(riassunti), messaggi, posta: chk(posta), chat: chk(wa).map((c) => c.wa_id) }
+    return { p, note, riassunti: chk(riassunti), messaggi, posta: chk(posta), chat: chk(wa).map((c) => c.wa_id), eventi: chk(ev) }
   }, [id])
 
   useEffect(() => {
@@ -270,6 +275,22 @@ export function Persona({ id }) {
         </p>
       )}
       {p.compleanno && <p className="nota-piccola">Compleanno: {new Date(p.compleanno).toLocaleDateString('it-CH', { day: 'numeric', month: 'long' })}</p>}
+
+      {dati.eventi.filter(nell).length > 0 && (
+        <div className="elenco">
+          {dati.eventi.filter(nell).map((e) => (
+            <div key={e.id} className="riga">
+              <span className="pallino" style={{ background: areaDa(e.area)?.colore || 'var(--grigio)' }} />
+              <span className="riga-corpo">
+                <span className="riga-testo">{e.titolo}</span>
+                <span className="riga-meta">
+                  Appuntamento {quando(e.inizio, !e.tutto_il_giorno)}{e.luogo ? ` · ${e.luogo}` : ''}{e.stato === 'proposto' ? ' · proposto' : ''}
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {riassunti.length > 0 ? riassunti.map((r) => (
         <section key={r.area} className="blocco riassunto-persona" style={{ '--c': areaDa(r.area).colore }}>

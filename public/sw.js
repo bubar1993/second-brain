@@ -19,6 +19,8 @@ self.addEventListener('fetch', (e) => {
   const req = e.request
   const url = new URL(req.url)
   if (req.method !== 'GET' || url.origin !== self.location.origin) return
+  // Controllo "c'è una versione nuova?": sempre e solo dalla rete.
+  if (url.searchParams.has('versione')) return
 
   // Pagine: prima la rete (versione nuova), se manca la rete la copia salvata.
   if (req.mode === 'navigate') {

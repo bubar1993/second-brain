@@ -61,6 +61,27 @@ function Guscio({ utente, condiviso }) {
   }, [])
   const vai = (percorso) => { location.hash = percorso }
 
+  // Il telefono tiene l'app aperta per ore: quando torna in primo piano dopo più di 2 minuti
+  // si rileggono i dati (e se è uscita una versione nuova dell'app, si carica quella).
+  const [giro, setGiro] = useState(0)
+  useEffect(() => {
+    let nascosta = 0
+    async function cambia() {
+      if (document.hidden) { nascosta = Date.now(); return }
+      if (!nascosta || Date.now() - nascosta < 120000) return
+      nascosta = 0
+      try {
+        const pagina = await (await fetch(`/?versione=${Date.now()}`, { cache: 'no-store' })).text()
+        const mio = document.querySelector('script[type="module"][src*="/assets/"]')?.getAttribute('src')
+        // Mai mentre stai scrivendo una nota.
+        if (mio && !pagina.includes(mio) && !location.hash.startsWith('#/aggiungi')) { location.reload(); return }
+      } catch { /* senza rete: si rileggono solo i dati */ }
+      setGiro((g) => g + 1)
+    }
+    document.addEventListener('visibilitychange', cambia)
+    return () => document.removeEventListener('visibilitychange', cambia)
+  }, [])
+
   // Numero di cose nell'Inbox e di bozze da approvare, aggiornati a ogni cambio schermata.
   const [bozze, setBozze] = useState(0)
   const [domande, setDomande] = useState(0)
@@ -72,7 +93,7 @@ function Guscio({ utente, condiviso }) {
       .then(({ count }) => setBozze(count || 0))
     sb.from('domande').select('id', { count: 'exact', head: true }).is('risposta_il', null)
       .then(({ count }) => setDomande(count || 0))
-  }, [rotta])
+  }, [rotta, giro])
 
   const largo = useLargo()
   const [primo, secondo] = rotta.parti
@@ -162,7 +183,8 @@ function Guscio({ utente, condiviso }) {
         </a>
       </header>
 
-      <main>{schermata}</main>
+      {/* Nuovo "giro" = la schermata si rimonta e rilegge i dati (Aggiungi no: perderesti il testo). */}
+      <main key={primo === 'aggiungi' ? 'aggiungi' : giro}>{schermata}</main>
 
       <nav className="tasti">
         <a href="#/oggi" className={tasto === 'oggi' ? 'attivo' : ''}>

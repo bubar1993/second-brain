@@ -89,6 +89,12 @@ h3 { font-size: 14px; margin: 12px 0 4px; color: var(--tenue); font-weight: 600;
 }
 .interruttore button.area { color: var(--c); }
 .interruttore button.attivo { color: var(--vuoto); }
+/* Loghi Ceramex e G&C: dentro un dischetto bianco, così si leggono sul fondo scuro e sul colore dell'area. */
+.interruttore .logo-area {
+  display: block; width: 28px; height: 28px; margin: 0 auto; padding: 3px; box-sizing: border-box;
+  border-radius: 50%; background: #fff; object-fit: contain;
+}
+.interruttore .logo-area[src$='.png'] { padding: 5px; } /* il marchio G&C è quadrato: un po' più di margine */
 .tasto-dentro {
   position: relative; display: grid; place-items: center; flex: none;
   width: 44px; height: 44px; border-radius: 50%;

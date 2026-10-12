@@ -18,6 +18,9 @@ import { ChatWhatsApp, ChatContatto, ModelliWhatsApp } from './WhatsApp'
 import { Agenti, Agente } from './Agenti'
 import { Ordini } from './Ordini'
 
+// Nell'interruttore in alto i loghi delle due ditte al posto di C e G (scelta di Giovanni, 12.10.2026); P resta P.
+const LOGHI = { C: '/logo-ceramex.svg', G: '/logo-gc.png' }
+
 export default function App({ condiviso }) {
   const [sessione, setSessione] = useState(undefined)
 
@@ -252,7 +255,7 @@ function Guscio({ utente, condiviso }) {
             <button key={a.codice} type="button" style={{ '--c': a.colore }}
               className={'area' + (area === a.codice ? ' attivo' : '')}
               onClick={() => setArea(a.codice)} aria-label={a.nome} title={a.nome}>
-              {a.codice}
+              {LOGHI[a.codice] ? <img className="logo-area" src={LOGHI[a.codice]} alt="" /> : a.codice}
             </button>
           ))}
         </div>

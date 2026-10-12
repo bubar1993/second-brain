@@ -678,3 +678,51 @@ mark { background: rgba(255, 214, 102, 0.22); color: var(--testo); border-radius
 .circolare.nuova { border-color: color-mix(in srgb, var(--blu) 45%, var(--bordo)); }
 .circolare.nuova .ordine-cliente::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--blu); margin-right: 8px; vertical-align: middle; }
 .circolare.importante { border-left: 3px solid var(--giallo); }
+
+/* ---------- Capo (13.10.2026): chat, conferme con due tocchi, modifiche per Claude Code ---------- */
+.capo .testata { margin-left: 0; }
+.chat-capo { display: flex; flex-direction: column; gap: 14px; }
+.scambio { display: flex; flex-direction: column; gap: 6px; }
+.fumetto { margin: 0; max-width: 88%; padding: 10px 14px; border-radius: 18px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
+.fumetto .ora { display: block; margin-top: 4px; font-size: 12px; color: var(--tenue); }
+.fumetto-mio { align-self: flex-end; background: rgba(255, 255, 255, 0.09); border: 1px solid var(--bordo); border-bottom-right-radius: 6px; }
+.fumetto-capo { align-self: flex-start; background: rgba(255, 214, 102, 0.07); border: 1px solid rgba(255, 214, 102, 0.22); border-bottom-left-radius: 6px; }
+.fumetto-capo.in-attesa { color: var(--tenue); font-style: italic; }
+.passata { align-self: flex-start; max-width: 88%; margin-left: 14px; padding: 8px 12px; border-left: 2px solid var(--bordo); white-space: pre-wrap; overflow-wrap: anywhere; }
+.passata p { margin: 0; }
+.conferma-capo { align-self: stretch; display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: var(--raggio); background: var(--superficie); border: 1px solid var(--bordo); }
+.conferma-capo.aperta { border-color: rgba(255, 214, 102, 0.5); box-shadow: 0 0 18px rgba(255, 214, 102, 0.12); }
+.conferma-capo p { margin: 0; }
+.conferma-cosa { font-weight: 600; }
+.conferma-dettagli { margin: 0; padding: 10px 12px; border-radius: 12px; background: rgba(0, 0, 0, 0.3); font: 14px/1.45 var(--sans); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow: auto; }
+.conferma-capo .tasto-link { align-self: flex-start; padding: 4px 0; }
+.conferma-capo .azioni .tasto-grande { flex: 1; min-height: 48px; font-size: 16px; }
+.tasto-grande.armato { background: var(--giallo); }
+.modifica-claude { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: var(--raggio); background: var(--superficie); border: 1px solid var(--bordo); }
+.modifica-claude p { margin: 0; }
+.modifica-claude .azioni .tasto-grande { min-height: 44px; font-size: 15px; }
+.scrivi-capo { position: sticky; bottom: calc(var(--tasti) + 22px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: var(--raggio); background: var(--vetro-forte); border: 1px solid var(--bordo); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); scroll-margin-bottom: calc(var(--tasti) + 40px); }
+.scrivi-capo textarea { min-height: 56px; font-size: 16px; }
+.scrivi-capo .azioni { flex-wrap: nowrap; }
+.scrivi-capo .tasto-grande { flex: 1; min-height: 48px; }
+.tasto-mic { display: grid; place-items: center; flex: none; width: 48px; height: 48px; border-radius: 50%; border: 1px solid var(--bordo); background: var(--superficie); }
+.tasto-mic.attivo { background: var(--rosso); border-color: var(--rosso); color: #fff; box-shadow: 0 0 16px rgba(255, 93, 108, 0.5); }
+@media (min-width: 1024px) { .scrivi-capo { bottom: 16px; } }
+
+/* ---------- Bacheca: chi parla con chi ---------- */
+.bacheca-tela { margin: 0 -8px; }
+.bacheca-tela svg { display: block; width: 100%; height: auto; max-width: 520px; margin: 0 auto; }
+.bacheca-tela .filo { stroke-width: 1; opacity: 0.3; }
+.bacheca-tela .filo-capo { opacity: 0.45; stroke-dasharray: 3 5; animation: scorre 1.6s linear infinite; }
+.bacheca-tela .filo-forte { stroke-width: 2; opacity: 0.8; }
+.bacheca-tela .filo-domande { stroke: var(--testo); stroke-dasharray: 2 4; opacity: 0.4; }
+.bacheca-nodo circle { transition: opacity 160ms ease; }
+.bacheca-nodo .alone { opacity: 0.16; }
+.bacheca-nodo:active .alone { opacity: 0.4; }
+.bacheca-nodo text { fill: var(--testo); font: 600 12px var(--sans); paint-order: stroke; stroke: var(--vuoto); stroke-width: 4px; stroke-linejoin: round; }
+@keyframes scorre { to { stroke-dashoffset: -16; } }
+@media (prefers-reduced-motion: reduce) { .bacheca-tela .filo-capo { animation: none; } }
+.bacheca-legenda { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; color: var(--tenue); font-size: 14px; }
+.bacheca-legenda b { color: var(--testo); font-weight: 600; }
+.bacheca-legenda .segno { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+.bacheca-legenda .segno.tratteggio { width: 16px; height: 0; border-radius: 0; border-top: 2px dashed var(--testo); opacity: 0.6; }

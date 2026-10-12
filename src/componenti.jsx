@@ -152,6 +152,7 @@ const PERCORSI = {
   riordino: 'M3 6h6l2 2h10v11H3zM3 11h18M12 13v4M10 15l2 2 2-2',
   seguire: 'M5 4h14v17l-7-4-7 4zM9 9l2 2 4-4',
   circolari: 'M4 10v4h3l6 4V6L7 10zM16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11',
+  capo: 'M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5zM5 19h14',
 }
 
 export function Icona({ nome, size = 22 }) {

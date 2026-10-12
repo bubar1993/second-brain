@@ -20,6 +20,8 @@ import { Ordini } from './Ordini'
 import { Riordino } from './Riordino'
 import { Seguire, contaDaSeguire } from './Seguire'
 import { Circolari, contaCircolari } from './Circolari'
+import { Capo, contaCapo } from './Capo'
+import { Bacheca } from './Bacheca'
 
 // Nell'interruttore in alto i loghi delle due ditte al posto di C e G (scelta di Giovanni, 12.10.2026); P resta P.
 const LOGHI = { C: '/logo-ceramex.svg', G: '/logo-gc.png' }
@@ -40,7 +42,8 @@ export default function App({ condiviso }) {
 }
 
 function leggiRotta() {
-  const h = location.hash.replace(/^#/, '') || '/oggi'
+  // second-brain…/bacheca (indirizzo senza #): la bacheca degli agenti.
+  const h = location.hash.replace(/^#/, '') || (location.pathname === '/bacheca' ? '/bacheca' : '/oggi')
   const [percorso, query = ''] = h.split('?')
   return { parti: percorso.split('/').filter(Boolean), query: new URLSearchParams(query) }
 }
@@ -148,7 +151,10 @@ function Guscio({ utente, condiviso }) {
   const [riordino, setRiordino] = useState(0)
   const [seguire, setSeguire] = useState(0)
   const [circolari, setCircolari] = useState(0)
+  const [capo, setCapo] = useState(0)
   useEffect(() => {
+    // Capo: cose da confermare + risposte non lette.
+    contaCapo().then(setCapo).catch(() => {})
     // Da seguire (promesse scadute + problemi fermi) e circolari non lette, solo Ceramex e G&C.
     contaDaSeguire(area).then(setSeguire).catch(() => {})
     contaCircolari(area).then(setCircolari).catch(() => {})
@@ -206,6 +212,8 @@ function Guscio({ utente, condiviso }) {
     case 'seguire': schermata = <Seguire />; break
     case 'circolari': schermata = <Circolari />; break
     case 'agenti': schermata = <Agenti />; break
+    case 'capo': schermata = <Capo />; break
+    case 'bacheca': schermata = <Bacheca />; break
     case 'ordini': schermata = <Ordini />; break
     case 'agente': schermata = <Agente key={secondo} codice={secondo} />; break
     case 'inbox': schermata = <Inbox />; break
@@ -225,7 +233,7 @@ function Guscio({ utente, condiviso }) {
     case 'whatsapp': schermata = secondo === 'modelli' ? <ModelliWhatsApp /> : secondo ? <ChatContatto key={secondo} waId={secondo} /> : <ChatWhatsApp />; break
     default: schermata = <Oggi inbox={inbox} bozze={bozze} domande={domande} risposte={risposte} riordino={riordino} seguire={seguire} />
   }
-  const tasto = ['oggi', 'aggiungi', 'chiedi'].includes(primo) ? primo : primo ? null : 'oggi'
+  const tasto = ['oggi', 'aggiungi', 'chiedi', 'capo'].includes(primo) ? primo : primo ? null : 'oggi'
   const sezioneLato = primo === 'azienda' ? 'aziende' : primo === 'persona' ? 'persone' : primo === 'bozza' ? 'bozze'
     : primo === 'agente' ? 'agenti' : primo || 'oggi'
 
@@ -249,7 +257,7 @@ function Guscio({ utente, condiviso }) {
         <a href="#/aggiungi" className={'lato-aggiungi' + (sezioneLato === 'aggiungi' ? ' attivo' : '')}>
           <Icona nome="piu" size={20} /><span>Aggiungi</span>
         </a>
-        {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], null, ['aziende', 'Aziende'], ['seguire', 'Da seguire'], ['bozze', 'Bozze'], ['riordino', 'Riordino casella'], ['ordini', 'Ordini Marazzi'], ['circolari', 'Circolari'], ['persone', 'Persone'], ['gemelli', 'Gemelli'], ['whatsapp', 'WhatsApp'],
+        {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], ['capo', 'Capo'], null, ['aziende', 'Aziende'], ['seguire', 'Da seguire'], ['bozze', 'Bozze'], ['riordino', 'Riordino casella'], ['ordini', 'Ordini Marazzi'], ['circolari', 'Circolari'], ['persone', 'Persone'], ['gemelli', 'Gemelli'], ['whatsapp', 'WhatsApp'],
           ['domande', 'Domande per te'], ['agenti', 'Agenti'], ['inbox', 'Inbox'], ['note', 'Tutte le note'], ['cestino', 'Cestino']]
           .filter((v) => !v || voceVisibile(VOCI_DENTRO.find((x) => x.chiave === v[0]) || {}, area)).map((v, i) => v ? (
           <a key={v[0]} href={`#/${v[0]}`} className={'lato-voce' + (sezioneLato === v[0] ? ' attivo' : '')}
@@ -262,6 +270,7 @@ function Guscio({ utente, condiviso }) {
             {v[0] === 'riordino' && riordino > 0 && <span className="lato-badge">{riordino}</span>}
             {v[0] === 'seguire' && seguire > 0 && <span className="lato-badge">{seguire}</span>}
             {v[0] === 'circolari' && circolari > 0 && <span className="lato-badge">{circolari}</span>}
+            {v[0] === 'capo' && capo > 0 && <span className="lato-badge">{capo}</span>}
           </a>
         ) : <hr key={i} />)}
         <button type="button" className="lato-voce lato-esci" onClick={esci}><Icona nome="esci" size={20} /><span>Esci</span></button>
@@ -308,8 +317,11 @@ function Guscio({ utente, condiviso }) {
         <a href="#/chiedi" className={tasto === 'chiedi' ? 'attivo' : ''}>
           <Icona nome="cerca" /><span>Chiedi</span>
         </a>
-        {/* Posto libero: per un tasto che servirà più avanti. */}
-        <span className="tasto-libero" aria-hidden="true" />
+        {/* Capo (13.10.2026): l'agente a cui scrivi o detti; nel posto che era libero accanto a Chiedi. */}
+        <a href="#/capo" className={tasto === 'capo' ? 'attivo' : ''}>
+          <span className="icona-badge"><Icona nome="capo" />{capo > 0 && <span className="badge">{capo}</span>}</span>
+          <span>Capo</span>
+        </a>
       </nav>
 
       {avviso && (

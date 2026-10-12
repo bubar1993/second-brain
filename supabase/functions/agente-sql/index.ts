@@ -7,11 +7,12 @@
 // - AGENTE_TOKEN_CERAMEX → "agente_ceramex": solo l'area C (note clienti delle routine Bozze mail Ceramex);
 // - AGENTE_TOKEN_SMISTATORE → "agente_smistatore": legge domande e richieste di lavoro, scrive richieste agli agenti.
 // - AGENTE_TOKEN_SEGUIRE → "agente_seguire": promesse, campioni, circolari e doppioni di C e G.
+// - AGENTE_TOKEN_CAPO → "agente_capo": Agente capo, legge e scrive tutto (C, G, P) tranne wa_collegamento, niente delete.
 // Cosa vede e scrive ognuno lo garantiscono i permessi del database (niente cancellazioni di note).
 // Uso: POST con header x-agente-token e l'SQL nel corpo (testo semplice o JSON {"sql": "..."}).
 import postgres from 'npm:postgres@3.4.5'
 
-const PORTE = ['', '_LAVORO', '_PRIVATO', '_CALENDARIO', '_CERAMEX', '_SMISTATORE', '_SEGUIRE']
+const PORTE = ['', '_LAVORO', '_PRIVATO', '_CALENDARIO', '_CERAMEX', '_SMISTATORE', '_SEGUIRE', '_CAPO']
   .map((s) => ({ token: Deno.env.get(`AGENTE_TOKEN${s}`), url: Deno.env.get(`AGENTE_DB_URL${s}`) }))
   .filter((p) => p.token && p.url)
 const MASSIMO = 300000 // caratteri di risposta

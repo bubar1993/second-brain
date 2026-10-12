@@ -1,6 +1,6 @@
 # Second Brain GF
 
-Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo aggiornamento: 12.10.2026 notte (schede persona, agenti delle note, WhatsApp).
+Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo aggiornamento: 13.10.2026 notte (Agente capo, bacheca, codice Ceramex sul PC).
 
 ## Chi è Giovanni e come rispondergli
 - Giovanni Fabris, Manno (Ticino). Ha due società: **Ceramex SAGL** (agente di commercio: Marazzi/Ragno, Flaviker/ABK, Garbelotto, Profilitec) e **G&C Home Concepts Sagl** (forniture per interni).
@@ -20,7 +20,7 @@ Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo
 
 ## ATTENZIONE: cose da non rompere
 - Il connettore Supabase di claude.ai vede solo l'organizzazione "G&C Home Concepts & Ceramex". **Non va spostato.** Le routine "Bozze mail Ceramex" (ore piene, mezz'ora, weekend) lo usano sul progetto Ceramex: se cambia, smettono di funzionare.
-- Gestionale Ceramex: progetto Supabase `nouxqowregwnyqlrvqqo`, cartella `Documenti\ceramex`. Il codice dell'app Ceramex non è sul PC (solo l'app pubblicata e il repo GitHub `bubar1993/ceramex-app`). Nel gestionale c'è l'utente di sola lettura `brain_lettore` (creato l'11.10.2026 con l'ok di Giovanni): legge solo `clienti`, `note_clienti`, `note_regole`, `note_mail_viste` per la copia automatica. Non dargli altri permessi.
+- Gestionale Ceramex: progetto Supabase `nouxqowregwnyqlrvqqo`, cartella `Documenti\ceramex` (solo `reader`). Il codice dell'app Ceramex è in `Documenti\ceramex-app` (clone del repo GitHub `bubar1993/ceramex-app`, scaricato il 13.10.2026 con l'accesso GitHub di Giovanni): si cambia solo con il suo ok. Nel gestionale c'è l'utente di sola lettura `brain_lettore` (creato l'11.10.2026 con l'ok di Giovanni): legge solo `clienti`, `note_clienti`, `note_regole`, `note_mail_viste` per la copia automatica. Non dargli altri permessi.
 - Gestionale G&C: progetto Supabase `hnpesqsteytwfgrsrygn`, cartella `Documenti\gchomeconcepts`. Anche qui c'è l'utente di sola lettura `brain_lettore` (creato l'11.10.2026 con l'ok di Giovanni): legge solo `clients`, `sites`, `price_list_suppliers`, `email_messages`. Non dargli altri permessi.
 - I gestionali si **leggono** soltanto. Non si modificano senza l'ok di Giovanni.
 - Sul PC girano programmi che non vanno toccati: il lettore mail e il portale Marazzi (`lettore.mjs`, `portale.mjs` del gestionale Ceramex).
@@ -205,7 +205,18 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 - App: Dentro → "Da seguire" (`src/Seguire.jsx`: promesse mie / degli altri, campioni, problemi fermi = problemi aperti della stessa ditta+mandante senza novità da 7 giorni, calcolati dall'app) e "Circolari" (`src/Circolari.jsx`, per mandante/fornitore). Oggi: "N cose da seguire" (promesse scadute + problemi fermi).
 - Doppioni (una volta alla settimana): l'agente chiede in "Domande per te"; col sì unisce. Schede: `aziende.unito_in` + note, persone, eventi, ordini, posta spostati; `copia-ceramex` e `copia-gc` rispettano le schede unite (mappano azienda_id). Note: una nota unita nuova, le vecchie nel cestino (imparata = true, così l'agente Ceramex non impara regole sbagliate).
 - Niente "clienti silenziosi", niente riassunto settimanale per mandante, niente vista per cantiere in Ceramex (decisioni di Giovanni).
-- Barra in basso (13.10.2026): Oggi, Dentro, +, Chiedi e un posto libero (per una cosa che servirà presto). Il tasto Dentro in alto non c'è più. Lo scorrimento col dito arriva anche a "Tutte".
+- Barra in basso (13.10.2026): Oggi, Dentro, +, Chiedi, Capo. Il tasto Dentro in alto non c'è più. Lo scorrimento col dito arriva anche a "Tutte".
+- Circolari aumenti prezzi in info@ (13.10.2026 notte, richiesta di Giovanni): messe a mano Marazzi/Ragno (Silvia Leoni, dal 1.12), Savoia (dal 2.11), ABK contributo energetico (dal 1.11), Gambini energy surcharge. Polis: nessuna mail di aumenti trovata in info@. L'agente ora riconosce il fornitore anche dal dominio del mittente (`fornitori.domini`), non solo da `posta.fornitore_id`: regola cambiata in `agenti/agente-seguire.md`, **la routine "Agente da seguire" è ancora da aggiornare** (vedi Agente capo, nota sui sottoagenti).
+
+### Agente capo e bacheca (13.10.2026 notte, ok di Giovanni)
+- Tasto **Capo** in basso (`#/capo`, `src/Capo.jsx`): Giovanni scrive o detta, il Capo risponde nella chat (richieste_agenti con agente = 'capo'). Sotto ogni risposta: le cose da confermare e i lavori passati agli altri agenti (richieste con `da = 'capo'` e `origine_id`). Badge = conferme da fare + risposte non lette.
+- Routine "Agente capo" `trig_01Hv5Y9LHytXiiX5L3xs2Nuw` (Opus, SENZA orario: parte solo dal pulsante; connettori Supabase (gestionali), Gmail, Google Drive, Google Calendar), regole `agenti/agente-capo.md`. Utente DB `agente_capo` (AGENTE_TOKEN_CAPO): legge e scrive tutte le tabelle tranne `wa_collegamento`, niente delete. **Per le tabelle nuove rilanciare il blocco "capo vede tutto" della migrazione `capo`.** Il token NON sta nel prompt: `agente-subito` lo aggiunge al messaggio di avvio ("Token della porta: …"), così il prompt non ha segreti e si può aggiornare senza passare token.
+- Serve il pulsante: ROUTINE_TOKEN_CAPO (da claude.ai, `node scripts/salva-pulsante.mjs capo`). Senza, il Capo non parte.
+- Cose rischiose (mail, messaggi, cancellare, scrivere nei gestionali, spostare mail, altro) → tabella `capo_conferme`: Giovanni tocca "Conferma" e poi "Sì, fallo" (due tocchi), l'app sveglia il capo (`agente-subito` `{ sveglia: 'capo' }`). Un trigger impedisce al capo di confermare da solo o di segnare "fatta" una cosa non confermata.
+- **Modifiche per Claude Code** (`modifiche_claude`, app 'brain' | 'ceramex' | 'gc'): il Capo ci scrive i cambi alle app e alle regole degli agenti; Giovanni dà "Ok, falla" nella schermata Capo. **All'inizio di ogni sessione qui: guarda `select * from modifiche_claude where stato = 'ok'`, falle, poi stato 'fatta', fatta_il, nota_claude.** Le 'proposta' non si toccano senza il suo ok.
+- Il Capo può far partire gli altri agenti (anche il privato) con `agente-subito` e il suo token, solo per le richieste scritte da lui.
+- **Bacheca** (`second-brain…/bacheca` o `#/bacheca`, `src/Bacheca.jsx`, link da Agenti): disegno di chi parla con chi (Capo → tutti, Smistatore → tutti tranne Privato, Domande per te).
+- Nota tecnica (13.10.2026): i sottoagenti di Claude Code qui NON vedono più RemoteTrigger. Le routine con il token nel prompt (tutte tranne il Capo) per ora non si possono aggiornare senza far passare il token nella chiamata: farlo quando i sottoagenti lo rivedono, oppure passarle anche loro al token nel messaggio di avvio (non vale per i giri programmati) o alle variabili dell'ambiente (da decidere con Giovanni).
 
 ### Ordini Marazzi (12.10.2026 sera, ok di Giovanni)
 - Funzione `ordini-marazzi` (pg_cron ogni 15 minuti, token copia_token): cerca nella Gmail (gmail.readonly) le conferme d'ordine automatiche Marazzi degli ultimi 3 giorni (oggetto con numero 2026…, in IT/EN/DE/FR, niente inoltri), scarica il PDF ("Order Confirm Report", sempre in inglese) e ne salva il testo in `ordini_marazzi` (stato 'da_leggere'). Registro `lavori_registro` 'ordini-marazzi' solo se trova qualcosa o sbaglia.

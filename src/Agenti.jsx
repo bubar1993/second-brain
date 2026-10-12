@@ -7,6 +7,7 @@ import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, Icona
 // la legge il giro programmato. L'agente risponde nella stessa riga di richieste_agenti.
 
 export const AGENTI = [
+  { codice: 'capo', nome: 'Capo', cosa: 'Gli scrivi o detti dal tasto Capo: fa lui o passa il lavoro all\'agente giusto. Mail, cancellazioni e gestionali solo dopo i tuoi due tocchi', registro: 'agente-capo', aree: ['C', 'G', 'P'], orari: 'subito, quando gli scrivi' },
   { codice: 'lavoro', nome: 'Agente lavoro', cosa: 'Note di Ceramex e G&C, Inbox, persone, punto del mattino e della sera', registro: 'agente-lavoro', aree: ['C', 'G'], orari: 'ogni ora, dalle 7 alle 22' },
   { codice: 'ceramex', nome: 'Bozze mail Ceramex', cosa: 'Bozze di risposta nella tua Gmail e note dalle mail Ceramex', registro: 'agente-ceramex', aree: ['C'], orari: 'ogni mezz\'ora nei giorni feriali (8–19), ogni 2 ore nel weekend' },
   { codice: 'ordini', nome: 'Ordini Marazzi', cosa: 'Legge le conferme d\'ordine Marazzi (cliente, articoli, disponibilità) e le mette nella scheda del cliente', registro: 'agente-ceramex-ordini', aree: ['C'], orari: 'ogni ora alle :20, dalle 7 alle 22', senzaRichieste: true },
@@ -48,7 +49,7 @@ export function Agenti() {
   return (
     <div className="schermata">
       <Indietro titolo="Agenti" />
-      <p className="nota-piccola">Cosa fanno gli agenti e quando hanno girato. Tocca un agente per scrivergli.</p>
+      <p className="nota-piccola">Cosa fanno gli agenti e quando hanno girato. Tocca un agente per scrivergli. <a href="#/bacheca">Chi parla con chi</a></p>
       <Stato carica={carica} errore={errore}>
         {dati && (
           <div className="elenco">
@@ -57,7 +58,7 @@ export function Agenti() {
               const nuove = dati.richieste.filter((r) => r.agente === a.codice && r.risposta_il && !r.vista_il).length
               const attesa = dati.richieste.some((r) => r.agente === a.codice && IN_ATTESA.includes(r.stato))
               return (
-                <a key={a.codice} className="riga voce" href={`#/agente/${a.codice}`}>
+                <a key={a.codice} className="riga voce" href={a.codice === 'capo' ? '#/capo' : `#/agente/${a.codice}`}>
                   <span className="riga-corpo">
                     <span className="riga-testo">{a.nome}</span>
                     <span className="riga-meta">

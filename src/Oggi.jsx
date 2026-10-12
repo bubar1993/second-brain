@@ -6,14 +6,25 @@ import Rete from './Rete'
 const corto = (s, n = 16) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s)
 const numero = (n) => (n == null ? '…' : n.toLocaleString('de-CH'))
 
+// Giorni da oggi al prossimo compleanno (0 = oggi).
+function giorniAlCompleanno(iso) {
+  const [, m, g] = iso.split('-').map(Number)
+  const oggi = new Date()
+  oggi.setHours(0, 0, 0, 0)
+  let d = new Date(oggi.getFullYear(), m - 1, g)
+  if (d < oggi) d = new Date(oggi.getFullYear() + 1, m - 1, g)
+  return Math.round((d - oggi) / 86400000)
+}
+
 export default function Oggi({ inbox, bozze, domande }) {
   const { area, avvisa, vai } = useApp()
   const rete = useRef(null)
   const [fatti, setFatti] = useState(() => new Set())
   const [lampo, setLampo] = useState(null)
+  const [avanti, setAvanti] = useState(false)
 
   const { dati, errore, carica, ricarica } = useCarica(async () => {
-    let qp = sb.from('promemoria').select('id,testo,area,scade_il,urgente,nota_id')
+    let qp = sb.from('promemoria').select('id,testo,area,scade_il,urgente,nota_id,ricorrenza')
       .is('fatto_il', null).is('eliminata_il', null)
       .order('scade_il', { ascending: true, nullsFirst: false }).limit(50)
     // Le note dei clienti stanno nelle schede delle aziende: qui solo quelle scritte da Giovanni.
@@ -30,13 +41,33 @@ export default function Oggi({ inbox, bozze, domande }) {
       .order('data', { ascending: false }).order('creata_il', { ascending: false }).limit(60)
     if (area === 'P') qa = Promise.resolve({ data: [] })
     else if (area !== 'T') qa = qa.eq('area', area)
-    const [promemoria, note, recenti] = await Promise.all([qp, qn, qa])
+    const qc = sb.from('persone').select('id,nome,cognome,compleanno,persone_aree(area)')
+      .not('compleanno', 'is', null).is('eliminata_il', null)
+    // Appuntamenti: da ora a 7 giorni, più le proposte degli agenti da approvare.
+    const da = new Date(); da.setHours(0, 0, 0, 0)
+    const a7 = new Date(da.getTime() + 8 * 86400000)
+    let qe = sb.from('eventi').select('id,titolo,inizio,fine,tutto_il_giorno,luogo,area,stato,motivo,errore,aziende(id,nome),persone(id,nome,cognome)')
+      .in('stato', ['confermato', 'proposto', 'da_creare']).gte('inizio', da.toISOString()).lt('inizio', a7.toISOString())
+      .order('inizio').limit(60)
+    if (area !== 'T') qe = qe.or(`area.eq.${area},area.is.null`)
+    const oggiIso = `${da.getFullYear()}-${String(da.getMonth() + 1).padStart(2, '0')}-${String(da.getDate()).padStart(2, '0')}`
+    let qr = sb.from('riassunti_giorno').select('parte,momento,testo,creata_il').eq('giorno', oggiIso)
+    if (area === 'P') qr = qr.eq('parte', 'privato')
+    else if (area !== 'T') qr = qr.eq('parte', 'lavoro')
+    const [promemoria, note, recenti, nati, ev, ria] = await Promise.all([qp, qn, qa, qc, qe, qr])
     const aziende = []
     for (const r of chk(recenti)) {
       if (r.aziende && !aziende.some((a) => a.id === r.aziende.id)) aziende.push(r.aziende)
       if (aziende.length === 6) break
     }
-    return { promemoria: chk(promemoria), note: chk(note), aziende }
+    // Compleanni nei prossimi 14 giorni (l'anno non conta).
+    const compleanni = chk(nati).map((p) => ({ ...p, tra: giorniAlCompleanno(p.compleanno) }))
+      .filter((p) => p.tra <= 14 && (area === 'T' || p.persone_aree.some((x) => x.area === area)))
+      .sort((a, b) => a.tra - b.tra)
+    // Il riassunto più recente di ogni parte (la sera sostituisce il mattino).
+    const riassunti = ['lavoro', 'privato'].map((parte) => chk(ria).filter((r) => r.parte === parte)
+      .sort((a, b) => (a.momento === 'sera' ? -1 : 1) - (b.momento === 'sera' ? -1 : 1))[0]).filter(Boolean)
+    return { promemoria: chk(promemoria), note: chk(note), aziende, compleanni, eventi: chk(ev), riassunti }
   }, [area])
 
   // Quanto è grande la memoria: si legge una volta.
@@ -54,7 +85,13 @@ export default function Oggi({ inbox, bozze, domande }) {
     rete.current?.assorbi(p.id)
     try {
       chk(await sb.from('promemoria').update({ fatto_il: new Date().toISOString() }).eq('id', p.id))
-      avvisa('Fatto')
+      // Le scadenze di ogni anno (cassa malati, gomme…) tornano l'anno dopo.
+      if (p.ricorrenza === 'annuale' && p.scade_il) {
+        const prossimo = new Date(p.scade_il)
+        prossimo.setFullYear(prossimo.getFullYear() + 1)
+        chk(await sb.from('promemoria').insert({ testo: p.testo, area: p.area, scade_il: prossimo.toISOString(), ricorrenza: 'annuale', urgente: p.urgente }))
+      }
+      avvisa(p.ricorrenza === 'annuale' ? 'Fatto: torna l\'anno prossimo' : 'Fatto')
       setTimeout(ricarica, 450)
     } catch (e) {
       setFatti((s) => { const x = new Set(s); x.delete(p.id); return x })
@@ -63,12 +100,13 @@ export default function Oggi({ inbox, bozze, domande }) {
   }
 
   const promemoria = (dati?.promemoria || []).filter((p) => !fatti.has(p.id))
-  const gruppi = { ritardo: [], oggi: [], prossimi: [], senzaData: [] }
+  const gruppi = { ritardo: [], oggi: [], prossimi: [], avanti: [], senzaData: [] }
   for (const p of dati?.promemoria || []) {
     if (!p.scade_il) gruppi.senzaData.push(p)
     else if (new Date(p.scade_il) < new Date()) gruppi.ritardo.push(p)
     else if (giorniDaOggi(p.scade_il) === 0) gruppi.oggi.push(p)
-    else gruppi.prossimi.push(p)
+    else if (giorniDaOggi(p.scade_il) <= 14) gruppi.prossimi.push(p)
+    else gruppi.avanti.push(p)
   }
   const nessunPromemoria = dati && dati.promemoria.length === 0
   const daFareOggi = promemoria.filter((p) => p.scade_il && giorniDaOggi(p.scade_il) <= 0).length
@@ -112,6 +150,13 @@ export default function Oggi({ inbox, bozze, domande }) {
           {!dati ? 'Oggi' : daFareOggi === 0 ? 'Niente di urgente oggi' : daFareOggi === 1 ? '1 cosa da fare oggi' : `${daFareOggi} cose da fare oggi`}
         </h1>
 
+        {dati?.riassunti.map((r) => (
+          <section key={r.parte} className="riassunto-giorno">
+            <h3>{r.momento === 'mattino' ? 'Il punto del mattino' : 'Il punto della sera'}{dati.riassunti.length > 1 ? ` · ${r.parte === 'lavoro' ? 'lavoro' : 'privato'}` : ''}</h3>
+            <p>{r.testo}</p>
+          </section>
+        ))}
+
         <AttivaImpronta />
         <AvvisoBackup />
         <AvvisoCopia />
@@ -138,6 +183,8 @@ export default function Oggi({ inbox, bozze, domande }) {
           </a>
         )}
 
+        {dati && <Appuntamenti eventi={dati.eventi} ricarica={ricarica} />}
+
         <h2>Promemoria</h2>
         <Stato carica={carica} errore={errore} vuoto={nessunPromemoria ? 'Niente in sospeso. Quando aggiungi "Ricordamelo", compare qui e nella rete.' : null}>
           {dati && (
@@ -146,9 +193,34 @@ export default function Oggi({ inbox, bozze, domande }) {
               <Gruppo titolo="Oggi" righe={gruppi.oggi} fatto={fatto} fatti={fatti} lampo={lampo} />
               <Gruppo titolo="Prossimi giorni" righe={gruppi.prossimi} fatto={fatto} fatti={fatti} lampo={lampo} />
               <Gruppo titolo="Senza data" righe={gruppi.senzaData} fatto={fatto} fatti={fatti} lampo={lampo} />
+              {gruppi.avanti.length > 0 && (
+                <>
+                  <button type="button" className="tasto-link" onClick={() => setAvanti(!avanti)} aria-expanded={avanti}>
+                    {avanti ? 'Nascondi quelli più avanti' : `Più avanti: ${gruppi.avanti.length}`}
+                  </button>
+                  {avanti && <Gruppo titolo="Più avanti" righe={gruppi.avanti} fatto={fatto} fatti={fatti} lampo={lampo} />}
+                </>
+              )}
             </>
           )}
         </Stato>
+
+        {dati?.compleanni.length > 0 && (
+          <>
+            <h2>Compleanni</h2>
+            <div className="elenco">
+              {dati.compleanni.map((p) => (
+                <a key={p.id} className="riga" href={`#/persona/${p.id}`}>
+                  <span className="pallino" style={{ background: areaDa(p.persone_aree[0]?.area)?.colore || 'var(--grigio)' }} />
+                  <span className="riga-corpo">
+                    <span className="riga-testo">{[p.nome, p.cognome].filter(Boolean).join(' ')}</span>
+                    <span className="riga-meta">{p.tra === 0 ? 'Oggi!' : p.tra === 1 ? 'Domani' : `Tra ${p.tra} giorni`}</span>
+                  </span>
+                </a>
+              ))}
+            </div>
+          </>
+        )}
 
         <h2>Ultime note</h2>
         <Stato carica={carica} errore={errore} vuoto={dati && dati.note.length === 0 ? 'Ancora nessuna nota tua. Tocca + per la prima.' : null}>
@@ -156,6 +228,80 @@ export default function Oggi({ inbox, bozze, domande }) {
         </Stato>
       </div>
     </div>
+  )
+}
+
+// Appuntamenti di oggi e dei prossimi giorni (da Google Calendar) e proposte degli agenti.
+// Toccando un appuntamento con un cliente si apre la sua scheda: il riassunto da guardare prima della visita.
+function Appuntamenti({ eventi, ricarica }) {
+  const { avvisa } = useApp()
+  const proposte = eventi.filter((e) => e.stato === 'proposto')
+  const fissi = eventi.filter((e) => e.stato !== 'proposto')
+  if (!eventi.length) return null
+
+  async function decidi(e, si) {
+    try {
+      chk(await sb.from('eventi').update({ stato: si ? 'da_creare' : 'scartato' }).eq('id', e.id))
+      avvisa(si ? 'Lo metto nel calendario entro un\'ora' : 'Scartato')
+      ricarica()
+    } catch (err) {
+      avvisa(messaggioErrore(err))
+    }
+  }
+  const ora = (e) => (e.tutto_il_giorno ? 'tutto il giorno'
+    : new Date(e.inizio).toLocaleTimeString('it-CH', { hour: '2-digit', minute: '2-digit' }))
+  const giorno = (e) => {
+    const g = giorniDaOggi(e.inizio)
+    return g === 0 ? 'Oggi' : g === 1 ? 'Domani' : new Date(e.inizio).toLocaleDateString('it-CH', { weekday: 'long', day: 'numeric', month: 'short' })
+  }
+  // Prima della visita: la scheda. Dopo: "cosa vuoi annotare?" (Aggiungi con la persona già collegata).
+  const finito = (e) => new Date(e.fine || e.inizio) < new Date()
+  const link = (e) => (e.persone ? (finito(e) ? `#/aggiungi?persona=${e.persone.id}` : `#/persona/${e.persone.id}`)
+    : e.aziende ? `#/azienda/${e.aziende.id}` : undefined)
+
+  return (
+    <>
+      {proposte.length > 0 && (
+        <>
+          <h2>Da mettere in calendario?</h2>
+          <div className="elenco">
+            {proposte.map((e) => (
+              <div key={e.id} className="riga riga-proposta">
+                <span className="pallino" style={{ background: areaDa(e.area)?.colore || 'var(--grigio)' }} />
+                <span className="riga-corpo">
+                  <span className="riga-testo">{e.titolo}</span>
+                  <span className="riga-meta">{giorno(e)} {ora(e)}{e.motivo ? ` · ${e.motivo}` : ''}</span>
+                </span>
+                <span className="azioni-proposta">
+                  <button type="button" className="tasto-piccolo" onClick={() => decidi(e, true)}>Sì</button>
+                  <button type="button" className="tasto-link" onClick={() => decidi(e, false)}>No</button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      {fissi.length > 0 && (
+        <>
+          <h2>Appuntamenti</h2>
+          <div className="elenco">
+            {fissi.map((e) => (
+              <a key={e.id} className="riga" href={link(e)}>
+                <span className="pallino" style={{ background: areaDa(e.area)?.colore || 'var(--grigio)' }} />
+                <span className="riga-corpo">
+                  <span className="riga-testo">{e.titolo}</span>
+                  <span className="riga-meta">
+                    {giorno(e)} {ora(e)}{e.luogo ? ` · ${e.luogo}` : ''}
+                    {(e.persone || e.aziende) && (new Date(e.fine || e.inizio) < new Date() ? ' · com\'è andata? Annota' : ' · scheda')}
+                    {e.stato === 'da_creare' && (e.errore ? <span className="rosso"> · non creato: {e.errore}</span> : ' · in arrivo nel calendario')}
+                  </span>
+                </span>
+              </a>
+            ))}
+          </div>
+        </>
+      )}
+    </>
   )
 }
 

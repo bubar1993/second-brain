@@ -527,3 +527,16 @@ a.riga:active, button.riga:active { background: rgba(255, 255, 255, 0.04); }
 .domanda p { margin: 0; }
 .domanda-testo { font-size: 17px; font-weight: 600; }
 .domanda .riga-campo input { flex: 1; min-width: 0; }
+.riga-trovato .riga-corpo { gap: 2px; }
+.riga-trovato .riga-testo { font-size: 15px; }
+mark { background: rgba(255, 214, 102, 0.22); color: var(--testo); border-radius: 3px; padding: 0 2px; }
+.chat-lunga { padding: 8px 0; }
+.scrivi-whatsapp { position: sticky; bottom: calc(var(--tasti) + 8px); display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: var(--raggio); background: var(--vetro-forte); border: 1px solid var(--bordo); backdrop-filter: blur(12px); }
+.tasto-grande.conferma { background: #34d58a; border-color: #34d58a; color: var(--vuoto); }
+.interruttore-riga { display: flex; align-items: center; gap: 10px; font-size: 15px; }
+.interruttore-riga input { width: 20px; height: 20px; }
+.riga-proposta { align-items: center; }
+.azioni-proposta { display: flex; align-items: center; gap: 4px; flex: none; }
+.riassunto-giorno { padding: 12px 16px; border-radius: var(--raggio); background: rgba(91, 147, 255, 0.07); border: 1px solid rgba(91, 147, 255, 0.2); }
+.riassunto-giorno h3 { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: var(--tenue); font-family: var(--sans); font-style: normal; }
+.riassunto-giorno p { margin: 0; white-space: pre-line; }

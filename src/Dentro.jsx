@@ -18,6 +18,7 @@ export function Dentro({ inbox }) {
         <Voce href="#/bozze" titolo="Bozze G&C" dettaglio="Risposte da approvare per info@" />
         <Voce href="#/persone" titolo="Persone" dettaglio="Schede persona: chi è, cosa chiedere, note e contatti" />
         <Voce href="#/domande" titolo="Domande per te" dettaglio="I dubbi degli agenti" />
+        <Voce href="#/whatsapp" titolo="WhatsApp" dettaglio="Chat del numero Business" />
         <Voce href="#/note" titolo="Tutte le note" />
         <Voce href="#/cestino" titolo="Cestino" dettaglio="30 giorni" />
       </div>

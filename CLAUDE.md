@@ -141,9 +141,24 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 - **Agenti delle note** (routine claude.ai, gratis col piano Max, ambiente "Second Brain", solo connettore Claude Docs):
   - "Agente note lavoro" `trig_012xsQNDrzFNnpAszr9gsGBh` (:15, 7–22), utente DB `agente_lavoro` (C+G, più smistamento Inbox: le note private le sposta in P e basta). Regole: `agenti/agente-note.md`.
   - "Agente privato" `trig_014BzqnSAWeuSq97vzQdwG15` (:45, 7–22), utente DB `agente_privato` (solo P). Regole: `agenti/agente-privato.md`.
-  - Porta unica `agente-sql`: il token sceglie l'utente (AGENTE_TOKEN = G&C, AGENTE_TOKEN_LAVORO, AGENTE_TOKEN_PRIVATO; variabili di Windows con lo stesso nome). Password/token: `node scripts/collega-agente.mjs lavoro|privato|gc`. Se si cambiano le regole o il token, aggiornare il prompt della routine.
+  - Porta unica `agente-sql`: il token sceglie l'utente (AGENTE_TOKEN = G&C, AGENTE_TOKEN_LAVORO, AGENTE_TOKEN_PRIVATO, AGENTE_TOKEN_CALENDARIO; variabili di Windows con lo stesso nome). Password/token: `node scripts/collega-agente.mjs lavoro|privato|calendario|gc`. Se si cambiano le regole o il token, aggiornare il prompt della routine.
   - Dubbi → tabella `domande` → schermata "Domande per te" (Oggi la segnala). Lavoro fatto → `note.lavorata_il` e `lavori_registro`.
-  - Attenzione: le routine create via API prendono TUTTI i connettori dell'account: ridurli sempre a Claude Docs.
+  - Attenzione: le routine create via API prendono TUTTI i connettori dell'account: ridurli sempre a Claude Docs (o al solo connettore che serve, passando `mcp_connections` già nella creazione).
+  - Gli agenti scrivono anche il **punto del mattino e della sera** (`riassunti_giorno`, una riga per parte lavoro/privato) e **propongono appuntamenti** (`eventi` stato 'proposto') trovati nelle note.
+
+### Calendario (fase 3, 12.10.2026 notte)
+- Routine "Agente calendario" `trig_01ExFtoP2zGTkQDT4mnTdzGD` (:05, 6–22), connettore Google Calendar dell'account claude.ai di Giovanni (unico connettore), utente DB `agente_calendario` (solo `eventi` + nomi di ditte/persone). Regole: `agenti/agente-calendario.md`.
+- Copia gli eventi di giovannifabris@ceramex.ch (da 2 giorni fa a 45 avanti) in `eventi` con area, ditta e persona. Crea in Google SOLO gli eventi approvati da Giovanni nell'app (stato 'da_creare'), senza invitati. Non cancella né sposta niente in Google.
+- Oggi: appuntamenti di oggi e dei prossimi 7 giorni (tocco = scheda persona/ditta prima della visita; dopo l'appuntamento = "Annota" con la persona già collegata), proposte "Da mettere in calendario? Sì/No", punto del mattino/sera, compleanni (14 giorni).
+- Per ora c'è un solo calendario Google (più le festività): i calendari separati per area (C, G, P) si creano solo se Giovanni lo vuole.
+
+### Chiedi (fase 4, gratis)
+- Funzione SQL `cerca(q, area_scelta, quanti)`: ricerca italiana (radici, parole vuote tolte, nomi di ditte/persone pesano 4) in note, mail G&C, riassunti persone, WhatsApp. Ordina per parole trovate, poi note prima delle mail e cose recenti. L'app la usa al tasto Invio; clienti e cantieri restano istantanei mentre scrivi.
+- Risposte scritte dall'AI: parcheggiate (serve chiave a pagamento). Alternativa gratuita da proporre: connettore "Second Brain" (solo lettura) nell'app Claude del telefono, coperto dal piano Max.
+
+### Privato (fase 6, primo pezzo)
+- Promemoria `ricorrenza = 'annuale'` (quando si segna fatto torna l'anno dopo): gomme, cassa malati (confronto e disdetta entro 30.11), vignetta, dichiarazione d'imposta TI.
+- Domande per Giovanni (agente privato): scadenze documenti, auto, abbonamenti, compleanni.
 
 ### Agenti
 - Regole separate per area. Giovanni le rivede parlando con Claude, non in una pagina dell'app.
@@ -165,7 +180,7 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 4. Chiedi (Haiku + Sonnet).
 5. G&C ← IN CORSO (partita l'11.10.2026 sera, prima delle fasi 3-4, su richiesta di Giovanni). Vedi "G&C (fase 5)".
 6. Privato.
-7. WhatsApp ← IN CORSO (12.10.2026). Cloud API di Meta in "coesistenza" (il numero resta nell'app WhatsApp Business del telefono). Fatto: app Meta "Second Brain GF" (id 1050142621357706, portfolio Ceramex 196300470244482, Tech Provider, PUBBLICATA da Giovanni), webhook → funzione `whatsapp` (firma con WA_APP_SECRET, provato), funzione `whatsapp-collega` (scambio codice, iscrizione, richiesta contatti + storico 6 mesi, una volta sola entro 24 h), tabelle `wa_collegamento`/`wa_contatti`/`wa_messaggi`, pagina `public/privacy.html`, configurazione "ES Config" 1143212528277399. Segreti: WA_APP_SECRET, WA_VERIFY_TOKEN, WA_COLLEGA_TOKEN (`node scripts/collega-meta.mjs`). **Manca:** la verifica dell'azienda Ceramex da parte di Meta ("in fase di controllo"); poi aggancio con QR insieme a Giovanni (Embedded Signup v4, featureType whatsapp_business_app_onboarding) e chiamata a `whatsapp-collega` entro 24 h. Scrivere dall'app: gratis entro 24 h dall'ultimo messaggio del contatto, fuori solo modelli approvati (a pagamento). Storico: lavoro → schede clienti; privato molto filtrato; Lady di Blackwood (fidanzata) `approfondita = true`, si tiene molto di più.
+7. WhatsApp ← IN CORSO (12.10.2026). Cloud API di Meta in "coesistenza" (il numero resta nell'app WhatsApp Business del telefono). Fatto: app Meta "Second Brain GF" (id 1050142621357706, portfolio Ceramex 196300470244482, Tech Provider, PUBBLICATA da Giovanni), webhook → funzione `whatsapp` (firma con WA_APP_SECRET, provato), funzione `whatsapp-collega` (scambio codice, iscrizione, richiesta contatti + storico 6 mesi, una volta sola entro 24 h), tabelle `wa_collegamento`/`wa_contatti`/`wa_messaggi`, pagina `public/privacy.html`, configurazione "ES Config" 1143212528277399. Segreti: WA_APP_SECRET, WA_VERIFY_TOKEN, WA_COLLEGA_TOKEN (`node scripts/collega-meta.mjs`). **Manca:** la verifica dell'azienda Ceramex da parte di Meta ("in fase di controllo"); poi aggancio con QR insieme a Giovanni (Embedded Signup v4, featureType whatsapp_business_app_onboarding) e chiamata a `whatsapp-collega` entro 24 h. Scrivere dall'app: gratis entro 24 h dall'ultimo messaggio del contatto, fuori solo modelli approvati (a pagamento). Pronto: funzione `invia-whatsapp` (solo Giovanni, controlla le 24 h) e schermate `#/whatsapp` (elenco chat, conversazione con area/persona/"tieni più dettagli", scrivi con due tocchi). Storico: lavoro → schede clienti; privato molto filtrato; Lady di Blackwood (fidanzata) `approfondita = true`, si tiene molto di più.
 8. Rifiniture: senza rete, widget, scorciatoia vocale, foto cercabili.
 
 ## Primo passo

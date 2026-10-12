@@ -1,12 +1,22 @@
 import { useEffect, useState } from 'react'
-import { sb, areaDa, nomePersona } from './supabase'
-import { useApp, chk, messaggioErrore, NotaRiga, Icona } from './componenti'
+import { sb, areaDa, nomePersona, quando, CAMPI_PERSONA, etichettePersona } from './supabase'
+import { useApp, chk, messaggioErrore, Icona, EtichettePersona } from './componenti'
 import { iniziali, battesimo } from './Aziende'
 
 const pulisci = (s) => s.replace(/[,()%*\\.:]/g, '')
 const STATI = { offerta: 'offerta', active: 'in corso', completed: 'finito', persa: 'persa' }
+const TIPI = { nota: 'Nota', mail: 'Mail', persona: 'Persona', whatsapp: 'WhatsApp' }
+// Parole delle domande che non sono nomi.
+const VUOTE = new Set(['cosa', 'che', 'chi', 'come', 'quando', 'dove', 'perché', 'per', 'con', 'sui', 'sul', 'sulla', 'della',
+  'del', 'dei', 'delle', 'mi', 'aveva', 'avevo', 'detto', 'ha', 'hanno', 'una', 'uno', 'gli', 'le', 'il', 'lo', 'quale', 'quanto'])
 
-// Fase 1: cerca le parole nelle note e nelle persone. L'intelligenza arriva nella fase 4.
+// Le parole trovate arrivano tra « »: qui diventano evidenziate.
+function Evidenzia({ testo }) {
+  return (testo || '').split(/(«[^»]*»)/).map((p, i) => (p.startsWith('«') && p.endsWith('»')
+    ? <mark key={i}>{p.slice(1, -1)}</mark> : p))
+}
+
+// Chiedi (fase 4, gratis): clienti e cantieri mentre scrivi; con Invio cerca per parole simili ovunque.
 export default function Chiedi() {
   const { area } = useApp()
   const [domanda, setDomanda] = useState('')
@@ -37,26 +47,37 @@ export default function Chiedi() {
     .sort((x, y) => y.nome.toLowerCase().startsWith(testo) - x.nome.toLowerCase().startsWith(testo))
     .slice(0, 6)
 
+  // Cerca in note, mail, schede persona e WhatsApp (funzione "cerca" del database: italiano, parole simili).
   async function cerca(e) {
     e.preventDefault()
-    const parole = domanda.trim().split(/\s+/).map(pulisci).filter(Boolean)
-    if (!parole.length) return
+    const parole = domanda.trim().split(/\s+/).map(pulisci).filter((p) => p.length > 2 && !VUOTE.has(p.toLowerCase()))
+    if (!domanda.trim()) return
     setLavoro(true)
     setMsg('')
     try {
-      let qn = sb.from('note').select('id,area,testo,fonte,creata_il,note_persone(persone(id,nome,cognome)),allegati(id)')
-        .is('eliminata_il', null).order('creata_il', { ascending: false }).limit(30)
-      let qp = sb.from('persone').select('id,nome,cognome,persone_aree(area)')
-        .is('eliminata_il', null).order('nome').limit(10)
-      for (const p of parole) {
-        qn = qn.ilike('testo', `%${p}%`)
-        qp = qp.or(`nome.ilike.%${p}%,cognome.ilike.%${p}%`)
-      }
-      if (area !== 'T') qn = qn.eq('area', area)
-      const [note, persone] = await Promise.all([qn, qp])
+      // Persone per nome: tutte le parole della domanda che somigliano a un nome.
+      const qp = parole.length
+        ? sb.from('persone').select(CAMPI_PERSONA).is('eliminata_il', null).order('nome').limit(30)
+          .or(parole.flatMap((p) => [`nome.ilike.${p}%`, `cognome.ilike.${p}%`]).join(','))
+        : Promise.resolve({ data: [] })
+      const [trovati, persone] = await Promise.all([
+        sb.rpc('cerca', { q: domanda.trim(), area_scelta: area === 'T' ? null : area, quanti: 40 }),
+        qp,
+      ])
       let pers = chk(persone)
-      if (area !== 'T') pers = pers.filter((p) => p.persone_aree.some((x) => x.area === area))
-      setRisultati({ note: chk(note), persone: pers })
+      // Prima chi ha più parole della domanda nel nome.
+      const conta = (p) => parole.filter((w) => nomePersona(p).toLowerCase().split(/\s+/).some((x) => x.startsWith(w.toLowerCase()))).length
+      pers = pers.map((p) => ({ ...p, n: conta(p) })).sort((a, b) => b.n - a.n).filter((p, _, t) => p.n === t[0].n).slice(0, 6)
+      if (area !== 'T') pers = pers.filter((p) => etichettePersona(p).some((x) => x.area.codice === area))
+      // Le mail citate più volte nella stessa conversazione: una sola.
+      const visti = new Set()
+      const cose = chk(trovati).filter((r) => {
+        const k = r.tipo + r.titolo + r.estratto
+        if (visti.has(k)) return false
+        visti.add(k)
+        return true
+      })
+      setRisultati({ cose, persone: pers })
     } catch (e) {
       setMsg(messaggioErrore(e))
     } finally {
@@ -64,7 +85,7 @@ export default function Chiedi() {
     }
   }
 
-  const vuoto = risultati && !risultati.note.length && !risultati.persone.length && !clienti.length && !trovatiCantieri.length
+  const vuoto = risultati && !risultati.cose.length && !risultati.persone.length && !clienti.length && !trovatiCantieri.length
 
   return (
     <div className="schermata">
@@ -76,7 +97,7 @@ export default function Chiedi() {
         </button>
       </form>
       <p className="nota-piccola">
-        Per ora cerca le parole esatte{area !== 'T' ? ` in ${areaDa(area).nome}` : ''}. Le risposte vere arrivano nella fase 4.
+        Scrivi come parli («cosa mi aveva detto Emiliana sui campioni»): cerco in note, mail, persone e WhatsApp{area !== 'T' ? ` di ${areaDa(area).nome}` : ''}, anche con parole simili.
       </p>
 
       {clienti.length > 0 && (
@@ -130,21 +151,34 @@ export default function Chiedi() {
             {risultati.persone.map((p) => (
               <a key={p.id} className="riga" href={`#/persona/${p.id}`}>
                 <span className="pallini">
-                  {p.persone_aree.map((x) => (
-                    <span key={x.area} className="pallino" style={{ background: areaDa(x.area).colore }} />
+                  {etichettePersona(p).map((x) => (
+                    <span key={x.area.codice} className="pallino" style={{ background: x.area.colore }} />
                   ))}
                 </span>
-                <span className="riga-corpo"><span className="riga-testo">{nomePersona(p)}</span></span>
+                <span className="riga-corpo">
+                  <span className="riga-testo">{nomePersona(p)}</span>
+                  <span className="riga-meta"><EtichettePersona p={p} /></span>
+                </span>
               </a>
             ))}
           </div>
         </>
       )}
 
-      {risultati?.note.length > 0 && (
+      {risultati?.cose.length > 0 && (
         <>
-          <h2>Note</h2>
-          <div className="elenco">{risultati.note.map((n) => <NotaRiga key={n.id} nota={n} />)}</div>
+          <h2>Trovato</h2>
+          <div className="elenco">
+            {risultati.cose.map((r) => (
+              <a key={r.tipo + r.id} className="riga riga-trovato" href={r.collegamento}>
+                <span className="pallino" style={{ background: areaDa(r.area)?.colore || 'var(--grigio)' }} />
+                <span className="riga-corpo">
+                  <span className="riga-meta">{TIPI[r.tipo]} · {r.titolo}{r.data ? ` · ${quando(r.data)}` : ''}</span>
+                  <span className="riga-testo"><Evidenzia testo={r.estratto} /></span>
+                </span>
+              </a>
+            ))}
+          </div>
         </>
       )}
     </div>

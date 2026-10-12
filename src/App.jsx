@@ -11,6 +11,7 @@ import Nota from './Nota'
 import { Aziende, Azienda } from './Aziende'
 import { Bozze, Bozza, Mail } from './Bozze'
 import { Domande } from './Domande'
+import { ChatWhatsApp, ChatContatto } from './WhatsApp'
 
 export default function App({ condiviso }) {
   const [sessione, setSessione] = useState(undefined)
@@ -111,6 +112,7 @@ function Guscio({ utente, condiviso }) {
     case 'bozza': schermata = <Bozza key={secondo} id={secondo} />; break
     case 'mail': schermata = <Mail key={secondo} chiave={secondo} />; break
     case 'domande': schermata = <Domande />; break
+    case 'whatsapp': schermata = secondo ? <ChatContatto key={secondo} waId={secondo} /> : <ChatWhatsApp />; break
     default: schermata = <Oggi inbox={inbox} bozze={bozze} domande={domande} />
   }
   const tasto = ['oggi', 'aggiungi', 'chiedi'].includes(primo) ? primo : primo ? null : 'oggi'
@@ -129,7 +131,7 @@ function Guscio({ utente, condiviso }) {
         <a href="#/aggiungi" className={'lato-aggiungi' + (sezioneLato === 'aggiungi' ? ' attivo' : '')}>
           <Icona nome="piu" size={20} /><span>Aggiungi</span>
         </a>
-        {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], null, ['aziende', 'Aziende'], ['bozze', 'Bozze G&C'], ['persone', 'Persone'],
+        {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], null, ['aziende', 'Aziende'], ['bozze', 'Bozze G&C'], ['persone', 'Persone'], ['whatsapp', 'WhatsApp'],
           ['domande', 'Domande per te'], ['inbox', 'Inbox'], ['note', 'Tutte le note'], ['cestino', 'Cestino']].map((v, i) => v ? (
           <a key={v[0]} href={`#/${v[0]}`} className={'lato-voce' + (sezioneLato === v[0] ? ' attivo' : '')}>
             <Icona nome={v[0] === 'chiedi' ? 'cerca' : v[0]} size={20} /><span>{v[1]}</span>

@@ -170,7 +170,7 @@ export function Persona({ id }) {
       .sort((a, b) => (b.data || b.creata_il).localeCompare(a.data || a.creata_il))
     const messaggi = chk(wa).flatMap((c) => c.wa_messaggi.map((m) => ({ ...m, area: c.area })))
       .sort((a, b) => b.data.localeCompare(a.data))
-    return { p, note, riassunti: chk(riassunti), messaggi, posta: chk(posta) }
+    return { p, note, riassunti: chk(riassunti), messaggi, posta: chk(posta), chat: chk(wa).map((c) => c.wa_id) }
   }, [id])
 
   useEffect(() => {
@@ -258,7 +258,9 @@ export function Persona({ id }) {
 
       <div className="contatti-persona">
         {p.telefono && <a className="tasto-piccolo" href={`tel:${p.telefono}`}>Chiama</a>}
-        {wa && <a className="tasto-piccolo" href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer">WhatsApp</a>}
+        {dati.chat[0]
+          ? <a className="tasto-piccolo" href={`#/whatsapp/${dati.chat[0]}`}>WhatsApp</a>
+          : wa && <a className="tasto-piccolo" href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer">WhatsApp</a>}
         {p.email && <a className="tasto-piccolo" href={`mailto:${p.email}`}>Scrivi mail</a>}
         <button type="button" className="tasto-piccolo" onClick={() => vai(`/aggiungi?persona=${id}`)}>+ Nota</button>
       </div>
@@ -339,7 +341,7 @@ export function Persona({ id }) {
 
       {messaggi.length > 0 && (
         <>
-          <h2>WhatsApp</h2>
+          <h2>WhatsApp {dati.chat[0] && <a className="tasto-link" href={`#/whatsapp/${dati.chat[0]}`}>Apri la chat</a>}</h2>
           <div className="chat-breve">
             {messaggi.slice(0, 20).reverse().map((m) => (
               <p key={m.id} className={'fumetto ' + (m.direzione === 'out' ? 'mio' : 'suo')}>

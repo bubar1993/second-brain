@@ -32,7 +32,7 @@ export function quandoRicordare(testo, adesso = new Date()) {
 }
 
 // Aggiungi: scrivi, parla o foto. Senza area la nota va nell'Inbox.
-export default function Aggiungi({ usaCondiviso, personaId }) {
+export default function Aggiungi({ usaCondiviso, personaId, chiamata }) {
   const { area, avvisa, utente } = useApp()
   const [condiviso] = useState(() => usaCondiviso())
   const [testo, setTesto] = useState(condiviso?.testo || '')
@@ -51,12 +51,16 @@ export default function Aggiungi({ usaCondiviso, personaId }) {
     setFonte((f) => (f === 'scritta' ? 'voce' : f))
   })
 
-  // Arrivo dalla scheda di una persona: la collego già.
+  // Arrivo dalla scheda di una persona: la collego già. Dopo una telefonata il testo comincia da solo.
   useEffect(() => {
     if (!personaId) return
     sb.from('persone').select('id,nome,cognome').eq('id', personaId).single()
-      .then(({ data }) => data && setPersone([data]))
-  }, [personaId])
+      .then(({ data }) => {
+        if (!data) return
+        setPersone([data])
+        if (chiamata) setTesto((t) => t || `Telefonata con ${[data.nome, data.cognome].filter(Boolean).join(' ')}: `)
+      })
+  }, [personaId, chiamata])
 
   // Libera le anteprime quando si esce dalla schermata.
   const fotoRif = useRef(foto)

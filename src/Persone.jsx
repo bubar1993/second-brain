@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { sb, AREE, areaDa, nomePersona, quando, CAMPI_PERSONA, etichettePersona, numeroWhatsApp } from './supabase'
+import { sb, AREE, areaDa, nomePersona, quando, CAMPI_PERSONA, etichettePersona, numeroWhatsApp, scrivi } from './supabase'
 import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, EtichettePersona, Icona } from './componenti'
 import { nomeSezione } from './Aziende'
 
@@ -262,7 +262,9 @@ export function Persona({ id }) {
       <p className="nota-piccola"><EtichettePersona p={p} /></p>
 
       <div className="contatti-persona">
-        {p.telefono && <a className="tasto-piccolo" href={`tel:${p.telefono}`}>Chiama</a>}
+        {/* Dopo la chiamata, tornando nell'app si apre la nota già collegata a questa persona (App.jsx). */}
+        {p.telefono && <a className="tasto-piccolo" href={`tel:${p.telefono}`}
+          onClick={() => scrivi('chiamata', JSON.stringify({ id, ora: Date.now() }))}>Chiama</a>}
         {dati.chat[0]
           ? <a className="tasto-piccolo" href={`#/whatsapp/${dati.chat[0]}`}>WhatsApp</a>
           : wa && <a className="tasto-piccolo" href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer">WhatsApp</a>}

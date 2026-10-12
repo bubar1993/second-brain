@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { sb, AREE, areaDa, leggi, scrivi } from './supabase'
 import { AppCtx, Icona, useLargo } from './componenti'
 import Accesso from './Accesso'
+import Consenso from './Consenso'
 import Oggi from './Oggi'
 import Aggiungi from './Aggiungi'
 import Chiedi from './Chiedi'
@@ -24,6 +25,7 @@ export default function App({ condiviso }) {
 
   if (sessione === undefined) return <div className="avvio" />
   if (!sessione) return <Accesso />
+  if (location.pathname === '/oauth/consent') return <Consenso />
   return <Guscio utente={sessione.user} condiviso={condiviso} />
 }
 
@@ -47,8 +49,10 @@ function Guscio({ utente, condiviso }) {
     return c
   }
 
+  // Passi fatti dentro l'app: servono al tasto Dentro per tornare indietro senza uscire dall'app.
+  const passi = useRef(0)
   useEffect(() => {
-    const cambia = () => { setRotta(leggiRotta()); window.scrollTo(0, 0) }
+    const cambia = () => { passi.current++; setRotta(leggiRotta()); window.scrollTo(0, 0) }
     window.addEventListener('hashchange', cambia)
     return () => window.removeEventListener('hashchange', cambia)
   }, [])
@@ -68,6 +72,16 @@ function Guscio({ utente, condiviso }) {
     let nascosta = 0
     async function cambia() {
       if (document.hidden) { nascosta = Date.now(); return }
+      // Di ritorno da una telefonata partita dalla scheda persona (almeno 15 secondi, al massimo 3 ore):
+      // apri la nota già collegata alla persona, così detti subito com'è andata.
+      try {
+        const c = JSON.parse(leggi('chiamata') || 'null')
+        if (c) {
+          scrivi('chiamata', '')
+          const durata = Date.now() - c.ora
+          if (durata > 15000 && durata < 3 * 3600e3) { location.hash = `/aggiungi?persona=${c.id}&chiamata=1`; return }
+        }
+      } catch { scrivi('chiamata', '') }
       if (!nascosta || Date.now() - nascosta < 120000) return
       nascosta = 0
       try {
@@ -118,7 +132,8 @@ function Guscio({ utente, condiviso }) {
       </div>
     )
   } else switch (primo) {
-    case 'aggiungi': schermata = <Aggiungi key={rotta.query.toString()} usaCondiviso={usaCondiviso} personaId={rotta.query.get('persona')} />; break
+    case 'aggiungi': schermata = <Aggiungi key={rotta.query.toString()} usaCondiviso={usaCondiviso} personaId={rotta.query.get('persona')}
+      chiamata={rotta.query.has('chiamata')} />; break
     case 'chiedi': schermata = <Chiedi />; break
     case 'dentro': schermata = <Dentro inbox={inbox} />; break
     case 'inbox': schermata = <Inbox />; break
@@ -177,7 +192,14 @@ function Guscio({ utente, condiviso }) {
             </button>
           ))}
         </div>
-        <a href="#/dentro" className={'tasto-dentro' + (primo === 'dentro' ? ' attivo' : '')} aria-label="Dentro">
+        {/* Ritoccato quando sei già in Dentro: torna dove eri (o a Oggi). */}
+        <a href="#/dentro" className={'tasto-dentro' + (primo === 'dentro' ? ' attivo' : '')} aria-label={primo === 'dentro' ? 'Chiudi Dentro' : 'Dentro'}
+          onClick={(e) => {
+            if (primo !== 'dentro') return
+            e.preventDefault()
+            if (passi.current > 0) history.back()
+            else vai('#/oggi')
+          }}>
           <Icona nome="dentro" />
           {inbox > 0 && <span className="badge">{inbox}</span>}
         </a>

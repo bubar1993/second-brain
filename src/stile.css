@@ -211,6 +211,11 @@ a.riga:active, button.riga:active { background: rgba(255, 255, 255, 0.04); }
 .modifica-promemoria .azioni { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
 .modifica-promemoria .tasto-link.pericolo { margin: 0 0 0 auto; }
 @media (max-width: 420px) { .modifica-promemoria { padding-left: 16px; } }
+@media (max-width: 560px) { .modifica-promemoria .due { grid-template-columns: 1fr; } }
+.modifica-promemoria input { min-width: 0; }
+.visita .modifica-promemoria { padding: 0; border: 0; }
+.pannello-evento .pannello-link { padding: 0 16px 12px 56px; }
+@media (max-width: 420px) { .pannello-evento .pannello-link { padding-left: 16px; } }
 .numero-voce {
   flex: none; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 11px;
   background: var(--rosso); color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center;

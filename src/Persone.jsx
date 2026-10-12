@@ -168,7 +168,7 @@ export function Persona({ id }) {
           .or(indirizzi.flatMap((e) => [`da.ilike.${e}`, `a.cs.{${e}}`]).join(','))
           .order('data', { ascending: false }).limit(15)
         : Promise.resolve({ data: [] }),
-      sb.from('eventi').select('id,titolo,inizio,tutto_il_giorno,luogo,area,stato')
+      sb.from('eventi').select('id,titolo,inizio,tutto_il_giorno,luogo,area,stato,cambio')
         .or([`persona_id.eq.${id}`, ...(ditte.length ? [`azienda_id.in.(${ditte.join(',')})`] : [])].join(','))
         .in('stato', ['confermato', 'da_creare', 'proposto']).gte('inizio', ieri).order('inizio').limit(5),
     ])
@@ -176,7 +176,9 @@ export function Persona({ id }) {
       .sort((a, b) => (b.data || b.creata_il).localeCompare(a.data || a.creata_il))
     const messaggi = chk(wa).flatMap((c) => c.wa_messaggi.map((m) => ({ ...m, area: c.area })))
       .sort((a, b) => b.data.localeCompare(a.data))
-    return { p, note, riassunti: chk(riassunti), messaggi, posta: chk(posta), chat: chk(wa).map((c) => c.wa_id), eventi: chk(ev) }
+    // Appuntamenti spostati dall'app: con la data nuova (in Google arriva entro un'ora).
+    const eventi = chk(ev).map((e) => ({ ...e, ...(e.cambio || {}) })).sort((a, b) => a.inizio.localeCompare(b.inizio))
+    return { p, note, riassunti: chk(riassunti), messaggi, posta: chk(posta), chat: chk(wa).map((c) => c.wa_id), eventi }
   }, [id])
 
   useEffect(() => {
@@ -288,7 +290,7 @@ export function Persona({ id }) {
               <span className="riga-corpo">
                 <span className="riga-testo">{e.titolo}</span>
                 <span className="riga-meta">
-                  Appuntamento {quando(e.inizio, !e.tutto_il_giorno)}{e.luogo ? ` · ${e.luogo}` : ''}{e.stato === 'proposto' ? ' · proposto' : ' · appunti'}
+                  Appuntamento {quando(e.inizio, !e.tutto_il_giorno)}{e.luogo ? ` · ${e.luogo}` : ''}{e.stato === 'proposto' ? ' · proposto' : e.cambio ? ' · spostato' : ' · appunti o sposta'}
                 </span>
               </span>
               <Icona nome="freccia" size={18} />

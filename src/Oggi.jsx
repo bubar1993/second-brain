@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { sb, areaDa, quando, giorniDaOggi, leggi, scrivi } from './supabase'
 import { useApp, useCarica, chk, messaggioErrore, NotaRiga, Stato, Icona, useModifiche, perCampo } from './componenti'
 import Rete from './Rete'
-import { visiteAperte } from './Visita'
+import { visiteAperte, valoriEvento, CAMPI_EVENTO, ModificaAppuntamento } from './Visita'
 
 const corto = (s, n = 16) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s)
 const numero = (n) => (n == null ? '…' : n.toLocaleString('de-CH'))
@@ -48,12 +48,12 @@ export default function Oggi({ inbox, bozze, domande }) {
     // Appuntamenti: da ora a 7 giorni, più le proposte degli agenti da approvare.
     const da = new Date(); da.setHours(0, 0, 0, 0)
     const a7 = new Date(da.getTime() + 8 * 86400000)
-    let qe = sb.from('eventi').select('id,titolo,inizio,fine,tutto_il_giorno,luogo,area,stato,motivo,errore,aziende(id,nome),persone(id,nome,cognome)')
+    let qe = sb.from('eventi').select(CAMPI_EVENTO)
       .in('stato', ['confermato', 'proposto', 'da_creare']).is('fatto_il', null).gte('inizio', da.toISOString()).lt('inizio', a7.toISOString())
       .order('inizio').limit(60)
     if (area !== 'T') qe = qe.or(`area.eq.${area},area.is.null`)
     // Appuntamenti dei 7 giorni scorsi non ancora spuntati: restano finché non li chiudi (o annoti).
-    let qv = sb.from('eventi').select('id,titolo,inizio,fine,tutto_il_giorno,luogo,area,stato,motivo,errore,aziende(id,nome),persone(id,nome,cognome)')
+    let qv = sb.from('eventi').select(CAMPI_EVENTO)
       .in('stato', ['confermato', 'da_creare']).is('fatto_il', null)
       .gte('inizio', new Date(da.getTime() - 7 * 86400000).toISOString()).lt('inizio', da.toISOString())
       .order('inizio', { ascending: false }).limit(40)
@@ -292,15 +292,21 @@ export default function Oggi({ inbox, bozze, domande }) {
 }
 
 // Appuntamenti di oggi e dei prossimi giorni (da Google Calendar) e proposte degli agenti.
-// Prima della visita il tocco apre la scheda (il riassunto da guardare); dopo, gli appunti.
+// Tocco su un appuntamento: si apre sotto con scheda, persona, appunti e "sposta o cambia".
 // Quelli dei giorni scorsi non spuntati restano in "Da chiudere" per 7 giorni.
 function Appuntamenti({ eventi, passati, ricarica }) {
   const { avvisa } = useApp()
   const [fatti, setFatti] = useState(() => new Set())
   const [tuttiPassati, setTuttiPassati] = useState(false)
-  const proposte = eventi.filter((e) => e.stato === 'proposto')
-  const fissi = eventi.filter((e) => e.stato !== 'proposto')
-  if (!eventi.length && !passati.length) return null
+  const [aperto, setAperto] = useState(null)
+  // Con gli spostamenti fatti dall'app già applicati: un appuntamento spostato a domani sta già sotto domani.
+  const tutti = [...eventi, ...passati].map(valoriEvento)
+  const proposte = tutti.filter((e) => e.stato === 'proposto' && giorniDaOggi(e.inizio) >= 0)
+  const fissi = tutti.filter((e) => e.stato !== 'proposto' && giorniDaOggi(e.inizio) >= 0 && giorniDaOggi(e.inizio) <= 7)
+    .sort((a, b) => a.inizio.localeCompare(b.inizio))
+  const vecchiTutti = tutti.filter((e) => e.stato !== 'proposto' && giorniDaOggi(e.inizio) < 0)
+    .sort((a, b) => b.inizio.localeCompare(a.inizio))
+  if (!proposte.length && !fissi.length && !vecchiTutti.length) return null
 
   const togli = (id) => setFatti((s) => { const x = new Set(s); x.delete(id); return x })
 
@@ -308,6 +314,7 @@ function Appuntamenti({ eventi, passati, ricarica }) {
   async function fatto(e) {
     if (fatti.has(e.id)) return
     setFatti((s) => new Set(s).add(e.id))
+    setAperto(null)
     try {
       chk(await sb.from('eventi').update({ fatto_il: new Date().toISOString() }).eq('id', e.id))
       avvisa('Fatto', {
@@ -354,18 +361,31 @@ function Appuntamenti({ eventi, passati, ricarica }) {
   }
   const finito = (e) => new Date(e.fine || e.inizio) < new Date()
   const lavoro = (e) => e.area !== 'P'
-  // Lavoro finito, o senza ditta né persona: gli appunti (lì si sceglie anche la ditta).
-  // Privato finito con una persona: la nota già collegata a lei.
-  const link = (e) => {
-    if (lavoro(e) && (finito(e) || (!e.persone && !e.aziende))) return `#/visita/${e.id}`
-    if (e.persone) return finito(e) ? `#/aggiungi?persona=${e.persone.id}` : `#/persona/${e.persone.id}`
-    if (e.aziende) return `#/azienda/${e.aziende.id}`
-    return `#/visita/${e.id}`
-  }
-  const dopo = (e) => (finito(e) ? (lavoro(e) || e.persone ? ' · com\'è andata? Annota' : '') : (e.persone || e.aziende) ? ' · scheda' : '')
+  const stato = (e) => (
+    <>
+      {e.originale.cambio && ' · spostato, in arrivo nel calendario'}
+      {e.stato === 'da_creare' && !e.errore && ' · in arrivo nel calendario'}
+      {e.errore && <span className="rosso"> · {e.stato === 'da_creare' ? 'non creato: ' : ''}{e.errore}</span>}
+    </>
+  )
+
+  // Il pannello sotto la riga: dove andare (scheda, persona, appunti) e come spostarlo.
+  const pannello = (e) => (
+    <>
+      <div className="contatti-persona pannello-link">
+        {e.aziende && <a className="tasto-piccolo" href={`#/azienda/${e.aziende.id}`}>Scheda {e.aziende.nome}</a>}
+        {e.persone && <a className="tasto-piccolo" href={`#/persona/${e.persone.id}`}>{[e.persone.nome, e.persone.cognome].filter(Boolean).join(' ')}</a>}
+        {lavoro(e) || !e.persone
+          ? <a className="tasto-piccolo" href={`#/visita/${e.id}`}>{finito(e) ? 'Com\'è andata? Appunti' : 'Appunti'}</a>
+          : finito(e) && <a className="tasto-piccolo" href={`#/aggiungi?persona=${e.persone.id}`}>Com'è andata? Annota</a>}
+      </div>
+      <ModificaAppuntamento e={e} fatto={ricarica} chiudi={() => setAperto(null)} />
+    </>
+  )
 
   const riga = (e, conAppunti) => {
     const chiuso = fatti.has(e.id)
+    const apri = aperto === e.id
     return (
       <div key={e.id} className={'voce-promemoria' + (chiuso ? ' via' : '')}>
         <div>
@@ -374,23 +394,21 @@ function Appuntamenti({ eventi, passati, ricarica }) {
             <button type="button" className="spunta" onClick={() => fatto(e)} aria-label={`Segna fatto: ${e.titolo}`}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
             </button>
-            <a className="riga-corpo" href={link(e)}>
+            <button type="button" className="riga-corpo riga-tocca" onClick={() => setAperto(apri ? null : e.id)} aria-expanded={apri}>
               <span className="riga-testo">{e.titolo}</span>
-              <span className="riga-meta">
-                {giorno(e)} {ora(e)}{e.luogo ? ` · ${e.luogo}` : ''}{dopo(e)}
-                {e.stato === 'da_creare' && (e.errore ? <span className="rosso"> · non creato: {e.errore}</span> : ' · in arrivo nel calendario')}
-              </span>
-            </a>
-            {conAppunti && lavoro(e) && (
+              <span className="riga-meta">{giorno(e)} {ora(e)}{e.luogo ? ` · ${e.luogo}` : ''}{stato(e)}</span>
+            </button>
+            {conAppunti && lavoro(e) && !apri && (
               <a className="tasto-piccolo tasto-appunti" href={`#/visita/${e.id}`} aria-label={`Prendi appunti: ${e.titolo}`}>Appunti</a>
             )}
           </div>
+          {apri && <div className="pannello-evento">{pannello(e)}</div>}
         </div>
       </div>
     )
   }
 
-  const vecchi = tuttiPassati || passati.length <= 3 ? passati : passati.slice(0, 3)
+  const vecchi = tuttiPassati || vecchiTutti.length <= 3 ? vecchiTutti : vecchiTutti.slice(0, 3)
 
   return (
     <>
@@ -399,16 +417,19 @@ function Appuntamenti({ eventi, passati, ricarica }) {
           <h2>Da mettere in calendario?</h2>
           <div className="elenco">
             {proposte.map((e) => (
-              <div key={e.id} className="riga riga-proposta">
-                <span className="pallino" style={{ background: areaDa(e.area)?.colore || 'var(--grigio)' }} />
-                <span className="riga-corpo">
-                  <span className="riga-testo">{e.titolo}</span>
-                  <span className="riga-meta">{giorno(e)} {ora(e)}{e.motivo ? ` · ${e.motivo}` : ''}</span>
-                </span>
-                <span className="azioni-proposta">
-                  <button type="button" className="tasto-piccolo" onClick={() => decidi(e, true)}>Sì</button>
-                  <button type="button" className="tasto-link" onClick={() => decidi(e, false)}>No</button>
-                </span>
+              <div key={e.id}>
+                <div className="riga riga-proposta">
+                  <span className="pallino" style={{ background: areaDa(e.area)?.colore || 'var(--grigio)' }} />
+                  <button type="button" className="riga-corpo riga-tocca" onClick={() => setAperto(aperto === e.id ? null : e.id)} aria-expanded={aperto === e.id}>
+                    <span className="riga-testo">{e.titolo}</span>
+                    <span className="riga-meta">{giorno(e)} {ora(e)}{e.motivo ? ` · ${e.motivo}` : ''}</span>
+                  </button>
+                  <span className="azioni-proposta">
+                    <button type="button" className="tasto-piccolo" onClick={() => decidi(e, true)}>Sì</button>
+                    <button type="button" className="tasto-link" onClick={() => decidi(e, false)}>No</button>
+                  </span>
+                </div>
+                {aperto === e.id && <div className="pannello-evento"><ModificaAppuntamento e={e} fatto={ricarica} chiudi={() => setAperto(null)} /></div>}
               </div>
             ))}
           </div>
@@ -417,17 +438,18 @@ function Appuntamenti({ eventi, passati, ricarica }) {
       {fissi.length > 0 && (
         <>
           <h2>Appuntamenti</h2>
+          <p className="nota-piccola">Tocca un appuntamento per la scheda, gli appunti o per spostarlo.</p>
           <div className="elenco">{fissi.map((e) => riga(e, giorniDaOggi(e.inizio) === 0))}</div>
         </>
       )}
-      {passati.length > 0 && (
+      {vecchiTutti.length > 0 && (
         <>
           <h3>Da chiudere: giorni scorsi</h3>
-          <p className="nota-piccola">Spunta quelli finiti, oppure tocca Appunti per annotare com'è andata.</p>
+          <p className="nota-piccola">Spunta quelli finiti, tocca Appunti per annotare com'è andata, o tocca l'appuntamento per spostarlo.</p>
           <div className="elenco">{vecchi.map((e) => riga(e, true))}</div>
-          {passati.length > 3 && (
+          {vecchiTutti.length > 3 && (
             <button type="button" className="tasto-link" onClick={() => setTuttiPassati(!tuttiPassati)} aria-expanded={tuttiPassati}>
-              {tuttiPassati ? 'Mostra solo gli ultimi 3' : `Mostra tutti: ${passati.length}`}
+              {tuttiPassati ? 'Mostra solo gli ultimi 3' : `Mostra tutti: ${vecchiTutti.length}`}
             </button>
           )}
         </>

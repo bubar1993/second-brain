@@ -1,6 +1,144 @@
 import { useEffect, useRef, useState } from 'react'
 import { sb, leggi, scrivi } from './supabase'
-import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, Icona, useDettatura, caricaFoto, collegaPersone } from './componenti'
+import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, Icona, useDettatura, caricaFoto, collegaPersone, useModifiche, perCampo } from './componenti'
+
+// ---------- Spostare o correggere un appuntamento ----------
+// Resta lo STESSO appuntamento: appunti, note e collegamenti non si perdono.
+// Quelli di Google Calendar: il cambio va in eventi.cambio, l'app lo mostra subito
+// e l'agente calendario lo porta in Google entro un'ora. Gli altri (proposti, da creare) si cambiano e basta.
+export const CAMPI_EVENTO = 'id,google_id,titolo,inizio,fine,tutto_il_giorno,luogo,area,stato,motivo,errore,cambio,cambio_il,nota_id,aziende(id,nome),persone(id,nome,cognome)'
+
+// L'appuntamento come lo vede Giovanni: con il cambio già applicato. "originale" serve per annullare.
+export const valoriEvento = (e) => ({ ...e, ...(e.cambio || {}), originale: e })
+
+async function cambiaEvento(e, nuovo) {
+  const o = e.originale || e
+  if (o.google_id) {
+    chk(await sb.from('eventi').update({ cambio: nuovo, cambio_il: new Date().toISOString(), errore: null }).eq('id', o.id))
+    return async () => chk(await sb.from('eventi').update({ cambio: o.cambio || null, cambio_il: o.cambio_il || null, errore: o.errore || null }).eq('id', o.id))
+  }
+  const prima = { titolo: o.titolo, inizio: o.inizio, fine: o.fine, luogo: o.luogo, tutto_il_giorno: o.tutto_il_giorno }
+  chk(await sb.from('eventi').update(nuovo).eq('id', o.id))
+  return async () => chk(await sb.from('eventi').update(prima).eq('id', o.id))
+}
+
+// Domani, lunedì prossimo o una settimana dopo (dal suo giorno, o da oggi se è già passato),
+// alla stessa ora e con la stessa durata.
+function spostato(e, quando) {
+  const inizio = new Date(e.inizio)
+  const d = new Date()
+  if (quando === 'domani') d.setDate(d.getDate() + 1)
+  else if (quando === 'lunedi') d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7))
+  else {
+    if (inizio > d) d.setTime(inizio.getTime())
+    d.setDate(d.getDate() + 7)
+  }
+  d.setHours(inizio.getHours(), inizio.getMinutes(), 0, 0)
+  return d
+}
+const DURATA = (e) => (e.fine ? new Date(e.fine) - new Date(e.inizio) : 3600000)
+const RIMANDA = [['domani', 'Domani'], ['lunedi', 'Lunedì'], ['settimana', 'Una settimana dopo']]
+const giornoCampo = (iso) => perCampo(iso).slice(0, 10)
+
+export function ModificaAppuntamento({ e, fatto, chiudi }) {
+  const { avvisa } = useApp()
+  const [titolo, setTitolo] = useState(e.titolo || '')
+  const [inizio, setInizio] = useState(e.tutto_il_giorno ? giornoCampo(e.inizio) : perCampo(e.inizio))
+  const [fine, setFine] = useState(e.tutto_il_giorno ? '' : perCampo(e.fine || new Date(new Date(e.inizio).getTime() + 3600000)))
+  const [luogo, setLuogo] = useState(e.luogo || '')
+  const [lavoro, setLavoro] = useState(false)
+  const iniziale = { titolo: e.titolo || '', inizio: e.tutto_il_giorno ? giornoCampo(e.inizio) : perCampo(e.inizio), luogo: e.luogo || '' }
+  const fineIniziale = e.tutto_il_giorno ? '' : perCampo(e.fine || new Date(new Date(e.inizio).getTime() + 3600000))
+  const cambiato = titolo.trim() !== iniziale.titolo || inizio !== iniziale.inizio || fine !== fineIniziale || luogo.trim() !== iniziale.luogo
+  useModifiche(cambiato)
+
+  // Cambiando l'inizio, la fine si sposta con lui (stessa durata).
+  function nuovoInizio(v) {
+    if (!e.tutto_il_giorno && v && inizio && fine) {
+      const durata = new Date(fine) - new Date(inizio)
+      setFine(perCampo(new Date(new Date(v).getTime() + Math.max(durata, 0))))
+    }
+    setInizio(v)
+  }
+
+  async function applica(nuovo, messaggio) {
+    setLavoro(true)
+    try {
+      const annulla = await cambiaEvento(e, nuovo)
+      const google = !!(e.originale || e).google_id
+      avvisa(google ? `${messaggio}: in Google entro un'ora` : messaggio, {
+        etichetta: 'Annulla',
+        fai: async () => {
+          try { await annulla(); avvisa('Come prima'); fatto() } catch (err) { avvisa(messaggioErrore(err)) }
+        },
+      })
+      chiudi?.()
+      fatto()
+    } catch (err) {
+      avvisa(messaggioErrore(err))
+    } finally {
+      setLavoro(false)
+    }
+  }
+
+  function salva() {
+    if (!titolo.trim()) return avvisa('Il titolo serve')
+    if (!inizio) return avvisa('Scegli quando')
+    let i, f
+    if (e.tutto_il_giorno) {
+      i = new Date(`${inizio}T00:00`)
+      f = new Date(i.getTime() + DURATA(e))
+    } else {
+      i = new Date(inizio)
+      f = fine ? new Date(fine) : new Date(i.getTime() + DURATA(e))
+      if (f <= i) return avvisa('La fine deve venire dopo l\'inizio')
+    }
+    applica({ titolo: titolo.trim(), inizio: i.toISOString(), fine: f.toISOString(), luogo: luogo.trim() || null, tutto_il_giorno: !!e.tutto_il_giorno }, 'Appuntamento cambiato')
+  }
+
+  function rimanda(k) {
+    const i = spostato(e, k)
+    applica({ titolo: e.titolo, inizio: i.toISOString(), fine: new Date(i.getTime() + DURATA(e)).toISOString(), luogo: e.luogo || null, tutto_il_giorno: !!e.tutto_il_giorno },
+      `Spostato a ${i.toLocaleDateString('it-CH', { weekday: 'long', day: 'numeric', month: 'short' })}`)
+  }
+
+  return (
+    <div className="modifica-promemoria">
+      <label className="campo">
+        Titolo
+        <input type="text" value={titolo} onChange={(x) => setTitolo(x.target.value)} />
+      </label>
+      {e.tutto_il_giorno ? (
+        <label className="campo">
+          Giorno
+          <input type="date" value={inizio} onChange={(x) => setInizio(x.target.value)} />
+        </label>
+      ) : (
+        <div className="due">
+          <label className="campo">Inizio<input type="datetime-local" value={inizio} onChange={(x) => nuovoInizio(x.target.value)} /></label>
+          <label className="campo">Fine<input type="datetime-local" value={fine} onChange={(x) => setFine(x.target.value)} /></label>
+        </div>
+      )}
+      <label className="campo">
+        Luogo
+        <input type="text" value={luogo} onChange={(x) => setLuogo(x.target.value)} placeholder="nessuno" />
+      </label>
+      <div className="chips">
+        <span className="nota-piccola">Rimanda a:</span>
+        {RIMANDA.map(([k, nome]) => (
+          <button key={k} type="button" className="chip" disabled={lavoro} onClick={() => rimanda(k)}>{nome}</button>
+        ))}
+      </div>
+      <div className="azioni">
+        {cambiato && <button type="button" className="tasto-piccolo tasto-salva" onClick={salva} disabled={lavoro}>Salva</button>}
+        {chiudi && <button type="button" className="tasto-link" onClick={chiudi}>Chiudi</button>}
+      </div>
+      {(e.originale || e).google_id && (
+        <p className="nota-piccola">Resta lo stesso appuntamento: appunti e note non si perdono. In Google Calendar lo sposta l'agente entro un'ora.</p>
+      )}
+    </div>
+  )
+}
 
 // "Prendi appunti" durante un appuntamento (#/visita/<id evento>).
 // Il testo si salva sul telefono mentre scrivi (non si perde se esci dall'app o il telefono si blocca).
@@ -35,9 +173,11 @@ export function Visita({ id }) {
   const scattaRif = useRef(null)
   const notaFatta = useRef(null)
 
+  const [cambia, setCambia] = useState(false)
   const { dati: e, errore, carica, ricarica } = useCarica(async () => {
-    const ev = chk(await sb.from('eventi')
-      .select('id,titolo,inizio,fine,luogo,area,azienda_id,nota_id,fatto_il,aziende(id,nome),persone(id,nome,cognome)').eq('id', id).single())
+    // Con il cambio già applicato (spostato dall'app, in arrivo in Google).
+    const ev = valoriEvento(chk(await sb.from('eventi')
+      .select(CAMPI_EVENTO + ',azienda_id,fatto_il').eq('id', id).single()))
     // Senza ditta: cerco quelle che hanno nel nome una parola del titolo ("2cm somazzi" → Somazzi…).
     let candidate = []
     if (!ev.aziende) {
@@ -118,9 +258,15 @@ export function Visita({ id }) {
         {e && (
           <>
             <p className="nota-piccola">
-              {new Date(e.inizio).toLocaleString('it-CH', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+              {new Date(e.inizio).toLocaleString('it-CH', { weekday: 'long', day: 'numeric', month: 'long', ...(e.tutto_il_giorno ? {} : { hour: '2-digit', minute: '2-digit' }) })}
               {e.luogo ? ` · ${e.luogo}` : ''}
+              {e.originale.cambio && ' · spostato, in arrivo nel calendario'}
+              {' '}<button type="button" className="tasto-link" onClick={() => setCambia(!cambia)} aria-expanded={cambia}>
+                {cambia ? 'Chiudi' : 'Sposta o cambia'}
+              </button>
             </p>
+            {e.errore && <p className="nota-piccola rosso">{e.errore}</p>}
+            {cambia && <ModificaAppuntamento e={e} fatto={ricarica} chiudi={() => setCambia(false)} />}
             <div className="contatti-persona">
               {e.aziende && <a className="tasto-piccolo" href={`#/azienda/${e.aziende.id}`}>Scheda {e.aziende.nome}</a>}
               {e.persone && <a className="tasto-piccolo" href={`#/persona/${e.persone.id}`}>{[e.persone.nome, e.persone.cognome].filter(Boolean).join(' ')}</a>}

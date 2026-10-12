@@ -16,13 +16,17 @@ export function Gemelli() {
   const { dati, errore, carica, ricarica } = useCarica(async () => {
     const da = new Date(); da.setHours(0, 0, 0, 0)
     const a8 = new Date(da.getTime() + 8 * 864e5)
-    const [figli, attivita, feste, eventi] = await Promise.all([
+    const [figli, attivita, feste, eventi, chiusa] = await Promise.all([
       sb.from('persone').select('id,nome,compleanno').in('ruolo', ['figlio', 'figlia']).is('eliminata_il', null).order('nome'),
       sb.from('attivita_figli').select('*').eq('attiva', true).order('giorno', { nullsFirst: false }).order('inizio'),
       sb.from('feste').select('*').or(`inizio.gte.${new Date(da.getTime() - 864e5).toISOString()},inizio.is.null`).order('inizio', { nullsFirst: false }),
       sb.from('eventi').select('id,titolo,inizio,fine,tutto_il_giorno,luogo').eq('area', 'P').in('stato', ['confermato', 'da_creare'])
         .is('fatto_il', null).gte('inizio', da.toISOString()).lt('inizio', a8.toISOString()).order('inizio'),
+      // Giorni di scuola chiusa (calendario cantonale, nel calendario Google alle 6 in azzurro): l'agente li copia 45 giorni avanti.
+      sb.from('eventi').select('id,titolo,inizio').ilike('titolo', 'scuola chiusa%').neq('stato', 'cancellato')
+        .gte('inizio', da.toISOString()).order('inizio').limit(60),
     ])
+    const vacanze = chk(chiusa).map((e) => ({ ...e, nome: e.titolo.replace(/^scuola chiusa:\s*/i, '') }))
     const ff = chk(figli)
     const legami = ff.length ? chk(await sb.from('note_persone')
       .select('persona_id,note(id,area,testo,fonte,creata_il,eliminata_il,note_persone(persone(id,nome,cognome)),allegati(id))')
@@ -33,8 +37,9 @@ export function Gemelli() {
     const fe = chk(feste)
     const legateAFeste = new Set(fe.map((f) => f.evento_id).filter(Boolean))
     // Dal calendario: solo gli appuntamenti che parlano dei bambini o delle loro attività.
-    const ev = chk(eventi).filter((e) => legateAFeste.has(e.id) || PAROLE.some((p) => new RegExp(`\\b${p}`, 'i').test(e.titolo)))
-    return { figli: ff, attivita: chk(attivita), feste: fe, eventi: ev, diario }
+    const ev = chk(eventi).filter((e) => !/^scuola chiusa/i.test(e.titolo)
+      && (legateAFeste.has(e.id) || PAROLE.some((p) => new RegExp(`\\b${p}`, 'i').test(e.titolo))))
+    return { figli: ff, attivita: chk(attivita), feste: fe, eventi: ev, diario, vacanze }
   }, [])
 
   async function cambiaFesta(f, campi, messaggio) {
@@ -67,9 +72,12 @@ export function Gemelli() {
         ...dati.feste.filter((f) => f.inizio && stessoGiorno(new Date(f.inizio), d))
           .map((f) => ({ k: 'f' + f.id, ora: oraDa(f.inizio), testo: `Festa di ${f.festeggiato}`, chi: nomi(f.persone), extra: f.luogo })),
       ].sort((a, b) => (a.ora || '99').localeCompare(b.ora || '99'))
-      if (righe.length) giorni.push({ d, righe })
+      const chiusa = dati.vacanze.find((v) => stessoGiorno(new Date(v.inizio), d))
+      if (righe.length || chiusa) giorni.push({ d, righe, chiusa })
     }
   }
+  // Le prossime vacanze, se questa settimana non ce ne sono.
+  const prossime = dati && !giorni.some((g) => g.chiusa) ? dati.vacanze[0] : null
   const senzaOrario = dati?.attivita.filter((a) => !a.giorno) || []
 
   return (
@@ -89,10 +97,16 @@ export function Gemelli() {
 
             <h2>Questa settimana</h2>
             {giorni.length === 0 && <p className="msg">Niente in programma nei prossimi 7 giorni.</p>}
-            {giorni.map(({ d, righe }) => (
+            {prossime && (
+              <p className="nota-piccola">
+                Prossima scuola chiusa: <span className="vacanza">{prossime.nome}</span>, da {new Date(prossime.inizio).toLocaleDateString('it-CH', { weekday: 'long', day: 'numeric', month: 'long' })}
+              </p>
+            )}
+            {giorni.map(({ d, righe, chiusa }) => (
               <section key={d.toISOString()} className="gemelli-giorno">
                 <h3>{stessoGiorno(d, new Date()) ? 'Oggi' : d.toLocaleDateString('it-CH', { weekday: 'long', day: 'numeric', month: 'short' })}</h3>
-                <div className="elenco">
+                {chiusa && <p className="vacanza">Scuola chiusa: {chiusa.nome}</p>}
+                {righe.length > 0 && <div className="elenco">
                   {righe.map((r) => (
                     <div key={r.k} className="riga">
                       <span className="riga-corpo">
@@ -101,7 +115,7 @@ export function Gemelli() {
                       </span>
                     </div>
                   ))}
-                </div>
+                </div>}
               </section>
             ))}
 

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { sb, areaDa, quando, giorniDaOggi, leggi, scrivi } from './supabase'
 import { useApp, useCarica, chk, messaggioErrore, NotaRiga, Stato, Icona, useModifiche, perCampo, useScorriAree } from './componenti'
 import Rete from './Rete'
+import { AttivaNotifiche } from './Notifiche'
 import { visiteAperte, valoriEvento, CAMPI_EVENTO, ModificaAppuntamento } from './Visita'
 
 const corto = (s, n = 16) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s)
@@ -150,20 +151,52 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
     }
   }
 
-  const azioni = { fatto, fatti, lampo, aperto, setAperto, cambia }
+  const ev = useAzioniEventi(ricarica, () => setAperto(null))
 
   const promemoria = (dati?.promemoria || []).filter((p) => !fatti.has(p.id))
-  const gruppi = { ritardo: [], oggi: [], prossimi: [], avanti: [], senzaData: [] }
+
+  // Appuntamenti con gli spostamenti fatti dall'app già applicati: uno spostato a domani sta già sotto domani.
+  // I giorni di scuola chiusa (vacanze dei gemelli) non sono appuntamenti: si vedono accanto al giorno.
+  const eventi = dati ? [...dati.eventi, ...dati.passati].map(valoriEvento) : []
+  const vacanze = eventi.filter(vacanza)
+  const veri = eventi.filter((e) => !vacanza(e))
+  const proposte = veri.filter((e) => e.stato === 'proposto' && giorniDaOggi(e.inizio) >= 0)
+  const vecchi = veri.filter((e) => e.stato !== 'proposto' && giorniDaOggi(e.inizio) < 0)
+    .sort((a, b) => b.inizio.localeCompare(a.inizio))
+
+  // Una lista sola per giorno: appuntamenti e promemoria insieme, per orario (13.10.2026, scelta di Giovanni).
+  const giorni = new Map()
+  const ritardo = []
+  const senzaData = []
+  const piuAvanti = []
+  const metti = (g, voce) => { if (!giorni.has(g)) giorni.set(g, []); giorni.get(g).push(voce) }
   for (const p of dati?.promemoria || []) {
-    if (!p.scade_il) gruppi.senzaData.push(p)
+    if (!p.scade_il) senzaData.push({ tipo: 'p', x: p })
     // In ritardo solo dal giorno dopo: le cose di oggi restano in "Oggi" anche passata l'ora.
-    else if (giorniDaOggi(p.scade_il) < 0) gruppi.ritardo.push(p)
-    else if (giorniDaOggi(p.scade_il) === 0) gruppi.oggi.push(p)
-    else if (giorniDaOggi(p.scade_il) <= 14) gruppi.prossimi.push(p)
-    else gruppi.avanti.push(p)
+    else if (giorniDaOggi(p.scade_il) < 0) ritardo.push({ tipo: 'p', x: p, ora: p.scade_il })
+    else if (giorniDaOggi(p.scade_il) <= 14) metti(giorniDaOggi(p.scade_il), { tipo: 'p', x: p, ora: p.scade_il })
+    else piuAvanti.push({ tipo: 'p', x: p })
   }
-  const nessunPromemoria = dati && dati.promemoria.length === 0
+  for (const e of veri) {
+    const g = giorniDaOggi(e.inizio)
+    if (e.stato !== 'proposto' && g >= 0 && g <= 7) metti(g, { tipo: 'e', x: e, ora: e.tutto_il_giorno ? '' : e.inizio })
+  }
+  if (dati && !giorni.has(0)) giorni.set(0, [])
+  for (const voci of giorni.values()) voci.sort((a, b) => a.ora.localeCompare(b.ora))
+  const elencoGiorni = [...giorni.entries()].sort((a, b) => a[0] - b[0])
+  const vacanzaDel = (g) => vacanze.find((e) => giorniDaOggi(e.inizio) === g)?.titolo.replace(/^Scuola chiusa:\s*/i, '')
+
+  const nessunaCosa = dati && !dati.promemoria.length && !veri.some((e) => e.stato !== 'proposto' && giorniDaOggi(e.inizio) >= 0)
   const daFareOggi = promemoria.filter((p) => p.scade_il && giorniDaOggi(p.scade_il) <= 0).length
+    + (giorni.get(0) || []).filter((v) => v.tipo === 'e' && !ev.fatti.has(v.x.id)).length
+
+  const voce = (v, inRitardo) => (v.tipo === 'p'
+    ? <RigaPromemoria key={v.x.id} p={v.x} finito={fatti.has(v.x.id)} aperta={aperto === v.x.id} lampo={lampo}
+      fatto={fatto} apri={() => setAperto(aperto === v.x.id ? null : v.x.id)} cambia={cambia}
+      chiudi={() => setAperto(null)} ritardo={inRitardo} />
+    : <RiquadroEvento key={v.x.id} e={v.x} chiuso={ev.fatti.has(v.x.id)} apri={aperto === v.x.id}
+      tocca={() => setAperto(aperto === v.x.id ? null : v.x.id)} fatto={ev.fatto} ricarica={ricarica}
+      chiudi={() => setAperto(null)} />)
 
   // Neuroni: prima i promemoria aperti, poi le tue ultime note, poi i clienti che hanno scritto per ultimi.
   const chiaveNodi = dati ? [...promemoria, ...dati.note, ...dati.aziende].map((x) => x.id).join() : ''
@@ -212,6 +245,49 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
           </section>
         ))}
 
+        <Stato carica={carica} errore={errore} vuoto={nessunaCosa && !vacanzaDel(0) ? 'Niente in agenda. Quando aggiungi "Ricordamelo" o un appuntamento, compare qui.' : null}>
+          {dati && !nessunaCosa && (
+            <div className="agenda">
+              {ritardo.length > 0 && (
+                <>
+                  <h3 className="agenda-giorno rosso">In ritardo</h3>
+                  {ritardo.map((v) => voce(v, true))}
+                </>
+              )}
+              {elencoGiorni.map(([g, voci]) => (
+                <Fragment key={g}>
+                  <h3 className="agenda-giorno">
+                    {nomeGiorno(g)}
+                    {vacanzaDel(g) && <span className="vacanza">Scuola chiusa: {vacanzaDel(g)}</span>}
+                  </h3>
+                  {voci.length ? voci.map((v) => voce(v)) : <p className="nota-piccola">Niente per oggi.</p>}
+                </Fragment>
+              ))}
+              {senzaData.length > 0 && (
+                <>
+                  <h3 className="agenda-giorno">Senza data</h3>
+                  {senzaData.map((v) => voce(v))}
+                </>
+              )}
+              {piuAvanti.length > 0 && (
+                <>
+                  <button type="button" className="tasto-link" onClick={() => setAvanti(!avanti)} aria-expanded={avanti}>
+                    {avanti ? 'Nascondi i promemoria più avanti' : `Promemoria più avanti: ${piuAvanti.length}`}
+                  </button>
+                  {avanti && piuAvanti.map((v) => voce(v))}
+                </>
+              )}
+              <p className="nota-piccola">Tocca una riga per correggerla, spostarla o aprire la scheda.</p>
+            </div>
+          )}
+          {dati && nessunaCosa && vacanzaDel(0) && (
+            <h3 className="agenda-giorno"><span className="vacanza">Scuola chiusa: {vacanzaDel(0)}</span></h3>
+          )}
+        </Stato>
+
+        {dati && <Proposte proposte={proposte} aperto={aperto} setAperto={setAperto} decidi={ev.decidi} ricarica={ricarica} />}
+        {dati && <DaChiudere vecchi={vecchi} ev={ev} aperto={aperto} setAperto={setAperto} ricarica={ricarica} />}
+
         {visiteAperte().map((v) => (
           <a key={v.id} className="scheda scheda-allarme" href={`#/visita/${v.id}`}>
             <span>Appunti non finiti{v.titolo ? `: ${v.titolo}` : ''}. Tocca per riprendere e salvarli.</span>
@@ -220,6 +296,7 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
         ))}
 
         <AttivaImpronta />
+        <AttivaNotifiche />
         <AvvisoBackup />
         <AvvisoCopia />
         <AvvisoLavoriGC />
@@ -266,29 +343,6 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
           </a>
         )}
 
-        {dati && <Appuntamenti eventi={dati.eventi} passati={dati.passati} ricarica={ricarica} />}
-
-        <h2>Promemoria</h2>
-        <Stato carica={carica} errore={errore} vuoto={nessunPromemoria ? 'Niente in sospeso. Quando aggiungi "Ricordamelo", compare qui e nella rete.' : null}>
-          {dati && (
-            <>
-              {!nessunPromemoria && <p className="nota-piccola">Tocca un promemoria per correggerlo, spostarlo o eliminarlo.</p>}
-              <Gruppo titolo="In ritardo" righe={gruppi.ritardo} {...azioni} ritardo />
-              <Gruppo titolo="Oggi" righe={gruppi.oggi} {...azioni} />
-              <Gruppo titolo="Prossimi giorni" righe={gruppi.prossimi} {...azioni} />
-              <Gruppo titolo="Senza data" righe={gruppi.senzaData} {...azioni} />
-              {gruppi.avanti.length > 0 && (
-                <>
-                  <button type="button" className="tasto-link" onClick={() => setAvanti(!avanti)} aria-expanded={avanti}>
-                    {avanti ? 'Nascondi quelli più avanti' : `Più avanti: ${gruppi.avanti.length}`}
-                  </button>
-                  {avanti && <Gruppo titolo="Più avanti" righe={gruppi.avanti} {...azioni} />}
-                </>
-              )}
-            </>
-          )}
-        </Stato>
-
         {dati?.compleanni.length > 0 && (
           <>
             <h2>Compleanni</h2>
@@ -315,30 +369,36 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
   )
 }
 
-// Appuntamenti di oggi e dei prossimi giorni (da Google Calendar) e proposte degli agenti.
-// Tocco su un appuntamento: si apre sotto con scheda, persona, appunti e "sposta o cambia".
-// Quelli dei giorni scorsi non spuntati restano in "Da chiudere" per 7 giorni.
-function Appuntamenti({ eventi, passati, ricarica }) {
+// I giorni di scuola chiusa dei gemelli (eventi "Scuola chiusa: …" alle 6, colore pavone): non sono appuntamenti.
+export const vacanza = (e) => /^scuola chiusa/i.test(e.titolo || '')
+
+function nomeGiorno(g) {
+  if (g === 0) return 'Oggi'
+  if (g === 1) return 'Domani'
+  const d = new Date()
+  d.setDate(d.getDate() + g)
+  const s = d.toLocaleDateString('it-CH', { weekday: 'long', day: 'numeric', month: 'short' })
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+const ora = (e) => new Date(e.inizio).toLocaleTimeString('it-CH', { hour: '2-digit', minute: '2-digit' })
+const finito = (e) => new Date(e.fine || e.inizio) < new Date()
+const lavoro = (e) => e.area !== 'P'
+
+const Spunta = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+)
+
+// Spunta e Sì/No degli appuntamenti. Spuntato: sparisce da Oggi (in Google Calendar resta com'è).
+function useAzioniEventi(ricarica, chiudi) {
   const { avvisa } = useApp()
   const [fatti, setFatti] = useState(() => new Set())
-  const [tuttiPassati, setTuttiPassati] = useState(false)
-  const [aperto, setAperto] = useState(null)
-  // Con gli spostamenti fatti dall'app già applicati: un appuntamento spostato a domani sta già sotto domani.
-  const tutti = [...eventi, ...passati].map(valoriEvento)
-  const proposte = tutti.filter((e) => e.stato === 'proposto' && giorniDaOggi(e.inizio) >= 0)
-  const fissi = tutti.filter((e) => e.stato !== 'proposto' && giorniDaOggi(e.inizio) >= 0 && giorniDaOggi(e.inizio) <= 7)
-    .sort((a, b) => a.inizio.localeCompare(b.inizio))
-  const vecchiTutti = tutti.filter((e) => e.stato !== 'proposto' && giorniDaOggi(e.inizio) < 0)
-    .sort((a, b) => b.inizio.localeCompare(a.inizio))
-  if (!proposte.length && !fissi.length && !vecchiTutti.length) return null
-
   const togli = (id) => setFatti((s) => { const x = new Set(s); x.delete(id); return x })
 
-  // Spunta: l'appuntamento sparisce da Oggi (in Google Calendar resta com'è).
   async function fatto(e) {
     if (fatti.has(e.id)) return
     setFatti((s) => new Set(s).add(e.id))
-    setAperto(null)
+    chiudi()
     try {
       chk(await sb.from('eventi').update({ fatto_il: new Date().toISOString() }).eq('id', e.id))
       avvisa('Fatto', {
@@ -376,107 +436,116 @@ function Appuntamenti({ eventi, passati, ricarica }) {
       avvisa(messaggioErrore(err))
     }
   }
-  const ora = (e) => (e.tutto_il_giorno ? 'tutto il giorno'
-    : new Date(e.inizio).toLocaleTimeString('it-CH', { hour: '2-digit', minute: '2-digit' }))
-  const giorno = (e) => {
-    const g = giorniDaOggi(e.inizio)
-    return g === 0 ? 'Oggi' : g === 1 ? 'Domani' : g === -1 ? 'Ieri'
-      : new Date(e.inizio).toLocaleDateString('it-CH', { weekday: 'long', day: 'numeric', month: 'short' })
-  }
-  const finito = (e) => new Date(e.fine || e.inizio) < new Date()
-  const lavoro = (e) => e.area !== 'P'
-  const stato = (e) => (
-    <>
-      {e.originale.cambio && ' · spostato, in arrivo nel calendario'}
-      {e.stato === 'da_creare' && !e.errore && ' · in arrivo nel calendario'}
-      {e.errore && <span className="rosso"> · {e.stato === 'da_creare' ? 'non creato: ' : ''}{e.errore}</span>}
-    </>
-  )
 
-  // Il pannello sotto la riga: dove andare (scheda, persona, appunti) e come spostarlo.
-  const pannello = (e) => (
-    <>
-      <div className="contatti-persona pannello-link">
-        {e.aziende && <a className="tasto-piccolo" href={`#/azienda/${e.aziende.id}`}>Scheda {e.aziende.nome}</a>}
-        {e.persone && <a className="tasto-piccolo" href={`#/persona/${e.persone.id}`}>{[e.persone.nome, e.persone.cognome].filter(Boolean).join(' ')}</a>}
-        {lavoro(e) || !e.persone
-          ? <a className="tasto-piccolo" href={`#/visita/${e.id}`}>{finito(e) ? 'Com\'è andata? Appunti' : 'Appunti'}</a>
-          : finito(e) && <a className="tasto-piccolo" href={`#/aggiungi?persona=${e.persone.id}`}>Com'è andata? Annota</a>}
-      </div>
-      <ModificaAppuntamento e={e} fatto={ricarica} chiudi={() => setAperto(null)} />
-    </>
-  )
+  return { fatti, fatto, decidi }
+}
 
-  const riga = (e, conAppunti) => {
-    const chiuso = fatti.has(e.id)
-    const apri = aperto === e.id
-    return (
-      <div key={e.id} className={'voce-promemoria' + (chiuso ? ' via' : '')}>
-        <div>
-          <div style={{ '--col': areaDa(e.area)?.colore || 'var(--grigio)' }}
-            className={'riga riga-promemoria' + (chiuso ? ' fatto' : '')}>
-            <button type="button" className="spunta" onClick={() => fatto(e)} aria-label={`Segna fatto: ${e.titolo}`}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
-            </button>
-            <button type="button" className="riga-corpo riga-tocca" onClick={() => setAperto(apri ? null : e.id)} aria-expanded={apri}>
-              <span className="riga-testo">{e.titolo}</span>
-              <span className="riga-meta">{giorno(e)} {ora(e)}{e.luogo ? ` · ${e.luogo}` : ''}{stato(e)}</span>
-            </button>
-            {conAppunti && lavoro(e) && !apri && (
-              <a className="tasto-piccolo tasto-appunti" href={`#/visita/${e.id}`} aria-label={`Prendi appunti: ${e.titolo}`}>Appunti</a>
-            )}
-          </div>
-          {apri && <div className="pannello-evento">{pannello(e)}</div>}
-        </div>
-      </div>
-    )
-  }
-
-  const vecchi = tuttiPassati || vecchiTutti.length <= 3 ? vecchiTutti : vecchiTutti.slice(0, 3)
-
+// Dopo il luogo: " · in arrivo nel calendario"; senza luogo niente puntino davanti.
+const statoEvento = (e, primo) => {
+  const p = primo ? '' : ' · '
   return (
     <>
-      {proposte.length > 0 && (
-        <>
-          <h2>Da mettere in calendario?</h2>
-          <div className="elenco">
-            {proposte.map((e) => (
-              <div key={e.id}>
-                <div className="riga riga-proposta">
-                  <span className="pallino" style={{ background: areaDa(e.area)?.colore || 'var(--grigio)' }} />
-                  <button type="button" className="riga-corpo riga-tocca" onClick={() => setAperto(aperto === e.id ? null : e.id)} aria-expanded={aperto === e.id}>
-                    <span className="riga-testo">{e.titolo}</span>
-                    <span className="riga-meta">{giorno(e)} {ora(e)}{e.motivo ? ` · ${e.motivo}` : ''}</span>
-                  </button>
-                  <span className="azioni-proposta">
-                    <button type="button" className="tasto-piccolo" onClick={() => decidi(e, true)}>Sì</button>
-                    <button type="button" className="tasto-link" onClick={() => decidi(e, false)}>No</button>
-                  </span>
-                </div>
-                {aperto === e.id && <div className="pannello-evento"><ModificaAppuntamento e={e} fatto={ricarica} chiudi={() => setAperto(null)} /></div>}
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-      {fissi.length > 0 && (
-        <>
-          <h2>Appuntamenti</h2>
-          <p className="nota-piccola">Tocca un appuntamento per la scheda, gli appunti o per spostarlo.</p>
-          <div className="elenco">{fissi.map((e) => riga(e, giorniDaOggi(e.inizio) === 0))}</div>
-        </>
-      )}
-      {vecchiTutti.length > 0 && (
-        <>
-          <h3>Da chiudere: giorni scorsi</h3>
-          <p className="nota-piccola">Spunta quelli finiti, tocca Appunti per annotare com'è andata, o tocca l'appuntamento per spostarlo.</p>
-          <div className="elenco">{vecchi.map((e) => riga(e, true))}</div>
-          {vecchiTutti.length > 3 && (
-            <button type="button" className="tasto-link" onClick={() => setTuttiPassati(!tuttiPassati)} aria-expanded={tuttiPassati}>
-              {tuttiPassati ? 'Mostra solo gli ultimi 3' : `Mostra tutti: ${vecchiTutti.length}`}
-            </button>
+      {e.originale.cambio && `${p}spostato, in arrivo nel calendario`}
+      {e.stato === 'da_creare' && !e.errore && `${p}in arrivo nel calendario`}
+      {e.errore && <span className="rosso">{p}{e.stato === 'da_creare' ? 'non creato: ' : ''}{e.errore}</span>}
+    </>
+  )
+}
+
+// Appuntamento = riquadro col colore dell'area e l'ora grande: lì devi esserci.
+// Appunti bene in vista (lavoro, da oggi in giù). Tocco: si apre sotto con scheda, persona e "sposta o cambia".
+function RiquadroEvento({ e, chiuso, apri, tocca, fatto, ricarica, chiudi, daChiudere }) {
+  const g = giorniDaOggi(e.inizio)
+  const conAppunti = lavoro(e) && g <= 0
+  const dove = e.luogo || e.aziende?.nome || ''
+  return (
+    <div className={'voce-promemoria' + (chiuso ? ' via' : '')}>
+      <div>
+        <div style={{ '--col': areaDa(e.area)?.colore || 'var(--grigio)' }} className={'riquadro-evento' + (chiuso ? ' fatto' : '')}>
+          <button type="button" className="riquadro-tocca" onClick={tocca} aria-expanded={apri}>
+            <span className="riquadro-ora">
+              {e.tutto_il_giorno ? <small>tutto il giorno</small> : ora(e)}
+              {daChiudere && <small>{g === -1 ? 'ieri' : new Date(e.inizio).toLocaleDateString('it-CH', { weekday: 'short', day: 'numeric' })}</small>}
+            </span>
+            <span className="riga-corpo">
+              <span className="riga-testo">{e.titolo}</span>
+              {(dove || e.originale.cambio || e.stato === 'da_creare' || e.errore) && (
+                <span className="riga-meta">{dove}{statoEvento(e, !dove)}</span>
+              )}
+            </span>
+          </button>
+          {conAppunti && !apri && (
+            <a className="tasto-piccolo tasto-appunti" href={`#/visita/${e.id}`} aria-label={`Prendi appunti: ${e.titolo}`}>Appunti</a>
           )}
-        </>
+          {daChiudere && (
+            <button type="button" className="spunta" onClick={() => fatto(e)} aria-label={`Chiudi: ${e.titolo}`}><Spunta /></button>
+          )}
+        </div>
+        {apri && (
+          <div className="pannello-evento">
+            <div className="contatti-persona pannello-link">
+              {e.aziende && <a className="tasto-piccolo" href={`#/azienda/${e.aziende.id}`}>Scheda {e.aziende.nome}</a>}
+              {e.persone && <a className="tasto-piccolo" href={`#/persona/${e.persone.id}`}>{[e.persone.nome, e.persone.cognome].filter(Boolean).join(' ')}</a>}
+              {lavoro(e) || !e.persone
+                ? <a className="tasto-piccolo" href={`#/visita/${e.id}`}>{finito(e) ? 'Com\'è andata? Appunti' : 'Appunti'}</a>
+                : finito(e) && <a className="tasto-piccolo" href={`#/aggiungi?persona=${e.persone.id}`}>Com'è andata? Annota</a>}
+              <button type="button" className="tasto-piccolo" onClick={() => fatto(e)}>Segna fatto</button>
+            </div>
+            <ModificaAppuntamento e={e} fatto={ricarica} chiudi={chiudi} />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Le date trovate dagli agenti nelle note: Sì = va nel calendario Google.
+function Proposte({ proposte, aperto, setAperto, decidi, ricarica }) {
+  if (!proposte.length) return null
+  return (
+    <>
+      <h2>Da mettere in calendario?</h2>
+      <div className="elenco">
+        {proposte.map((e) => (
+          <div key={e.id}>
+            <div className="riga riga-proposta">
+              <span className="pallino" style={{ background: areaDa(e.area)?.colore || 'var(--grigio)' }} />
+              <button type="button" className="riga-corpo riga-tocca" onClick={() => setAperto(aperto === e.id ? null : e.id)} aria-expanded={aperto === e.id}>
+                <span className="riga-testo">{e.titolo}</span>
+                <span className="riga-meta">{nomeGiorno(giorniDaOggi(e.inizio))} {e.tutto_il_giorno ? 'tutto il giorno' : ora(e)}{e.motivo ? ` · ${e.motivo}` : ''}</span>
+              </button>
+              <span className="azioni-proposta">
+                <button type="button" className="tasto-piccolo" onClick={() => decidi(e, true)}>Sì</button>
+                <button type="button" className="tasto-link" onClick={() => decidi(e, false)}>No</button>
+              </span>
+            </div>
+            {aperto === e.id && <div className="pannello-evento"><ModificaAppuntamento e={e} fatto={ricarica} chiudi={() => setAperto(null)} /></div>}
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
+// Appuntamenti dei 7 giorni scorsi non chiusi: spunta, Appunti per annotare com'è andata, o tocco per spostarlo.
+function DaChiudere({ vecchi, ev, aperto, setAperto, ricarica }) {
+  const [tutti, setTutti] = useState(false)
+  if (!vecchi.length) return null
+  const visti = tutti || vecchi.length <= 3 ? vecchi : vecchi.slice(0, 3)
+  return (
+    <>
+      <h3>Da chiudere: giorni scorsi</h3>
+      <p className="nota-piccola">Spunta quelli finiti, tocca Appunti per annotare com'è andata, o tocca l'appuntamento per spostarlo.</p>
+      <div className="agenda">
+        {visti.map((e) => (
+          <RiquadroEvento key={e.id} e={e} chiuso={ev.fatti.has(e.id)} apri={aperto === e.id} daChiudere
+            tocca={() => setAperto(aperto === e.id ? null : e.id)} fatto={ev.fatto} ricarica={ricarica} chiudi={() => setAperto(null)} />
+        ))}
+      </div>
+      {vecchi.length > 3 && (
+        <button type="button" className="tasto-link" onClick={() => setTutti(!tutti)} aria-expanded={tutti}>
+          {tutti ? 'Mostra solo gli ultimi 3' : `Mostra tutti: ${vecchi.length}`}
+        </button>
       )}
     </>
   )
@@ -494,39 +563,28 @@ function rimandato(p, quando) {
 }
 const RIMANDA = [['domani', 'Domani'], ['lunedi', 'Lunedì'], ['settimana', 'Tra una settimana']]
 
-function Gruppo({ titolo, righe, fatto, fatti, lampo, aperto, setAperto, cambia, ritardo }) {
-  if (!righe.length) return null
+// Promemoria = riga leggera con il cerchio da spuntare: una cosa da fare, non un posto dove andare.
+function RigaPromemoria({ p, finito, aperta, lampo, fatto, apri, cambia, chiudi, ritardo }) {
+  const col = areaDa(p.area)?.colore || 'var(--grigio)'
+  const d = p.scade_il ? new Date(p.scade_il) : null
+  const quandoCorto = !d ? '' : ritardo
+    ? (giorniDaOggi(p.scade_il) === -1 ? 'ieri' : d.toLocaleDateString('it-CH', { day: 'numeric', month: 'short' }))
+    : giorniDaOggi(p.scade_il) > 14 ? d.toLocaleDateString('it-CH', { day: 'numeric', month: 'short' })
+      : d.toLocaleTimeString('it-CH', { hour: '2-digit', minute: '2-digit' })
   return (
-    <>
-      <h3 className={ritardo ? 'rosso' : ''}>{titolo}</h3>
-      <div className="elenco">
-        {righe.map((p) => {
-          const a = areaDa(p.area)
-          const finito = fatti.has(p.id)
-          const aperta = aperto === p.id
-          return (
-            <div key={p.id} className={'voce-promemoria' + (finito ? ' via' : '')}>
-              <div>
-                <div key={lampo?.id === p.id ? lampo.k : 0} style={{ '--col': a?.colore || 'var(--grigio)' }}
-                  className={'riga riga-promemoria' + (finito ? ' fatto' : '') + (lampo?.id === p.id ? ' lampo' : '')}>
-                  <button type="button" className="spunta" onClick={() => fatto(p)} aria-label={`Segna fatto: ${p.testo}`}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
-                  </button>
-                  <button type="button" className="riga-corpo riga-tocca" onClick={() => setAperto(aperta ? null : p.id)} aria-expanded={aperta}>
-                    <span className="riga-testo">{p.urgente && <strong className="rosso">! </strong>}{p.testo}</span>
-                    <span className="riga-meta">
-                      {a && <span className="etichetta" style={{ color: a.colore }}>{a.nome}</span>}
-                      {p.scade_il && ` ${quando(p.scade_il, true)}`}
-                    </span>
-                  </button>
-                </div>
-                {aperta && <ModificaPromemoria p={p} cambia={cambia} chiudi={() => setAperto(null)} />}
-              </div>
-            </div>
-          )
-        })}
+    <div className={'voce-promemoria' + (finito ? ' via' : '')}>
+      <div>
+        <div key={lampo?.id === p.id ? lampo.k : 0} style={{ '--col': col }}
+          className={'riga riga-promemoria' + (finito ? ' fatto' : '') + (lampo?.id === p.id ? ' lampo' : '')}>
+          <button type="button" className="spunta" onClick={() => fatto(p)} aria-label={`Segna fatto: ${p.testo}`}><Spunta /></button>
+          <span className={'ora-agenda' + (ritardo ? ' rosso' : '')}>{quandoCorto}</span>
+          <button type="button" className="riga-corpo riga-tocca" onClick={apri} aria-expanded={aperta}>
+            <span className="riga-testo">{p.urgente && <strong className="rosso">! </strong>}{p.testo}</span>
+          </button>
+        </div>
+        {aperta && <ModificaPromemoria p={p} cambia={cambia} chiudi={chiudi} />}
       </div>
-    </>
+    </div>
   )
 }
 

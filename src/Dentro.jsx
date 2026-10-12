@@ -15,11 +15,14 @@ export const VOCI_DENTRO = [
   { chiave: 'ordini', titolo: 'Ordini Marazzi', dettaglio: 'Conferme d\'ordine degli ultimi 2 giorni lavorativi: cosa, quanto, se è disponibile', aree: ['C'] },
   { chiave: 'circolari', titolo: 'Circolari', aree: ['C', 'G'] },
   { chiave: 'persone', titolo: 'Persone', dettaglio: 'Schede persona: chi è, cosa chiedere, note e contatti', aree: ['P'] },
-  { chiave: 'gemelli', titolo: 'Gemelli', dettaglio: 'Leo e Jolie: settimana, feste dei compagni, diario', aree: ['P'] },
+  { chiave: 'gemelli', titolo: 'Gemelli', dettaglio: 'Leo e Jolie: settimana, vacanze, feste dei compagni, diario', aree: ['P'] },
+  { chiave: 'liste', titolo: 'Liste', dettaglio: 'Spesa, ristoranti e posti', aree: ['P'] },
+  { chiave: 'garanzie', titolo: 'Garanzie', dettaglio: 'Scontrini e fino a quando vale la garanzia', aree: ['P'] },
   { chiave: 'domande', titolo: 'Domande per te', dettaglio: 'I dubbi degli agenti' },
   { chiave: 'agenti', titolo: 'Agenti', dettaglio: 'Cosa fanno, quando hanno girato; scrivigli' },
   { chiave: 'whatsapp', titolo: 'WhatsApp', dettaglio: 'Chat del numero Business' },
   { chiave: 'note', titolo: 'Tutte le note' },
+  { chiave: 'notifiche', titolo: 'Notifiche', dettaglio: 'Cosa ti avviso sul telefono' },
   { chiave: 'cestino', titolo: 'Cestino', dettaglio: '30 giorni' },
 ]
 export const voceVisibile = (v, area) => area === 'T' || !v.aree || v.aree.includes(area)

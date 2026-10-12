@@ -153,6 +153,9 @@ const PERCORSI = {
   seguire: 'M5 4h14v17l-7-4-7 4zM9 9l2 2 4-4',
   circolari: 'M4 10v4h3l6 4V6L7 10zM16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11',
   capo: 'M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5zM5 19h14',
+  liste: 'M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01',
+  garanzie: 'M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6zM9 12l2 2 4-4',
+  notifiche: 'M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zM10 21h4',
 }
 
 export function Icona({ nome, size = 22 }) {

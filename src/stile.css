@@ -11,6 +11,7 @@
   --rosso: #ff5d6c;
   --giallo: #ffd666;
   --blu: #5b93ff;
+  --pavone: #4fc3e8;
   --raggio: 18px;
   --barra: 64px;
   --tasti: 70px;
@@ -657,6 +658,80 @@ mark { background: rgba(255, 214, 102, 0.22); color: var(--testo); border-radius
 .chip.chiama { padding-inline: 8px; display: inline-flex; align-items: center; }
 .gemelli-giorno h3 { text-transform: capitalize; margin-bottom: 4px; }
 .festa-tasti { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; font-size: .85rem; }
+/* Oggi: una lista sola per giorno (13.10.2026). Appuntamento = riquadro con l'ora grande, promemoria = riga col cerchio. */
+.agenda { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.agenda-giorno {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px;
+  margin: 14px 0 2px; font-family: var(--sans); font-style: normal; font-size: 13px; font-weight: 600; color: var(--tenue);
+}
+.agenda-giorno:first-child { margin-top: 4px; }
+.agenda-giorno .vacanza, .vacanza { font-weight: 500; color: var(--pavone); }
+.gemelli-giorno > p.vacanza { margin: 0 0 6px; font-size: 14px; }
+.agenda .riga { min-height: 46px; padding: 6px 8px; border-bottom: 0; border-radius: 14px; gap: 10px; }
+.agenda .voce-promemoria:last-child .riga { border-bottom: 0; }
+.ora-agenda { flex: none; width: 44px; font-size: 13px; color: var(--tenue); font-variant-numeric: tabular-nums; }
+.agenda .modifica-promemoria, .agenda .pannello-evento { border-bottom: 0; padding-top: 8px; }
+.agenda .nota-piccola { margin: 2px 0; }
+.riquadro-evento {
+  display: flex; align-items: stretch; border-radius: 14px; overflow: hidden;
+  background: color-mix(in srgb, var(--col) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--col) 40%, transparent);
+  transition: opacity 200ms ease-out;
+}
+.riquadro-tocca {
+  flex: 1; min-width: 0; display: flex; align-items: stretch;
+  border: 0; padding: 0; background: transparent; color: inherit; font: inherit; text-align: left;
+}
+.riquadro-tocca:active { background: rgba(255, 255, 255, 0.04); }
+.riquadro-ora {
+  flex: none; width: 66px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  padding: 10px 4px; font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; line-height: 1.1;
+  background: color-mix(in srgb, var(--col) 24%, transparent);
+}
+.riquadro-ora small { font-size: 11px; font-weight: 500; color: var(--tenue); }
+.riquadro-tocca .riga-corpo { padding: 10px 12px; justify-content: center; }
+.riquadro-evento .riga-testo { font-weight: 600; }
+.riquadro-evento .tasto-appunti {
+  flex: none; align-self: center; margin-right: 10px;
+  background: var(--col); border-color: var(--col); color: var(--vuoto); font-weight: 600;
+}
+.riquadro-evento .spunta {
+  flex: none; align-self: center; margin-right: 10px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  border: 1.5px solid var(--col); background: transparent; color: var(--vuoto);
+}
+.riquadro-evento.fatto { opacity: 0.55; }
+.riquadro-evento.fatto .spunta { background: var(--col); }
+.riquadro-evento.fatto .riga-testo { text-decoration: line-through; }
+@media (prefers-reduced-motion: reduce) { .riquadro-evento { transition: none; } }
+
+/* Aggiungi: "Va nella spesa…" / "Diventa una garanzia…" prima di salvare. */
+.capito {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px;
+  padding: 10px 14px; border-radius: 14px; font-size: 14px;
+  background: color-mix(in srgb, var(--pavone) 10%, transparent); border: 1px solid color-mix(in srgb, var(--pavone) 35%, transparent);
+}
+.capito b { color: var(--pavone); font-weight: 600; }
+
+/* Liste e garanzie (Privato). */
+.schede-liste { margin: 4px 0 12px; }
+.aggiungi-lista { display: flex; gap: 8px; margin: 0 0 12px; }
+.aggiungi-lista input { flex: 1; min-width: 0; }
+.aggiungi-lista .tasto-piccolo { flex: none; }
+.liste h3 { margin-top: 18px; }
+.riga-ristorante { gap: 8px; }
+.stelle { display: inline-flex; flex: none; }
+.stelle button {
+  border: 0; background: transparent; padding: 6px 2px; font-size: 18px; line-height: 1;
+  color: color-mix(in srgb, var(--tenue) 45%, transparent); min-width: 22px;
+}
+.stelle button.piena { color: var(--giallo); }
+.riga-garanzia { align-items: flex-start; }
+.scontrino {
+  flex: none; width: 52px; height: 52px; border-radius: 10px; overflow: hidden; display: grid; place-items: center;
+  background: var(--superficie); border: 1px solid var(--bordo); color: var(--tenue); font-size: 11px;
+}
+.scontrino img { width: 100%; height: 100%; object-fit: cover; }
+
 .riassunto-giorno { padding: 12px 16px; border-radius: var(--raggio); background: rgba(91, 147, 255, 0.07); border: 1px solid rgba(91, 147, 255, 0.2); }
 .riassunto-giorno h3 { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: var(--tenue); font-family: var(--sans); font-style: normal; }
 .riassunto-giorno p { margin: 0; white-space: pre-line; }

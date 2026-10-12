@@ -1,6 +1,6 @@
 # Second Brain GF
 
-Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo aggiornamento: 13.10.2026 notte (Agente capo, bacheca, codice Ceramex sul PC).
+Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo aggiornamento: 13.10.2026 notte (Oggi a lista unica, liste, garanzie, notifiche, vacanze scolastiche).
 
 ## Chi è Giovanni e come rispondergli
 - Giovanni Fabris, Manno (Ticino). Ha due società: **Ceramex SAGL** (agente di commercio: Marazzi/Ragno, Flaviker/ABK, Garbelotto, Profilitec) e **G&C Home Concepts Sagl** (forniture per interni).
@@ -120,7 +120,7 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 - All'inizio gli eventi si creano solo con la conferma di Giovanni. Più avanti anche in automatico.
 - Le date trovate in mail e WhatsApp vengono proposte con un tocco.
 - Prima di un appuntamento con un cliente: il suo riassunto. Dopo: "cosa vuoi annotare?".
-- I promemoria stanno nell'app. Le notifiche sul telefono solo per le cose urgenti che sceglie Giovanni.
+- I promemoria stanno nell'app. Le notifiche sul telefono solo per le cose urgenti che sceglie Giovanni (fatte il 13.10.2026, vedi "Vacanze scolastiche, liste, garanzie, notifiche").
 - Riassunti: mattino, sera, domenica sera.
 
 ### WhatsApp e chiamate (fase 7)
@@ -159,6 +159,19 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 
 ### Oggi: spunta sugli appuntamenti (12.10.2026)
 - Ogni appuntamento in Oggi ha la spunta come i promemoria: `eventi.fatto_il` (solo nel second brain, Google non cambia; l'agente calendario non la tocca). Gli agenti lavoro e privato riscrivono il punto del mattino quando qualcosa è stato spuntato o è arrivato di nuovo (solo cose ancora da fare).
+
+### Oggi a lista unica (13.10.2026 notte, scelte di Giovanni dalle proposte grafiche)
+- Ordine: titolo → punto del mattino/sera → **lista unica** → "Da mettere in calendario?" → "Da chiudere" → avvisi (bozze, domande, Inbox…) → compleanni → ultime note.
+- Lista unica per giorno: In ritardo (rosso), Oggi, Domani, poi i giorni dopo (appuntamenti 7 giorni, promemoria 14), Senza data, "Promemoria più avanti". Dentro ogni giorno appuntamenti e promemoria insieme per orario ("tutto il giorno" in cima).
+- **Appuntamento = riquadro** col colore dell'area e l'ora grande; tasto **Appunti** pieno, bene in vista (lavoro, oggi e giorni scorsi). Tocco = pannello con scheda, persona, Appunti, "Segna fatto", sposta/cambia. **Promemoria = riga leggera** col cerchio da spuntare e l'ora piccola.
+- Componenti in `src/Oggi.jsx`: `RiquadroEvento`, `RigaPromemoria`, `Proposte`, `DaChiudere`, `useAzioniEventi`.
+
+### Vacanze scolastiche, liste, garanzie, notifiche (13.10.2026 notte, ok di Giovanni)
+- **Vacanze scolastiche** dei gemelli (scuola a Torricella-Taverne, calendario cantonale Ticino 2026/27, fonte lugano.ch/DECS): create da Claude nel calendario Google come eventi **"Scuola chiusa: …" dalle 6 alle 7** (NON tutto il giorno, scelta di Giovanni), uno ricorrente per periodo, colore **Pavone (7)**, libero, senza promemoria. Periodi: autunnali 31.10–8.11, Immacolata 8.12, Natale 24.12–6.1, Carnevale 6–14.2, San Giuseppe 19.3, Pasqua 26.3–4.4 (alcune scuole dal 24.3: da verificare), Ascensione+ponte 6–7.5, Pentecoste 17.5, Corpus Domini 27.5, estive 17.6–29.8.2027. L'agente calendario non tocca il colore (diverso dal suo). Nell'app non sono appuntamenti: in Oggi si vedono accanto al giorno ("Scuola chiusa: …", azzurro `--pavone`), in Gemelli sul giorno e "Prossima scuola chiusa". Non danno notifiche. Ogni anno scolastico vanno rifatte (prossimo: 2027/28).
+- **Liste** (`#/liste`, Dentro, solo P e Tutte; `src/Liste.jsx`, tabella `liste_voci`): solo **Spesa** (spunta = preso, "Presi di recente" per rimetterli) e **Ristoranti e posti** (da provare / provati, stelle 1–5). Dal + si detta "metti il latte e il pane nella spesa" o "grotto del Mulino consigliato da Paolo": `src/capisci.js` lo riconosce subito (senza AI), Aggiungi mostra "Va nella spesa: …" con "No, è una nota"; senza foto non crea la nota. Un ristorante senza consigliato/provato/voto/"nei ristoranti" resta una nota (può essere un appuntamento).
+- **Garanzie** (`#/garanzie`, tabella `garanzie`, `scade_il` calcolata da `comprata_il` + `mesi`): foto dello scontrino dal + con "garanzia lavatrice Fust 2 anni" (senza durata: 2 anni; una data nel testo = giorno d'acquisto). La nota va in P con `lavorata_il` già messo (gli agenti non la rileggono). **Nessun avviso di scadenza** (scelta di Giovanni), solo l'elenco con la miniatura.
+- L'agente privato (`agente_privato`) può leggere/aggiornare `liste_voci` e `garanzie`, ma le sue regole e la routine NON ne parlano ancora (routine col token nel prompt, vedi nota sui sottoagenti): per ora fa tutto l'app.
+- **Notifiche** (Web Push gratis, chiavi VAPID: pubblica in `src/Notifiche.jsx`, privata nei segreti `VAPID_PRIVATE`/`VAPID_PUBLIC`/`VAPID_SUBJECT`): funzione `notifiche` ogni 5 minuti (pg_cron, token copia_token). Avvisa: appuntamenti lavoro e privati **1 ora prima** (non "tutto il giorno", non "Scuola chiusa"), promemoria **urgenti** all'ora, **risposte del Capo** e conferme chieste dal Capo. Una volta sola per cosa (`notifiche_inviate`, si riavvisa se l'ora cambia); telefoni in `push_iscrizioni` (404/410 = tolti da soli). Il tocco apre la scheda del cliente (se c'è) o Oggi/Capo. In Oggi la scheda "Attiva le notifiche"; Dentro → Notifiche (stato, telefoni, ultime mandate). Cifratura provata con la libreria di riferimento `http_ece`. **Niente notifiche di prova**: la prima vera è la prova.
 
 ### Comodità e correzioni (12.10.2026 pomeriggio, ok di Giovanni)
 - "In ritardo" solo dal giorno dopo (prima bastava passare l'ora).

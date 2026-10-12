@@ -4,6 +4,7 @@ import {
   useApp, chk, messaggioErrore, SceltaArea, SceltaPersone, Icona,
   useDettatura, caricaFoto, collegaPersone,
 } from './componenti'
+import { capisciLista, capisciGaranzia, durata } from './capisci'
 
 const GIORNI = ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato']
 
@@ -41,7 +42,7 @@ function bozzaSalvata(k) {
 
 // Aggiungi: scrivi, parla o foto. Senza area la nota va nell'Inbox.
 export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata }) {
-  const { area, avvisa, utente } = useApp()
+  const { area, avvisa, utente, vai } = useApp()
   const [condiviso] = useState(() => usaCondiviso())
   const chiave = chiaveBozza(personaId, aziendaId)
   const [ripresa] = useState(() => (condiviso ? null : bozzaSalvata(chiave)))
@@ -54,6 +55,8 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata 
   const [conPromemoria, setConPromemoria] = useState(!!ripresa?.conPromemoria)
   const [fonte, setFonte] = useState(condiviso ? 'condivisa' : ripresa?.fonte || 'scritta')
   const [salvo, setSalvo] = useState(false)
+  // "No, è una nota": il testo non va nella lista / non diventa una garanzia.
+  const [soloNota, setSoloNota] = useState(false)
   const scattaRif = useRef(null)
   const testoRif = useRef(null)
   // Nota già creata ma foto non tutte caricate: "Salva" riprova solo le foto (niente note doppie).
@@ -113,10 +116,16 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata 
     setRicorda('')
     setConPromemoria(false)
     setFonte('scritta')
+    setSoloNota(false)
     notaFatta.current = null
     scrivi(chiave, '')
     testoRif.current?.focus()
   }
+
+  // Detto "metti il latte nella spesa" o "garanzia lavatrice Fust 2 anni" (con la foto dello scontrino):
+  // si vede subito sotto il testo, e con "No, è una nota" resta una nota normale.
+  const lista = !soloNota && !ditta ? capisciLista(testo) : null
+  const garanzia = !soloNota && !ditta && !lista && (foto.length || /^\s*garanzi/i.test(testo)) ? capisciGaranzia(testo) : null
 
   async function salva() {
     const pulito = testo.trim()
@@ -124,16 +133,33 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata 
     if (conPromemoria && !ricorda) return avvisa('Scegli quando ricordartelo')
     setSalvo(true)
     try {
+      // Solo una lista (senza foto né promemoria): niente nota, va dritto nella lista.
+      if (lista && !foto.length && !conPromemoria && !notaFatta.current) {
+        chk(await sb.from('liste_voci').insert(lista.voci.map((v) => ({ lista: lista.lista, ...v }))))
+        avvisa(lista.lista === 'spesa' ? `Nella spesa: ${lista.voci.map((v) => v.testo).join(', ')}` : `Nei ristoranti: ${lista.voci[0].testo}`,
+          { etichetta: 'Apri', fai: () => vai('/liste') })
+        svuota()
+        return
+      }
       let nota = notaFatta.current
       const detto = !conPromemoria ? quandoRicordare(pulito) : null
       // Nella scheda della ditta solo se la nota resta nella sua area (mai cose private nelle schede clienti).
       const inScheda = ditta && ditta.area === areaNota ? ditta : null
+      // Una garanzia è privata (se non hai scelto un'altra area) e la mette a posto l'app: gli agenti non la rileggono.
+      const areaVera = garanzia && !areaNota ? 'P' : areaNota
       if (!nota) {
         nota = chk(await sb.from('note')
-          .insert({ testo: pulito, area: areaNota, azienda_id: inScheda?.id || null, fonte: !pulito && foto.length ? 'foto' : fonte })
+          .insert({
+            testo: pulito, area: areaVera, azienda_id: inScheda?.id || null, fonte: !pulito && foto.length ? 'foto' : fonte,
+            ...(garanzia || lista ? { lavorata_il: new Date().toISOString() } : {}),
+          })
           .select('id').single())
         notaFatta.current = nota
-        await collegaPersone(nota.id, areaNota, persone)
+        await collegaPersone(nota.id, areaVera, persone)
+        if (garanzia) {
+          chk(await sb.from('garanzie').insert({ cosa: garanzia.cosa, negozio: garanzia.negozio, mesi: garanzia.mesi, comprata_il: garanzia.comprata_il, nota_id: nota.id }))
+        }
+        if (lista) chk(await sb.from('liste_voci').insert(lista.voci.map((v) => ({ lista: lista.lista, ...v, nota_id: nota.id }))))
         // Promemoria scelto col tasto, oppure detto nella nota ("ricordami alle 19:30").
         if (conPromemoria || detto) {
           chk(await sb.from('promemoria').insert({
@@ -147,7 +173,12 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata 
         await caricaFoto(utente.id, nota.id, f.file)
         setFoto((x) => x.filter((y) => y !== f))
       }
-      const dove = inScheda ? `Salvata nella scheda ${inScheda.nome}` : areaNota ? `Salvata in ${areaDa(areaNota).nome}` : 'Salvata nell\'Inbox'
+      if (garanzia) {
+        avvisa(`Garanzia salvata: ${garanzia.cosa}, fino al ${garanzia.fine.toLocaleDateString('it-CH')}`, { etichetta: 'Apri', fai: () => vai('/garanzie') })
+        svuota()
+        return
+      }
+      const dove = inScheda ? `Salvata nella scheda ${inScheda.nome}` : areaVera ? `Salvata in ${areaDa(areaVera).nome}` : 'Salvata nell\'Inbox'
       avvisa(detto ? `${dove}. Te lo ricordo ${detto.toLocaleDateString('it-CH', { weekday: 'long' })} alle ${detto.toLocaleTimeString('it-CH', { hour: '2-digit', minute: '2-digit' })}` : dove)
       svuota()
     } catch (e) {
@@ -207,6 +238,17 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata 
           Quando
           <input type="datetime-local" value={ricorda} onChange={(e) => setRicorda(e.target.value)} />
         </label>
+      )}
+
+      {(lista || garanzia) && (
+        <div className="capito" role="status">
+          <span>
+            {lista?.lista === 'spesa' && <>Va nella <b>spesa</b>: {lista.voci.map((v) => v.testo).join(', ')}</>}
+            {lista?.lista === 'ristoranti' && <>Va nei <b>ristoranti e posti</b>: {lista.voci[0].testo}{lista.voci[0].voto ? ` (${'★'.repeat(lista.voci[0].voto)})` : ''}</>}
+            {garanzia && <>Diventa una <b>garanzia</b>: {garanzia.cosa}{garanzia.negozio ? ` (${garanzia.negozio})` : ''}, {durata(garanzia.mesi)}, fino al {garanzia.fine.toLocaleDateString('it-CH')}</>}
+          </span>
+          <button type="button" className="tasto-link" onClick={() => setSoloNota(true)}>No, è una nota</button>
+        </div>
       )}
 
       {ditta && (

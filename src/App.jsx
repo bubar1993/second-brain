@@ -22,6 +22,8 @@ import { Seguire, contaDaSeguire } from './Seguire'
 import { Circolari, contaCircolari } from './Circolari'
 import { Capo, contaCapo } from './Capo'
 import { Bacheca } from './Bacheca'
+import { Liste, Garanzie } from './Liste'
+import { Notifiche } from './Notifiche'
 
 // Nell'interruttore in alto i loghi delle due ditte al posto di C e G (scelta di Giovanni, 12.10.2026); P resta P.
 const LOGHI = { C: '/logo-ceramex.svg', G: '/logo-gc.png' }
@@ -229,6 +231,9 @@ function Guscio({ utente, condiviso }) {
     case 'mail': schermata = <Mail key={secondo} chiave={secondo} />; break
     case 'domande': schermata = <Domande />; break
     case 'gemelli': schermata = <Gemelli />; break
+    case 'liste': schermata = <Liste />; break
+    case 'garanzie': schermata = <Garanzie />; break
+    case 'notifiche': schermata = <Notifiche />; break
     case 'visita': schermata = <Visita key={secondo} id={secondo} />; break
     case 'whatsapp': schermata = secondo === 'modelli' ? <ModelliWhatsApp /> : secondo ? <ChatContatto key={secondo} waId={secondo} /> : <ChatWhatsApp />; break
     default: schermata = <Oggi inbox={inbox} bozze={bozze} domande={domande} risposte={risposte} riordino={riordino} seguire={seguire} />
@@ -257,8 +262,8 @@ function Guscio({ utente, condiviso }) {
         <a href="#/aggiungi" className={'lato-aggiungi' + (sezioneLato === 'aggiungi' ? ' attivo' : '')}>
           <Icona nome="piu" size={20} /><span>Aggiungi</span>
         </a>
-        {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], ['capo', 'Capo'], null, ['aziende', 'Aziende'], ['seguire', 'Da seguire'], ['bozze', 'Bozze'], ['riordino', 'Riordino casella'], ['ordini', 'Ordini Marazzi'], ['circolari', 'Circolari'], ['persone', 'Persone'], ['gemelli', 'Gemelli'], ['whatsapp', 'WhatsApp'],
-          ['domande', 'Domande per te'], ['agenti', 'Agenti'], ['inbox', 'Inbox'], ['note', 'Tutte le note'], ['cestino', 'Cestino']]
+        {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], ['capo', 'Capo'], null, ['aziende', 'Aziende'], ['seguire', 'Da seguire'], ['bozze', 'Bozze'], ['riordino', 'Riordino casella'], ['ordini', 'Ordini Marazzi'], ['circolari', 'Circolari'], ['persone', 'Persone'], ['gemelli', 'Gemelli'], ['liste', 'Liste'], ['garanzie', 'Garanzie'], ['whatsapp', 'WhatsApp'],
+          ['domande', 'Domande per te'], ['agenti', 'Agenti'], ['inbox', 'Inbox'], ['note', 'Tutte le note'], ['notifiche', 'Notifiche'], ['cestino', 'Cestino']]
           .filter((v) => !v || voceVisibile(VOCI_DENTRO.find((x) => x.chiave === v[0]) || {}, area)).map((v, i) => v ? (
           <a key={v[0]} href={`#/${v[0]}`} className={'lato-voce' + (sezioneLato === v[0] ? ' attivo' : '')}
             onClick={v[0] === 'oggi' ? inCima : undefined}>

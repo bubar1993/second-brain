@@ -539,6 +539,44 @@ a.riga:active, button.riga:active { background: rgba(255, 255, 255, 0.04); }
   .lato-voce:hover { color: var(--testo); }
 }
 
+/* Riordino casella: spunta per ogni mail, gruppi per cartella, barra "Sposta" sopra i 3 tasti. */
+.riordino .casella { display: flex; flex-direction: column; gap: 10px; }
+.riordino h2 .conto { font-family: var(--sans); font-style: normal; font-size: 15px; color: var(--tenue); font-variant-numeric: tabular-nums; }
+.gruppo-riordino { display: flex; flex-direction: column; gap: 6px; }
+.gruppo-testa { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.gruppo-testa h3 { margin: 6px 0 0; color: var(--testo); overflow-wrap: anywhere; }
+.gruppo-testa .nuova { color: var(--giallo); font-weight: 600; }
+.gruppo-testa .tasto-link { flex: none; padding: 6px 0; }
+.voce-riordino { border-bottom: 1px solid var(--bordo); }
+.elenco > .voce-riordino:last-child { border-bottom: 0; }
+.voce-riordino .riga { border-bottom: 0; align-items: flex-start; }
+.riga-riordino.scelta { background: rgba(52, 213, 138, 0.08); }
+.spunta-mail {
+  flex: none; width: 28px; height: 28px; margin-top: 2px; border-radius: 8px; display: grid; place-items: center;
+  border: 1.5px solid rgba(52, 213, 138, 0.6); background: transparent; color: var(--vuoto);
+  transition: background-color 150ms ease-out, transform 120ms ease-out;
+}
+.spunta-mail:active { transform: scale(0.92); }
+.spunta-mail svg { opacity: 0; }
+.spunta-mail[aria-pressed='true'] { background: var(--verde-gc, #34d58a); }
+.spunta-mail[aria-pressed='true'] svg { opacity: 1; }
+.riga-riordino .dubbio { color: var(--giallo); }
+.cambia-cartella { align-self: flex-start; padding: 4px 0 0; font-size: 13px; }
+.scelta-cartella { display: flex; flex-direction: column; gap: 8px; padding: 0 16px 14px 56px; }
+.scelta-cartella .tendina { max-height: 280px; overflow-y: auto; }
+.scelta-cartella .tendina .attuale { font-weight: 700; color: var(--verde-gc, #34d58a); }
+@media (max-width: 420px) { .scelta-cartella { padding-left: 16px; } }
+.spostate summary { cursor: pointer; color: var(--tenue); padding: 8px 0; }
+.barra-riordino {
+  position: sticky; bottom: calc(var(--tasti) + 24px + env(safe-area-inset-bottom)); z-index: 5;
+  display: flex; flex-direction: column; gap: 4px; padding: 12px; margin-top: 8px;
+  border-radius: var(--raggio); background: var(--vetro-forte); border: 1px solid var(--bordo);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+.barra-riordino .azioni { justify-content: center; }
+@media (min-width: 1024px) { .barra-riordino { bottom: 16px; } } /* sul PC non ci sono i 3 tasti */
+@media (prefers-reduced-motion: reduce) { .spunta-mail { transition: none; } }
+
 /* Dentro: scorrendo col dito cambia area; l'elenco entra dal lato giusto. */
 .dentro { touch-action: pan-y; min-height: 70vh; }
 .dentro .elenco.da-destra { animation: entra-destra 200ms ease-out; }

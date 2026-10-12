@@ -17,6 +17,7 @@ import { Visita } from './Visita'
 import { ChatWhatsApp, ChatContatto, ModelliWhatsApp } from './WhatsApp'
 import { Agenti, Agente } from './Agenti'
 import { Ordini } from './Ordini'
+import { Riordino } from './Riordino'
 
 // Nell'interruttore in alto i loghi delle due ditte al posto di C e G (scelta di Giovanni, 12.10.2026); P resta P.
 const LOGHI = { C: '/logo-ceramex.svg', G: '/logo-gc.png' }
@@ -142,7 +143,13 @@ function Guscio({ utente, condiviso }) {
   const [bozze, setBozze] = useState(0)
   const [domande, setDomande] = useState(0)
   const [risposte, setRisposte] = useState(0)
+  const [riordino, setRiordino] = useState(0)
   useEffect(() => {
+    // Mail di info@ con la cartella proposta, da spostare (solo G&C).
+    if (area === 'T' || area === 'G') {
+      sb.from('riordino_mail').select('id', { count: 'exact', head: true }).eq('stato', 'proposta').not('cartella_proposta', 'is', null)
+        .then(({ count }) => setRiordino(count || 0))
+    } else setRiordino(0)
     // Risposte degli agenti non ancora lette (schermata Agenti).
     sb.from('richieste_agenti').select('id', { count: 'exact', head: true }).not('risposta_il', 'is', null).is('vista_il', null)
       .then(({ count }) => setRisposte(count || 0))
@@ -186,7 +193,8 @@ function Guscio({ utente, condiviso }) {
     case 'aggiungi': schermata = <Aggiungi key={rotta.query.toString()} usaCondiviso={usaCondiviso} personaId={rotta.query.get('persona')}
       aziendaId={rotta.query.get('azienda')} chiamata={rotta.query.has('chiamata')} />; break
     case 'chiedi': schermata = <Chiedi />; break
-    case 'dentro': schermata = <Dentro inbox={inbox} bozze={bozze} domande={domande} risposte={risposte} />; break
+    case 'dentro': schermata = <Dentro inbox={inbox} bozze={bozze} domande={domande} risposte={risposte} riordino={riordino} />; break
+    case 'riordino': schermata = <Riordino />; break
     case 'agenti': schermata = <Agenti />; break
     case 'ordini': schermata = <Ordini />; break
     case 'agente': schermata = <Agente key={secondo} codice={secondo} />; break
@@ -205,7 +213,7 @@ function Guscio({ utente, condiviso }) {
     case 'gemelli': schermata = <Gemelli />; break
     case 'visita': schermata = <Visita key={secondo} id={secondo} />; break
     case 'whatsapp': schermata = secondo === 'modelli' ? <ModelliWhatsApp /> : secondo ? <ChatContatto key={secondo} waId={secondo} /> : <ChatWhatsApp />; break
-    default: schermata = <Oggi inbox={inbox} bozze={bozze} domande={domande} risposte={risposte} />
+    default: schermata = <Oggi inbox={inbox} bozze={bozze} domande={domande} risposte={risposte} riordino={riordino} />
   }
   const tasto = ['oggi', 'aggiungi', 'chiedi'].includes(primo) ? primo : primo ? null : 'oggi'
   const sezioneLato = primo === 'azienda' ? 'aziende' : primo === 'persona' ? 'persone' : primo === 'bozza' ? 'bozze'
@@ -231,7 +239,7 @@ function Guscio({ utente, condiviso }) {
         <a href="#/aggiungi" className={'lato-aggiungi' + (sezioneLato === 'aggiungi' ? ' attivo' : '')}>
           <Icona nome="piu" size={20} /><span>Aggiungi</span>
         </a>
-        {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], null, ['aziende', 'Aziende'], ['bozze', 'Bozze'], ['ordini', 'Ordini Marazzi'], ['persone', 'Persone'], ['gemelli', 'Gemelli'], ['whatsapp', 'WhatsApp'],
+        {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], null, ['aziende', 'Aziende'], ['bozze', 'Bozze'], ['riordino', 'Riordino casella'], ['ordini', 'Ordini Marazzi'], ['persone', 'Persone'], ['gemelli', 'Gemelli'], ['whatsapp', 'WhatsApp'],
           ['domande', 'Domande per te'], ['agenti', 'Agenti'], ['inbox', 'Inbox'], ['note', 'Tutte le note'], ['cestino', 'Cestino']]
           .filter((v) => !v || voceVisibile(VOCI_DENTRO.find((x) => x.chiave === v[0]) || {}, area)).map((v, i) => v ? (
           <a key={v[0]} href={`#/${v[0]}`} className={'lato-voce' + (sezioneLato === v[0] ? ' attivo' : '')}
@@ -241,6 +249,7 @@ function Guscio({ utente, condiviso }) {
             {v[0] === 'bozze' && bozze > 0 && <span className="lato-badge">{bozze}</span>}
             {v[0] === 'domande' && domande > 0 && <span className="lato-badge">{domande}</span>}
             {v[0] === 'agenti' && risposte > 0 && <span className="lato-badge">{risposte}</span>}
+            {v[0] === 'riordino' && riordino > 0 && <span className="lato-badge">{riordino}</span>}
           </a>
         ) : <hr key={i} />)}
         <button type="button" className="lato-voce lato-esci" onClick={esci}><Icona nome="esci" size={20} /><span>Esci</span></button>

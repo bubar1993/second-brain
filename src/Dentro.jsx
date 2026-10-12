@@ -11,6 +11,7 @@ export const VOCI_DENTRO = [
   { chiave: 'inbox', titolo: 'Inbox' },
   { chiave: 'aziende', titolo: 'Aziende', dettaglio: 'Schede clienti con le note', aree: ['C', 'G'] },
   { chiave: 'bozze', titolo: 'Bozze', aree: ['C', 'G'] },
+  { chiave: 'riordino', titolo: 'Riordino casella', dettaglio: 'Mail di info@ da spostare nelle cartelle di Hostpoint', aree: ['G'] },
   { chiave: 'ordini', titolo: 'Ordini Marazzi', dettaglio: 'Conferme d\'ordine degli ultimi 2 giorni lavorativi: cosa, quanto, se è disponibile', aree: ['C'] },
   { chiave: 'persone', titolo: 'Persone', dettaglio: 'Schede persona: chi è, cosa chiedere, note e contatti', aree: ['P'] },
   { chiave: 'gemelli', titolo: 'Gemelli', dettaglio: 'Leo e Jolie: settimana, feste dei compagni, diario', aree: ['P'] },
@@ -27,7 +28,7 @@ const DETTAGLIO_BOZZE = { C: 'Risposte da approvare dalla tua Gmail', G: 'Rispos
 // Il cassetto "Dentro": tutto quello che non sta nei 3 tasti.
 // Scorrendo col dito a sinistra/destra si passa da un'area all'altra (Ceramex ↔ G&C ↔ Privato), comodo con una mano
 // (scelta di Giovanni, 12.10.2026). Da "Tutte": a sinistra Ceramex, a destra Privato.
-export function Dentro({ inbox, bozze, domande, risposte }) {
+export function Dentro({ inbox, bozze, domande, risposte, riordino }) {
   const { area, setArea } = useApp()
   const tocco = useRef(null)
   const [verso, setVerso] = useState('')
@@ -51,7 +52,7 @@ export function Dentro({ inbox, bozze, domande, risposte }) {
     setVerso(dx < 0 ? 'da-destra' : 'da-sinistra')
     setArea(nuova)
   }
-  const numeri = { inbox, bozze, domande, agenti: risposte }
+  const numeri = { inbox, bozze, domande, agenti: risposte, riordino }
   const dettagli = { inbox: inbox ? `${inbox} da smistare` : 'vuota', bozze: DETTAGLIO_BOZZE[area] || DETTAGLIO_BOZZE.T }
   return (
     <div className="schermata dentro"

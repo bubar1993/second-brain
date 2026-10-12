@@ -115,6 +115,7 @@ const PERCORSI = {
   gemelli: 'M8 9.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM16 9.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM4 20v-3a4 4 0 0 1 8 0v3M12 20v-3a4 4 0 0 1 8 0v3',
   agenti: 'M12 3v3M8 3h8M5 7h14v12H5zM9.5 12v.01M14.5 12v.01M9 16h6M2 12v3M22 12v3',
   ordini: 'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10',
+  riordino: 'M3 6h6l2 2h10v11H3zM3 11h18M12 13v4M10 15l2 2 2-2',
 }
 
 export function Icona({ nome, size = 22 }) {

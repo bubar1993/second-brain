@@ -55,7 +55,7 @@ ORDINE DEL GIRO
    Poi update domande set chiusa_il = now() where id = '...'.
 
 2. NOTE NUOVE → PROMESSE E CAMPIONI. Note da guardare (dalla più vecchia, max 80 per giro):
-   select n.id, n.area, n.azienda_id, a.nome ditta, n.mandante, n.sezione, n.testo, n.data, n.contatto, n.creata_il from note n left join aziende a on a.id = n.azienda_id where n.area in ('C','G') and n.eliminata_il is null and n.scartata_il is null and n.creata_il > now() - interval '30 days' and not exists (select 1 from note_seguite s where s.nota_id = n.id) order by n.creata_il limit 80;
+   select n.id, n.area, n.azienda_id, a.nome ditta, n.mandante, n.sezione, n.testo, n.data, n.contatto, n.creata_il from note n left join aziende a on a.id = n.azienda_id where n.area in ('C','G') and n.eliminata_il is null and n.scartata_il is null and coalesce(n.data, n.creata_il::date) > current_date - 30 and not exists (select 1 from note_seguite s where s.nota_id = n.id) order by coalesce(n.data, n.creata_il::date), n.creata_il limit 80;
    Prima leggi le promesse e i campioni ancora aperti delle stesse ditte (per non fare doppioni e per chiuderli):
    select id, azienda_id, chi, testo, entro from promesse where fatta_il is null and scartata_il is null and azienda_id in (...);
    select id, azienda_id, cosa, stato, richiesto_il from campioni where stato in ('da_spedire','in_viaggio') and azienda_id in (...);
@@ -67,7 +67,7 @@ ORDINE DEL GIRO
    c) CAMPIONE NUOVO (note con sezione 'campionature', o che parlano di campioni chiesti): insert into campioni (area, cosa, azienda_id, nota_id, mandante, stato, richiesto_il, persona_id) values (..., '<articoli come nella nota: serie, colore, formato, pezzi>', ..., 'da_spedire', <data della nota>, ...). Se la stessa nota dice già che sono partiti → stato 'in_viaggio' e spedito_il; se dice che sono arrivati o consegnati → 'arrivato' e arrivato_il. Un campione per richiesta (non uno per articolo). Niente campione se è solo un'idea ("forse chiederà un campione") o se c'è già un campione aperto per la stessa cosa.
    d) CAMPIONE CHE CAMBIA STATO: se la nota dice che un campione aperto della stessa ditta è partito (ordine campioni, "spediti", "mandati", numero di spedizione, Atega) → stato 'in_viaggio', spedito_il; se è arrivato → 'arrivato', arrivato_il. cambiato_da = 'agente', nota_stato = '<da quale nota, 1 riga>'.
    e) Alla fine di ogni nota (anche se non c'era niente): insert into note_seguite (nota_id) values ('...') on conflict do nothing;
-   La PRIMA volta (note_seguite vuota) guarda solo le note degli ultimi 30 giorni, come nella query: le più vecchie non contano.
+   Contano solo i fatti degli ultimi 30 giorni (data della nota), come nella query: le note più vecchie non creano promesse né campioni (le note copiate dal vecchio gestionale Ceramex hanno creata_il dell'11.10.2026 anche se il fatto è di mesi prima: conta n.data).
 
 3. CIRCOLARI.
    CERAMEX (Gmail di giovannifabris@ceramex.ch, con il connettore Gmail, solo lettura):

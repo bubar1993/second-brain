@@ -9,6 +9,7 @@ import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, Icona
 export const AGENTI = [
   { codice: 'lavoro', nome: 'Agente lavoro', cosa: 'Note di Ceramex e G&C, Inbox, persone, punto del mattino e della sera', registro: 'agente-lavoro', aree: ['C', 'G'], orari: 'ogni ora, dalle 7 alle 22' },
   { codice: 'ceramex', nome: 'Bozze mail Ceramex', cosa: 'Bozze di risposta nella tua Gmail e note dalle mail Ceramex', registro: 'agente-ceramex', aree: ['C'], orari: 'ogni mezz\'ora nei giorni feriali (8–19), ogni 2 ore nel weekend' },
+  { codice: 'ordini', nome: 'Ordini Marazzi', cosa: 'Legge le conferme d\'ordine Marazzi (cliente, articoli, disponibilità) e le mette nella scheda del cliente', registro: 'agente-ceramex-ordini', aree: ['C'], orari: 'ogni ora alle :20, dalle 7 alle 22', senzaRichieste: true },
   { codice: 'gc', nome: 'Agente G&C', cosa: 'Mail di info@: note e bozze di risposta', registro: 'agente-gc', aree: ['G'], orari: 'ogni mezz\'ora, dalle 7 alle 22' },
   { codice: 'calendario', nome: 'Agente calendario', cosa: 'Google Calendar: copia gli appuntamenti, i colori, gli spostamenti e quelli nuovi', registro: 'agente-calendario', aree: ['C', 'G', 'P'], orari: 'ogni ora, dalle 6 alle 22' },
   { codice: 'privato', nome: 'Agente privato', cosa: 'Note private, gemelli, scadenze, compleanni', registro: 'agente-privato', aree: ['P'], orari: 'ogni ora, dalle 7 alle 22' },
@@ -132,7 +133,7 @@ export function Agente({ codice }) {
       <Indietro titolo={a.nome} />
       <p className="nota-piccola">{a.cosa}. Gira {a.orari}.</p>
 
-      <div className="scrivi-agente">
+      {a.senzaRichieste ? <p className="nota-piccola">Questo agente fa solo il suo lavoro: per chiedergli qualcosa scrivi all'agente Bozze mail Ceramex.</p> : <div className="scrivi-agente">
         <textarea value={testo} onChange={(e) => setTesto(e.target.value)} rows={3}
           placeholder={'Scrivi all\'agente cosa deve fare o cosa vuoi sapere…'} />
         <div className="azioni">
@@ -142,7 +143,7 @@ export function Agente({ codice }) {
           <button type="button" className="tasto-link" onClick={() => invia(false)} disabled={lavoro}>Al prossimo giro</button>
         </div>
         <p className="nota-piccola">Fa solo quello che le sue regole permettono: non manda mail e non cancella niente.</p>
-      </div>
+      </div>}
 
       <Stato carica={carica} errore={errore}>
         {dati && (

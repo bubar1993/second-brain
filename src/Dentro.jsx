@@ -9,6 +9,7 @@ export const VOCI_DENTRO = [
   { chiave: 'inbox', titolo: 'Inbox' },
   { chiave: 'aziende', titolo: 'Aziende', dettaglio: 'Schede clienti con le note', aree: ['C', 'G'] },
   { chiave: 'bozze', titolo: 'Bozze', aree: ['C', 'G'] },
+  { chiave: 'ordini', titolo: 'Ordini Marazzi', dettaglio: 'Conferme d\'ordine degli ultimi 2 giorni: cosa, quanto, se è disponibile', aree: ['C'] },
   { chiave: 'persone', titolo: 'Persone', dettaglio: 'Schede persona: chi è, cosa chiedere, note e contatti' },
   { chiave: 'gemelli', titolo: 'Gemelli', dettaglio: 'Leo e Jolie: settimana, feste dei compagni, diario', aree: ['P'] },
   { chiave: 'domande', titolo: 'Domande per te', dettaglio: 'I dubbi degli agenti' },

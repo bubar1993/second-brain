@@ -16,6 +16,7 @@ import { Gemelli } from './Gemelli'
 import { Visita } from './Visita'
 import { ChatWhatsApp, ChatContatto, ModelliWhatsApp } from './WhatsApp'
 import { Agenti, Agente } from './Agenti'
+import { Ordini } from './Ordini'
 
 export default function App({ condiviso }) {
   const [sessione, setSessione] = useState(undefined)
@@ -184,6 +185,7 @@ function Guscio({ utente, condiviso }) {
     case 'chiedi': schermata = <Chiedi />; break
     case 'dentro': schermata = <Dentro inbox={inbox} bozze={bozze} domande={domande} risposte={risposte} />; break
     case 'agenti': schermata = <Agenti />; break
+    case 'ordini': schermata = <Ordini />; break
     case 'agente': schermata = <Agente key={secondo} codice={secondo} />; break
     case 'inbox': schermata = <Inbox />; break
     case 'note': schermata = <ElencoNote />; break
@@ -226,7 +228,7 @@ function Guscio({ utente, condiviso }) {
         <a href="#/aggiungi" className={'lato-aggiungi' + (sezioneLato === 'aggiungi' ? ' attivo' : '')}>
           <Icona nome="piu" size={20} /><span>Aggiungi</span>
         </a>
-        {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], null, ['aziende', 'Aziende'], ['bozze', 'Bozze'], ['persone', 'Persone'], ['gemelli', 'Gemelli'], ['whatsapp', 'WhatsApp'],
+        {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], null, ['aziende', 'Aziende'], ['bozze', 'Bozze'], ['ordini', 'Ordini Marazzi'], ['persone', 'Persone'], ['gemelli', 'Gemelli'], ['whatsapp', 'WhatsApp'],
           ['domande', 'Domande per te'], ['agenti', 'Agenti'], ['inbox', 'Inbox'], ['note', 'Tutte le note'], ['cestino', 'Cestino']]
           .filter((v) => !v || voceVisibile(VOCI_DENTRO.find((x) => x.chiave === v[0]) || {}, area)).map((v, i) => v ? (
           <a key={v[0]} href={`#/${v[0]}`} className={'lato-voce' + (sezioneLato === v[0] ? ' attivo' : '')}

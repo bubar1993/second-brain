@@ -5,14 +5,14 @@ import { useApp, useCarica, chk, messaggioErrore, NotaRiga, Stato, Indietro, Ico
 const CAMPI_NOTA = 'id,area,testo,fonte,creata_il,note_persone(persone(id,nome,cognome)),allegati(id)'
 
 // Le voci di "Dentro" e del menu del PC, con le aree in cui hanno senso (scelta di Giovanni, 12.10.2026:
-// in Ceramex e G&C niente Gemelli, nel Privato niente Aziende e Bozze; 12.10 sera: in Ceramex niente Persone,
+// in Ceramex e G&C niente Gemelli, nel Privato niente Aziende e Bozze; 12.10 sera: in Ceramex e G&C niente Persone,
 // le trova da Chiedi o dalla scheda azienda; le persone restano). Con "Tutte" si vede tutto.
 export const VOCI_DENTRO = [
   { chiave: 'inbox', titolo: 'Inbox' },
   { chiave: 'aziende', titolo: 'Aziende', dettaglio: 'Schede clienti con le note', aree: ['C', 'G'] },
   { chiave: 'bozze', titolo: 'Bozze', aree: ['C', 'G'] },
   { chiave: 'ordini', titolo: 'Ordini Marazzi', dettaglio: 'Conferme d\'ordine degli ultimi 2 giorni lavorativi: cosa, quanto, se è disponibile', aree: ['C'] },
-  { chiave: 'persone', titolo: 'Persone', dettaglio: 'Schede persona: chi è, cosa chiedere, note e contatti', aree: ['G', 'P'] },
+  { chiave: 'persone', titolo: 'Persone', dettaglio: 'Schede persona: chi è, cosa chiedere, note e contatti', aree: ['P'] },
   { chiave: 'gemelli', titolo: 'Gemelli', dettaglio: 'Leo e Jolie: settimana, feste dei compagni, diario', aree: ['P'] },
   { chiave: 'domande', titolo: 'Domande per te', dettaglio: 'I dubbi degli agenti' },
   { chiave: 'agenti', titolo: 'Agenti', dettaglio: 'Cosa fanno, quando hanno girato; scrivigli' },

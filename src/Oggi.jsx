@@ -97,15 +97,17 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino }) {
     rete.current?.assorbi(p.id)
     try {
       chk(await sb.from('promemoria').update({ fatto_il: new Date().toISOString() }).eq('id', p.id))
-      // Le scadenze di ogni anno (cassa malati, gomme…) tornano l'anno dopo.
+      // Le scadenze di ogni anno (cassa malati, gomme…) tornano l'anno dopo, quelle trimestrali (provvigioni) 3 mesi dopo.
       let nuovo = null
-      if (p.ricorrenza === 'annuale' && p.scade_il) {
+      if ((p.ricorrenza === 'annuale' || p.ricorrenza === 'trimestrale') && p.scade_il) {
         const prossimo = new Date(p.scade_il)
-        prossimo.setFullYear(prossimo.getFullYear() + 1)
-        nuovo = chk(await sb.from('promemoria').insert({ testo: p.testo, area: p.area, scade_il: prossimo.toISOString(), ricorrenza: 'annuale', urgente: p.urgente })
+        if (p.ricorrenza === 'annuale') prossimo.setFullYear(prossimo.getFullYear() + 1)
+        else prossimo.setMonth(prossimo.getMonth() + 3)
+        nuovo = chk(await sb.from('promemoria').insert({ testo: p.testo, area: p.area, scade_il: prossimo.toISOString(), ricorrenza: p.ricorrenza, urgente: p.urgente })
           .select('id').single())
       }
-      avvisa(nuovo ? 'Fatto: torna l\'anno prossimo' : 'Fatto', { etichetta: 'Annulla', fai: () => annullaFatto(p, nuovo) })
+      const torna = p.ricorrenza === 'trimestrale' ? 'Fatto: torna tra 3 mesi' : 'Fatto: torna l\'anno prossimo'
+      avvisa(nuovo ? torna : 'Fatto', { etichetta: 'Annulla', fai: () => annullaFatto(p, nuovo) })
       setTimeout(ricarica, 450)
     } catch (e) {
       togliFatto(p.id)

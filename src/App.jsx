@@ -140,8 +140,10 @@ function Guscio({ utente, condiviso }) {
     sb.from('note').select('id', { count: 'exact', head: true })
       .is('area', null).is('eliminata_il', null)
       .then(({ count }) => setInbox(count || 0))
-    sb.from('bozze').select('id', { count: 'exact', head: true }).eq('stato', 'proposta')
-      .then(({ count }) => setBozze(count || 0))
+    // Bozze da approvare dell'area scelta (G&C da info@, Ceramex dalla Gmail).
+    let qb = sb.from('bozze').select('id', { count: 'exact', head: true }).eq('stato', 'proposta')
+    if (area !== 'T') qb = qb.eq('area', area)
+    qb.then(({ count }) => setBozze(count || 0))
     // Le domande contano come nella loro schermata: quelle dell'area scelta più quelle senza area.
     let qd = sb.from('domande').select('id', { count: 'exact', head: true }).is('risposta_il', null)
       .or(`mostra_dal.is.null,mostra_dal.lte.${new Date().toISOString()}`)
@@ -216,7 +218,7 @@ function Guscio({ utente, condiviso }) {
         <a href="#/aggiungi" className={'lato-aggiungi' + (sezioneLato === 'aggiungi' ? ' attivo' : '')}>
           <Icona nome="piu" size={20} /><span>Aggiungi</span>
         </a>
-        {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], null, ['aziende', 'Aziende'], ['bozze', 'Bozze G&C'], ['persone', 'Persone'], ['gemelli', 'Gemelli'], ['whatsapp', 'WhatsApp'],
+        {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], null, ['aziende', 'Aziende'], ['bozze', 'Bozze'], ['persone', 'Persone'], ['gemelli', 'Gemelli'], ['whatsapp', 'WhatsApp'],
           ['domande', 'Domande per te'], ['inbox', 'Inbox'], ['note', 'Tutte le note'], ['cestino', 'Cestino']].map((v, i) => v ? (
           <a key={v[0]} href={`#/${v[0]}`} className={'lato-voce' + (sezioneLato === v[0] ? ' attivo' : '')}
             onClick={v[0] === 'oggi' ? inCima : undefined}>

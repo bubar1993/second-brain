@@ -221,9 +221,9 @@ export default function Oggi({ inbox, bozze, domande }) {
         <AvvisoCopia />
         <AvvisoLavoriGC />
 
-        {bozze > 0 && (area === 'T' || area === 'G') && (
+        {bozze > 0 && area !== 'P' && (
           <a className="scheda scheda-bozze" href="#/bozze">
-            <span><strong>{bozze}</strong> {bozze === 1 ? 'bozza G&C da approvare' : 'bozze G&C da approvare'}</span>
+            <span><strong>{bozze}</strong> {bozze === 1 ? 'bozza di risposta da approvare' : 'bozze di risposta da approvare'}</span>
             <Icona nome="freccia" size={18} />
           </a>
         )}

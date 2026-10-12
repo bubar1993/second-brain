@@ -3,9 +3,10 @@
 // - lavoro: "agente_lavoro", aree C e G + smistamento Inbox → segreti AGENTE_DB_URL_LAVORO e AGENTE_TOKEN_LAVORO.
 // - privato: "agente_privato", solo area P → segreti AGENTE_DB_URL_PRIVATO e AGENTE_TOKEN_PRIVATO.
 // - calendario: "agente_calendario", solo eventi e nomi di ditte/persone → AGENTE_DB_URL_CALENDARIO e AGENTE_TOKEN_CALENDARIO.
+// - ceramex: "agente_ceramex", solo area C (note clienti delle routine Bozze mail Ceramex) → AGENTE_DB_URL_CERAMEX e AGENTE_TOKEN_CERAMEX.
 // Tranne gc, crea anche il token (variabile di Windows AGENTE_TOKEN_<NOME>) solo se manca.
 // Imposta in Postgres solo l'hash SCRAM. Non stampa mai i segreti.
-// Uso: node scripts/collega-agente.mjs [gc|lavoro|privato|calendario]   (serve SUPABASE_ACCESS_TOKEN)
+// Uso: node scripts/collega-agente.mjs [gc|lavoro|privato|calendario|ceramex]   (serve SUPABASE_ACCESS_TOKEN)
 import { randomBytes, pbkdf2Sync, createHmac, createHash } from 'node:crypto'
 import { execSync } from 'node:child_process'
 
@@ -16,7 +17,7 @@ if (!tokenApi) { console.log('ERRORE: manca SUPABASE_ACCESS_TOKEN'); process.exi
 const MGMT = { Authorization: `Bearer ${tokenApi}`, 'Content-Type': 'application/json' }
 
 const quale = process.argv[2] || 'gc'
-if (!['gc', 'lavoro', 'privato', 'calendario'].includes(quale)) { console.log('Uso: node scripts/collega-agente.mjs [gc|lavoro|privato|calendario]'); process.exit(1) }
+if (!['gc', 'lavoro', 'privato', 'calendario', 'ceramex'].includes(quale)) { console.log('Uso: node scripts/collega-agente.mjs [gc|lavoro|privato|calendario|ceramex]'); process.exit(1) }
 const ruolo = `agente_${quale}`
 const suffisso = quale === 'gc' ? '' : `_${quale.toUpperCase()}`
 

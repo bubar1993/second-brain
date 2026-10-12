@@ -57,15 +57,21 @@ async function copia() {
       await sql`select * from clienti`,
       await sql`select * from note_clienti where aggiornato_il > ${da}`,
       await sql`select id from note_clienti`,
-      await sql`select * from note_regole`,
+      // Dal 12.10.2026 le regole le aggiorna l'agente Ceramex qui: si copiano solo quelle cambiate nel gestionale.
+      await sql`select * from note_regole where aggiornato_il > ${da}`,
       await sql`select * from note_mail_viste where visto_il > ${da}`,
+      // Bozze mail (ok di Giovanni 12.10.2026): poche righe, cambiano stato senza data → sempre gli ultimi 45 giorni.
+      await sql`select * from mail_bozze where creato_il > now() - interval '45 days'`,
+      await sql`select email, nome from mail_contatti`,
     ])()])
   } finally {
     sql.end({ timeout: 2 }).catch(() => {})
   }
-  const [clienti, note, tutteIds, regole, viste] = dati
+  const [clienti, note, tutteIds, regole, viste, mailBozze, contatti] = dati
 
-  await upsert('aziende', clienti.filter((c) => c.id !== CERAMEX_GC).map((c) => ({
+  // Schede: solo quelle cambiate nel gestionale (dal 12.10.2026 l'agente Ceramex aggiunge persone e indirizzi qui,
+  // e una copia completa ogni 10 minuti le cancellerebbe). Tutte le schede servono comunque a copiaBozze.
+  await upsert('aziende', clienti.filter((c) => c.id !== CERAMEX_GC && new Date(c.aggiornato_il) > new Date(da)).map((c) => ({
     id: c.id, utente_id: UTENTE, area: 'C', nome: c.nome, ragione_sociale: c.azienda,
     email: c.email, domini: c.domini, contatti: c.persone, gruppo_id: c.gruppo_id, unito_in: c.unito_in,
     creata_il: c.creato_il, modificata_il: c.aggiornato_il,
@@ -107,7 +113,61 @@ async function copia() {
     })
   }
 
-  return { schede: clienti.length, note: note.length, regole: regole.length, viste: viste.length, cestinate: sparite.length }
+  const bozze = await copiaBozze(mailBozze, contatti, clienti)
+
+  return { schede: clienti.length, note: note.length, regole: regole.length, viste: viste.length, cestinate: sparite.length, bozze }
+}
+
+// Bozze Ceramex → tabella bozze (area C, canale gmail, stesso id). Quello che Giovanni ha già fatto
+// nell'app (inviata, scartata) vale più dello stato "proposta" del gestionale, che si aggiorna solo al giro dopo.
+async function copiaBozze(righe: Record<string, any>[], contatti: Record<string, any>[], clienti: Record<string, any>[]) {
+  if (!righe.length) return 0
+  const nomi = new Map(contatti.map((c) => [String(c.email).toLowerCase(), c.nome]))
+  const perDominio = new Map<string, string>()
+  const perEmail = new Map<string, string>()
+  for (const c of clienti) {
+    if (c.unito_in || c.id === CERAMEX_GC) continue
+    for (const d of c.domini || []) perDominio.set(String(d).toLowerCase(), c.id)
+    for (const e of c.email || []) perEmail.set(String(e).toLowerCase(), c.id)
+  }
+  const indirizzo = (b: Record<string, any>) => {
+    const m = String(b.contatto || b.perche?.mittente || '').match(/[^\s<>"]+@[^\s<>"]+/)
+    return m ? m[0].toLowerCase() : null
+  }
+  const locali = new Map<string, string>()
+  const ids = righe.map((b) => b.id)
+  for (let i = 0; i < ids.length; i += 150) {
+    const t = await rest(`bozze?select=id,stato&id=in.(${ids.slice(i, i + 150).join(',')})`) as { id: string; stato: string }[]
+    t.forEach((x) => locali.set(x.id, x.stato))
+  }
+  const fatteQui = ['inviata', 'scartata', 'in_invio', 'annullata']
+
+  // Si scrivono solo le bozze nuove e quelle che hanno cambiato stato: così una correzione fatta
+  // nell'app (testo) non viene ricoperta ogni 10 minuti.
+  const nuove = righe.map((b) => {
+    const email = indirizzo(b)
+    const azienda = email ? perEmail.get(email) || perDominio.get(email.split('@')[1]) || null : null
+    const stato = b.stato === 'imparata' ? 'annullata' : b.stato
+    return {
+      id: b.id, utente_id: UTENTE, area: 'C', canale: 'gmail', stato,
+      oggetto: b.oggetto, testo: b.testo_bozza, testo_agente: b.testo_bozza, perche: b.perche || {},
+      a: email ? [email] : [], azienda_id: azienda,
+      da_nome: (email && nomi.get(email)) || b.perche?.mittente || email,
+      gmail_draft_id: b.gmail_draft_id, gmail_thread_id: b.thread_id, gmail_message_id: b.message_id,
+      testo_inviato: b.testo_inviato, differenze: b.differenze,
+      creata_il: b.creato_il, modificata_il: b.inviato_il || b.creato_il,
+      inviata_il: b.stato === 'inviata' ? b.inviato_il : null,
+      annullata_il: b.stato === 'imparata' ? b.inviato_il : null,
+      motivo_annullata: b.stato === 'imparata' ? 'Hai risposto tu da Gmail' : null,
+    }
+  }).filter((r) => {
+    const qui = locali.get(r.id)
+    if (!qui) return true
+    if (qui === r.stato) return false
+    return !(fatteQui.includes(qui) && (r.stato === 'proposta' || r.stato === 'da_imparare'))
+  })
+  await upsert('bozze', nuove)
+  return nuove.length
 }
 
 Deno.serve(async (req: Request) => {

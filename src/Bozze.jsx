@@ -1,34 +1,63 @@
 import { useEffect, useRef, useState } from 'react'
-import { sb, quando } from './supabase'
+import { sb, quando, areaDa } from './supabase'
 import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, useModifiche } from './componenti'
 
-// Bozze di risposta dell'agente G&C (casella info@homeconcepts.ch).
-// Giovanni le approva (partono da info@) o le scarta. Se qualcuno risponde prima, si annullano da sole.
+// Bozze di risposta preparate dagli agenti:
+// - G&C: casella info@homeconcepts.ch, partono da info@ (funzione invia-bozza);
+// - Ceramex: la routine "Bozze mail Ceramex" le crea nella Gmail di Giovanni, partono da lì (funzione gmail-bozza).
+// Giovanni le approva o le scarta. Se qualcuno risponde prima, si annullano da sole.
+// Le mail Ceramex a cui l'agente non sapeva rispondere stanno in "Da rispondere tu".
 
-const CAMPI = 'id,stato,oggetto,a,testo,perche,creata_il,annullata_il,motivo_annullata,errore,aziende(id,nome),posta(id,da,da_nome,data)'
+const CAMPI = 'id,area,canale,stato,oggetto,a,testo,perche,da_nome,creata_il,annullata_il,motivo_annullata,errore,aziende(id,nome),posta(id,da,da_nome,data)'
+const GMAIL_WEB = 'https://mail.google.com/mail/?authuser=giovannifabris%40ceramex.ch#all/'
+
+// Chiama una funzione e restituisce il suo messaggio d'errore leggibile.
+async function chiama(nome, body) {
+  const { data, error } = await sb.functions.invoke(nome, { body })
+  if (error) {
+    let msg = error.message
+    try { msg = (await error.context.json()).errore || msg } catch { /* resta il messaggio */ }
+    throw new Error(msg)
+  }
+  if (data?.errore) throw new Error(data.errore)
+  return data
+}
 
 export function Bozze({ scelta }) {
+  const { area } = useApp()
   const [annullate, setAnnullate] = useState(false)
   const { dati, errore, carica } = useCarica(async () => {
     const settimana = new Date(Date.now() - 7 * 86400000).toISOString()
-    const [aperte, vecchie] = await Promise.all([
-      sb.from('bozze').select(CAMPI).in('stato', ['proposta', 'in_invio']).order('creata_il', { ascending: false }).then(chk),
-      sb.from('bozze').select(CAMPI).in('stato', ['annullata', 'inviata', 'scartata', 'da_imparare']).gte('modificata_il', settimana)
+    const q = () => {
+      const x = sb.from('bozze').select(CAMPI)
+      return area === 'T' ? x : x.eq('area', area)
+    }
+    const [aperte, daRispondere, vecchie] = await Promise.all([
+      q().in('stato', ['proposta', 'in_invio']).order('creata_il', { ascending: false }).then(chk),
+      q().eq('canale', 'gmail').eq('stato', 'da_imparare').gte('creata_il', settimana).order('creata_il', { ascending: false }).then(chk),
+      q().in('stato', ['annullata', 'inviata', 'scartata', 'da_imparare']).gte('modificata_il', settimana)
         .order('modificata_il', { ascending: false }).limit(30).then(chk),
     ])
-    return { aperte, vecchie }
-  }, [])
+    return { aperte, daRispondere, vecchie: vecchie.filter((b) => !(b.canale === 'gmail' && b.stato === 'da_imparare')) }
+  }, [area])
 
   return (
     <div className="schermata">
-      <Indietro titolo="Bozze G&C" />
-      <p className="nota-piccola">Risposte preparate per info@homeconcepts.ch. Tocca per leggerle, correggerle e inviarle.</p>
-      <Stato carica={carica} errore={errore} vuoto={dati && !dati.aperte.length && !dati.vecchie.length ? 'Nessuna bozza da approvare.' : null}>
+      <Indietro titolo="Bozze" />
+      <p className="nota-piccola">Risposte preparate dagli agenti: G&C parte da info@, Ceramex dalla tua Gmail. Tocca per leggerle, correggerle e inviarle.</p>
+      <Stato carica={carica} errore={errore} vuoto={dati && !dati.aperte.length && !dati.daRispondere.length && !dati.vecchie.length ? 'Nessuna bozza da approvare.' : null}>
         {dati && (
           <>
             {dati.aperte.length > 0
               ? <div className="elenco">{dati.aperte.map((b) => <RigaBozza key={b.id} b={b} scelta={scelta} />)}</div>
               : <p className="msg">Nessuna bozza da approvare.</p>}
+            {dati.daRispondere.length > 0 && (
+              <>
+                <h3>Da rispondere tu</h3>
+                <p className="nota-piccola">Mail Ceramex a cui l'agente non ha risposto: gli mancava un dato certo. Spariscono quando rispondi da Gmail.</p>
+                <div className="elenco">{dati.daRispondere.map((b) => <RigaBozza key={b.id} b={b} scelta={scelta} />)}</div>
+              </>
+            )}
             {dati.vecchie.length > 0 && (
               <>
                 <button type="button" className="tasto-link" onClick={() => setAnnullate(!annullate)}>
@@ -45,12 +74,14 @@ export function Bozze({ scelta }) {
 }
 
 function RigaBozza({ b, scelta }) {
-  const chi = b.aziende?.nome || b.posta?.da_nome || b.a?.[0] || ''
-  const stato = b.stato === 'annullata' ? 'annullata' : b.stato === 'inviata' ? 'inviata'
+  const chi = b.aziende?.nome || b.posta?.da_nome || b.da_nome || b.a?.[0] || ''
+  const daTe = b.canale === 'gmail' && b.stato === 'da_imparare'
+  const stato = daTe ? 'da rispondere tu' : b.stato === 'annullata' ? 'annullata' : b.stato === 'inviata' ? 'inviata'
     : b.stato === 'scartata' || b.stato === 'da_imparare' ? 'scartata' : b.errore ? 'da riprovare' : null
-  const spenta = ['annullata', 'scartata', 'da_imparare'].includes(b.stato)
+  const spenta = ['annullata', 'scartata'].includes(b.stato) || (b.stato === 'da_imparare' && !daTe)
   return (
     <a className={'riga riga-bozza' + (scelta === b.id ? ' scelta' : '') + (spenta ? ' spenta' : '')} href={`#/bozza/${b.id}`}>
+      <span className="pallino" style={{ background: areaDa(b.area)?.colore || 'var(--grigio)' }} />
       <span className="riga-corpo">
         <span className="riga-testo"><b>{chi}</b> — {b.oggetto || '(senza oggetto)'}</span>
         <span className="riga-meta">
@@ -74,7 +105,14 @@ export function Bozza({ id }) {
 
   const { dati, errore, carica, ricarica } = useCarica(async () => {
     const b = chk(await sb.from('bozze').select('*,aziende(id,nome),posta(id,message_id,da,da_nome,a,cc,oggetto,data,testo)').eq('id', id).single())
-    return b
+    if (b.canale !== 'gmail') return b
+    // Ceramex: destinatari, testo e mail originale si leggono dalla Gmail (la bozza vera sta lì).
+    try {
+      const g = await chiama('gmail-bozza', { azione: 'leggi', id })
+      return { ...b, gmail: g, ...(g.bozza ? { a: g.bozza.a, cc: g.bozza.cc, oggetto: g.bozza.oggetto, testo: g.bozza.testo } : {}) }
+    } catch (e) {
+      return { ...b, gmail: { errore: messaggioErrore(e) } }
+    }
   }, [id])
 
   useEffect(() => {
@@ -88,6 +126,9 @@ export function Bozza({ id }) {
   if (!dati || !campi) return <div className="schermata"><Indietro titolo="Bozza" /><Stato carica={carica} errore={errore} /></div>
 
   const b = dati
+  const gmail = b.canale === 'gmail'
+  // Ceramex: si può inviare solo se la Gmail è collegata e la bozza c'è ancora lì.
+  const senzaGmail = gmail && (b.gmail?.errore || !b.gmail?.bozza)
   const aperta = b.stato === 'proposta'
   const lista = (s) => s.split(/[,;\s]+/).map((x) => x.trim()).filter(Boolean)
   const cambia = (k) => (e) => setCampi({ ...campi, [k]: e.target.value })
@@ -105,16 +146,10 @@ export function Bozza({ id }) {
     setConferma(false)
     setLavoro(true)
     try {
-      const { data, error } = await sb.functions.invoke('invia-bozza', {
-        body: { id, testo: campi.testo, a: lista(campi.a), cc: lista(campi.cc), oggetto: campi.oggetto },
-      })
-      if (error) {
-        let msg = error.message
-        try { msg = (await error.context.json()).errore || msg } catch { /* resta il messaggio */ }
-        throw new Error(msg)
-      }
-      if (data?.errore) throw new Error(data.errore)
-      avvisa('Inviata da info@')
+      const campiMail = { id, testo: campi.testo, a: lista(campi.a), cc: lista(campi.cc), oggetto: campi.oggetto }
+      if (gmail) await chiama('gmail-bozza', { azione: 'invia', ...campiMail })
+      else await chiama('invia-bozza', campiMail)
+      avvisa(gmail ? 'Inviata dalla tua Gmail' : 'Inviata da info@')
       location.replace('#/bozze') // "indietro" non riporta alla bozza già mandata
     } catch (e) {
       avvisa(messaggioErrore(e))
@@ -124,7 +159,7 @@ export function Bozza({ id }) {
     }
   }
 
-  // Anche scartare vuole due tocchi: non si torna indietro.
+  // Anche scartare vuole due tocchi: non si torna indietro. Per Ceramex toglie anche la bozza da Gmail.
   async function scarta() {
     if (!confermaScarta) {
       setConfermaScarta(true)
@@ -137,7 +172,8 @@ export function Bozza({ id }) {
     setConfermaScarta(false)
     setLavoro(true)
     try {
-      chk(await sb.from('bozze').update({ stato: 'scartata', testo: campi.testo }).eq('id', id))
+      if (gmail && !b.gmail?.errore) await chiama('gmail-bozza', { azione: 'scarta', id, testo: campi.testo })
+      else chk(await sb.from('bozze').update({ stato: 'scartata', testo: campi.testo }).eq('id', id))
       avvisa('Scartata')
       location.replace('#/bozze')
     } catch (e) {
@@ -147,29 +183,48 @@ export function Bozza({ id }) {
     }
   }
 
+  const daTe = gmail && b.stato === 'da_imparare'
   return (
     <div className="schermata bozza">
-      <Indietro titolo={b.aziende?.nome || b.posta?.da_nome || 'Bozza'} />
+      <Indietro titolo={b.aziende?.nome || b.posta?.da_nome || b.da_nome || 'Bozza'} />
       {b.stato === 'annullata' && <div className="scheda scheda-allarme"><p>Annullata: {b.motivo_annullata}</p></div>}
       {b.stato === 'inviata' && <p className="nota-piccola">Inviata {quando(b.inviata_il, true)}.</p>}
       {b.stato === 'scartata' && <p className="nota-piccola">Scartata.</p>}
       {b.errore && aperta && <div className="scheda scheda-allarme"><p>{b.errore}</p></div>}
-      {b.perche?.motivo && <p className="perche">{b.perche.motivo}</p>}
+      {gmail && aperta && b.gmail?.errore && <div className="scheda scheda-allarme"><p>{b.gmail.errore} Intanto puoi aprirla in Gmail.</p></div>}
+      {gmail && aperta && !b.gmail?.errore && !b.gmail?.bozza && (
+        <div className="scheda scheda-allarme"><p>La bozza non c'è più in Gmail: forse l'hai già mandata o cancellata da lì.</p></div>
+      )}
+      {gmail && aperta && b.gmail?.nuove > 0 && (
+        <div className="scheda scheda-allarme"><p>Nella conversazione è arrivato qualcosa di nuovo: rileggila in Gmail prima di inviare.</p></div>
+      )}
+      {daTe && <p className="perche">L'agente non ha preparato la risposta: {b.perche?.motivo || 'gli mancava un dato certo'}{b.perche?.manca ? ` Manca: ${b.perche.manca}.` : ''}</p>}
+      {!daTe && b.perche?.motivo && <p className="perche">{b.perche.motivo}</p>}
 
       {b.posta && <MailOriginale m={b.posta} />}
+      {b.gmail?.originale && <MailOriginale m={b.gmail.originale} />}
+      {gmail && b.gmail_thread_id && (
+        <p><a className="tasto-piccolo" href={GMAIL_WEB + b.gmail_thread_id} target="_blank" rel="noreferrer">Apri in Gmail</a></p>
+      )}
 
-      <div className="modulo">
-        <label>A<input type="text" value={campi.a} onChange={cambia('a')} disabled={!aperta} inputMode="email" /></label>
-        <label>Cc<input type="text" value={campi.cc} onChange={cambia('cc')} disabled={!aperta} inputMode="email" placeholder="nessuno" /></label>
-        <label>Oggetto<input type="text" value={campi.oggetto} onChange={cambia('oggetto')} disabled={!aperta} /></label>
-      </div>
-      <textarea className="testo-bozza" value={campi.testo} onChange={cambia('testo')} rows={8} disabled={!aperta} />
+      {!daTe && (
+        <>
+          <div className="modulo">
+            <label>A<input type="text" value={campi.a} onChange={cambia('a')} disabled={!aperta || senzaGmail} inputMode="email" /></label>
+            <label>Cc<input type="text" value={campi.cc} onChange={cambia('cc')} disabled={!aperta || senzaGmail} inputMode="email" placeholder="nessuno" /></label>
+            <label>Oggetto<input type="text" value={campi.oggetto} onChange={cambia('oggetto')} disabled={!aperta || senzaGmail} /></label>
+          </div>
+          <textarea className="testo-bozza" value={campi.testo} onChange={cambia('testo')} rows={8} disabled={!aperta || senzaGmail} />
+        </>
+      )}
 
       {aperta && (
         <div className="azioni azioni-bozza">
-          <button type="button" className={'tasto-grande' + (conferma ? ' conferma' : '')} onClick={invia} disabled={lavoro}>
-            {lavoro ? 'Invio…' : conferma ? 'Tocca ancora per inviare' : 'Approva e invia'}
-          </button>
+          {!senzaGmail && (
+            <button type="button" className={'tasto-grande' + (conferma ? ' conferma' : '')} onClick={invia} disabled={lavoro}>
+              {lavoro ? 'Invio…' : conferma ? 'Tocca ancora per inviare' : 'Approva e invia'}
+            </button>
+          )}
           <button type="button" className={'tasto-link' + (confermaScarta ? ' pericolo-pieno' : '')} onClick={scarta} disabled={lavoro}>
             {confermaScarta ? 'Tocca ancora per scartare' : 'Scarta'}
           </button>

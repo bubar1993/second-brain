@@ -3,12 +3,13 @@
 // - AGENTE_TOKEN → "agente_gc": vede e scrive SOLO l'area G (mail G&C);
 // - AGENTE_TOKEN_LAVORO → "agente_lavoro": note Ceramex e G&C + smistamento dell'Inbox;
 // - AGENTE_TOKEN_PRIVATO → "agente_privato": solo il Privato;
-// - AGENTE_TOKEN_CALENDARIO → "agente_calendario": solo gli appuntamenti (e i nomi di ditte e persone).
+// - AGENTE_TOKEN_CALENDARIO → "agente_calendario": solo gli appuntamenti (e i nomi di ditte e persone);
+// - AGENTE_TOKEN_CERAMEX → "agente_ceramex": solo l'area C (note clienti delle routine Bozze mail Ceramex).
 // Cosa vede e scrive ognuno lo garantiscono i permessi del database (niente cancellazioni di note).
 // Uso: POST con header x-agente-token e l'SQL nel corpo (testo semplice o JSON {"sql": "..."}).
 import postgres from 'npm:postgres@3.4.5'
 
-const PORTE = ['', '_LAVORO', '_PRIVATO', '_CALENDARIO']
+const PORTE = ['', '_LAVORO', '_PRIVATO', '_CALENDARIO', '_CERAMEX']
   .map((s) => ({ token: Deno.env.get(`AGENTE_TOKEN${s}`), url: Deno.env.get(`AGENTE_DB_URL${s}`) }))
   .filter((p) => p.token && p.url)
 const MASSIMO = 300000 // caratteri di risposta

@@ -229,9 +229,9 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino }) {
           </a>
         )}
 
-        {riordino > 0 && (area === 'T' || area === 'G') && (
+        {riordino > 0 && area !== 'P' && (
           <a className="scheda scheda-bozze" href="#/riordino">
-            <span><strong>{riordino}</strong> mail di info@ da riordinare</span>
+            <span><strong>{riordino}</strong> {area === 'C' ? 'mail della Gmail' : area === 'G' ? 'mail di info@' : 'mail'} da riordinare</span>
             <Icona nome="freccia" size={18} />
           </a>
         )}

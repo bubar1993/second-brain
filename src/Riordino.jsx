@@ -2,21 +2,23 @@ import { useState } from 'react'
 import { sb, quando } from './supabase'
 import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, useModifiche } from './componenti'
 
-// Riordino della casella info@ (12.10.2026 sera, ok di Giovanni). L'agente "Archiviazione email G&C"
-// propone la cartella di Hostpoint per ogni mail di Posta in arrivo e Posta inviata; qui Giovanni spunta
-// quelle che vanno bene (o cambia la cartella) e preme "Sposta": la funzione riordino-mail le sposta subito.
-// Niente si sposta senza questo tocco. "Tieni in vista" = l'agente non la ripropone più.
+// Riordino delle caselle (ok di Giovanni): info@ G&C dal 12.10.2026 sera (l'agente "Archiviazione email G&C" propone la
+// cartella di Hostpoint per Posta in arrivo e Posta inviata) e Gmail Ceramex dal 12.10 notte (l'agente "Bozze mail Ceramex"
+// propone l'etichetta per le conversazioni in Posta in arrivo). Qui Giovanni spunta quelle che vanno bene (o cambia la
+// cartella) e preme "Sposta": la funzione riordino-mail le sposta subito. Niente si sposta senza questo tocco.
+// "Tieni in vista" = l'agente non la ripropone più. Si vedono le caselle dell'area scelta (C, G o tutte e due).
 
-const CASELLE = [['INBOX', 'Posta in arrivo'], ['Sent', 'Posta inviata']]
-const corta = (c) => (c ? c.replace(/^Archive\//, '') : '')
+const CASELLE = [['gc', 'INBOX', 'Posta in arrivo info@'], ['gc', 'Sent', 'Posta inviata info@'], ['ceramex', 'INBOX', 'Gmail Ceramex']]
+const corta = (c) => (c ? c.replace(/^Archive\//, '').replace(/^INBOX\/\d{4}\//, '') : '')
+const caselleDi = (area) => (area === 'C' ? ['ceramex'] : area === 'G' ? ['gc'] : ['gc', 'ceramex'])
 const nomeBreve = (da) => (da || '').replace(/\s*<[^>]+>\s*/, '').replace(/^"|"$/g, '') || da || ''
 
 export function Riordino() {
-  const { avvisa } = useApp()
+  const { avvisa, area } = useApp()
   const [scelte, setScelte] = useState({})   // id → true
   const [cambi, setCambi] = useState({})     // id → cartella scelta da Giovanni
   const [aperta, setAperta] = useState(null) // riga con la scelta della cartella aperta
-  const [cartelle, setCartelle] = useState(null)
+  const [cartelle, setCartelle] = useState({}) // casella → elenco
   const [conferma, setConferma] = useState(false)
   const [lavoro, setLavoro] = useState(false)
   const quante = Object.values(scelte).filter(Boolean).length
@@ -24,21 +26,23 @@ export function Riordino() {
 
   const { dati, errore, carica, ricarica } = useCarica(async () => {
     const [righe, spostate] = await Promise.all([
-      sb.from('riordino_mail').select('*').in('stato', ['proposta', 'tenere']).order('data_email', { ascending: false }).then(chk),
-      sb.from('riordino_mail').select('id,oggetto,da,cartella_finale,spostata_il').eq('stato', 'spostata')
+      sb.from('riordino_mail').select('*').in('casella', caselleDi(area)).in('stato', ['proposta', 'tenere']).order('data_email', { ascending: false }).then(chk),
+      sb.from('riordino_mail').select('id,oggetto,da,cartella_finale,spostata_il').in('casella', caselleDi(area)).eq('stato', 'spostata')
         .gte('spostata_il', new Date(Date.now() - 86400e3).toISOString()).order('spostata_il', { ascending: false }).then(chk),
     ])
     return { righe, spostate }
-  }, [])
+  }, [area])
 
   const cartellaDi = (r) => cambi[r.id] || r.cartella_proposta || ''
   const segna = (ids, si) => { setConferma(false); setScelte((s) => { const n = { ...s }; ids.forEach((id) => { n[id] = si }); return n }) }
 
-  async function apriScelta(id) {
-    setAperta(aperta === id ? null : id)
-    if (cartelle) return
+  async function apriScelta(r) {
+    setAperta(aperta === r.id ? null : r.id)
+    const casella = r.casella || 'gc'
+    if (cartelle[casella]) return
     try {
-      setCartelle((await chiama('riordino-mail', { azione: 'cartelle' })).cartelle)
+      const elenco = (await chiama('riordino-mail', { azione: 'cartelle', casella })).cartelle
+      setCartelle((c) => ({ ...c, [casella]: elenco }))
     } catch (e) {
       avvisa(messaggioErrore(e))
     }
@@ -96,17 +100,17 @@ export function Riordino() {
             <span className="riga-testo">{r.oggetto || '(senza oggetto)'}</span>
             <span className="riga-meta">
               {r.non_letta && <span title="Non letta">🔵 </span>}{r.stellina && <span title="Con la stellina">⭐ </span>}
-              {r.cartella_da === 'Sent' ? 'a ' : ''}{nomeBreve(r.da)} · {quando(r.data_email, true)}
+              {r.cartella_da === 'Sent' ? 'a ' : ''}{nomeBreve(r.da)} · {quando(r.data_email, true)}{r.n_messaggi > 1 ? ` · ${r.n_messaggi} messaggi` : ''}
             </span>
             {r.dubbio && <span className="riga-meta dubbio">❓ {r.dubbio}</span>}
             {r.esito?.startsWith('Non spostata') && <span className="riga-meta rosso">{r.esito}</span>}
-            <button type="button" className="tasto-link cambia-cartella" onClick={() => apriScelta(r.id)}>
-              {cambi[r.id] ? `Cambiata: ${corta(cambi[r.id])}` : cartella ? 'Altra cartella' : 'Scegli la cartella'}
+            <button type="button" className="tasto-link cambia-cartella" onClick={() => apriScelta(r)}>
+              {cambi[r.id] ? `Cambiata: ${corta(cambi[r.id])}` : cartella ? (r.casella === 'ceramex' ? 'Altra etichetta' : 'Altra cartella') : (r.casella === 'ceramex' ? "Scegli l'etichetta" : 'Scegli la cartella')}
             </button>
           </span>
         </div>
         {aperta === r.id && (
-          <SceltaCartella cartelle={cartelle} attuale={cartella}
+          <SceltaCartella cartelle={cartelle[r.casella || 'gc']} attuale={cartella}
             onScegli={(c) => { setCambi((x) => ({ ...x, [r.id]: c })); segna([r.id], true); setAperta(null) }} />
         )}
       </div>
@@ -146,17 +150,17 @@ export function Riordino() {
     <div className="schermata riordino">
       <Indietro titolo="Riordino casella" />
       <p className="nota-piccola">
-        Le mail di info@ ancora in Posta in arrivo e Posta inviata, con la cartella proposta dall'agente.
+        Le mail ancora in Posta in arrivo (e Posta inviata di info@), con la cartella o l'etichetta proposta dall'agente.
         Scegli quelle che vanno bene e premi Sposta. Le altre restano dove sono.
       </p>
       <Stato carica={carica} errore={errore}
-        vuoto={dati && !dati.righe.length && !dati.spostate.length ? 'Niente da riordinare: l\'agente propone le mail nuove a ogni giro (ogni 2 ore, dalle 8 alle 18).' : null}>
+        vuoto={dati && !dati.righe.length && !dati.spostate.length ? 'Niente da riordinare: gli agenti propongono le mail nuove a ogni giro.' : null}>
         {dati && (
           <>
-            {CASELLE.map(([codice, titolo]) => {
-              const rr = proposte.filter((r) => r.cartella_da === codice)
+            {CASELLE.map(([casella, codice, titolo]) => {
+              const rr = proposte.filter((r) => (r.casella || 'gc') === casella && r.cartella_da === codice)
               return rr.length > 0 && (
-                <div key={codice} className="casella">
+                <div key={casella + codice} className="casella">
                   <h2>{titolo} <span className="conto">{rr.length}</span></h2>
                   {gruppi(rr)}
                 </div>

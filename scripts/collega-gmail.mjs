@@ -1,5 +1,5 @@
 // Collega la Gmail di Giovanni (giovannifabris@ceramex.ch) al second brain, per inviare dall'app
-// le bozze Ceramex (funzione gmail-bozza). Consenso nel browser → refresh token → segreto GMAIL_REFRESH_TOKEN.
+// le bozze Ceramex (funzione gmail-bozza) e spostare le mail sotto la loro etichetta (funzione riordino-mail). Consenso nel browser → refresh token → segreto GMAIL_REFRESH_TOKEN.
 // Client OAuth "Second Brain Gmail" (tipo App desktop) nel progetto Google "Ceramex Gestionale",
 // pubblico Interno: il collegamento non scade dopo 7 giorni. Segreti GMAIL_CLIENT_ID/SECRET/REFRESH_TOKEN.
 // Uso: node scripts/collega-gmail.mjs <file client_secret.json>   (richiede SUPABASE_ACCESS_TOKEN)
@@ -27,8 +27,10 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r))
 const redirect = `http://127.0.0.1:${server.address().port}`
 const url = 'https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({
   client_id, redirect_uri: redirect, response_type: 'code',
-  // compose = creare, correggere e inviare bozze; readonly = leggere la mail a cui si risponde.
-  scope: 'https://www.googleapis.com/auth/gmail.compose https://www.googleapis.com/auth/gmail.readonly',
+  // compose = creare, correggere e inviare bozze; readonly = leggere la mail a cui si risponde;
+  // modify = mettere l'etichetta e togliere dalla Posta in arrivo le mail che Giovanni sposta dall'app
+  // (Riordino casella, ok di Giovanni 12.10.2026). Niente cancellazioni: la funzione non le usa.
+  scope: 'https://www.googleapis.com/auth/gmail.compose https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify',
   access_type: 'offline', prompt: 'consent', login_hint: 'giovannifabris@ceramex.ch',
 })
 exec(`start "" "${url}"`)

@@ -145,10 +145,11 @@ function Guscio({ utente, condiviso }) {
   const [risposte, setRisposte] = useState(0)
   const [riordino, setRiordino] = useState(0)
   useEffect(() => {
-    // Mail di info@ con la cartella proposta, da spostare (solo G&C).
-    if (area === 'T' || area === 'G') {
-      sb.from('riordino_mail').select('id', { count: 'exact', head: true }).eq('stato', 'proposta').not('cartella_proposta', 'is', null)
-        .then(({ count }) => setRiordino(count || 0))
+    // Mail con la cartella/etichetta proposta, da spostare: info@ (G&C) e Gmail (Ceramex), secondo l'area.
+    if (area !== 'P') {
+      let qr = sb.from('riordino_mail').select('id', { count: 'exact', head: true }).eq('stato', 'proposta').not('cartella_proposta', 'is', null)
+      if (area !== 'T') qr = qr.eq('casella', area === 'C' ? 'ceramex' : 'gc')
+      qr.then(({ count }) => setRiordino(count || 0))
     } else setRiordino(0)
     // Risposte degli agenti non ancora lette (schermata Agenti).
     sb.from('richieste_agenti').select('id', { count: 'exact', head: true }).not('risposta_il', 'is', null).is('vista_il', null)

@@ -13,6 +13,7 @@ export const AGENTI = [
   { codice: 'liste', nome: 'Liste di carico', cosa: 'Archivia nella cartella giusta le liste di carico automatiche (Marazzi, Flaviker) e le segna come lette', registro: 'agente-ceramex-liste', aree: ['C'], orari: 'ogni giorno alle 6:52', senzaRichieste: true },
   { codice: 'riepilogo', nome: 'Cestina Riepilogo Ceramex', cosa: 'Mette nel cestino la mail automatica "Riepilogo Ceramex" del mattino', registro: 'agente-ceramex-riepilogo', aree: ['C'], orari: 'ogni giorno alle 7:49', senzaRichieste: true },
   { codice: 'gc', nome: 'Agente G&C', cosa: 'Mail di info@: note e bozze di risposta', registro: 'agente-gc', aree: ['G'], orari: 'ogni mezz\'ora, dalle 7 alle 22' },
+  { codice: 'fornitori', nome: 'Completa fornitori', cosa: 'Completa sul web i fornitori nati dagli scontrini nel gestionale G&C (indirizzo, UID, telefono)', registro: 'agente-gc-fornitori', aree: ['G'], orari: 'il venerdì alle 8:48', senzaRichieste: true },
   { codice: 'calendario', nome: 'Agente calendario', cosa: 'Google Calendar: copia gli appuntamenti, i colori, gli spostamenti e quelli nuovi', registro: 'agente-calendario', aree: ['C', 'G', 'P'], orari: 'ogni ora, dalle 6 alle 22' },
   { codice: 'privato', nome: 'Agente privato', cosa: 'Note private, gemelli, scadenze, compleanni', registro: 'agente-privato', aree: ['P'], orari: 'ogni ora, dalle 7 alle 22' },
 ]
@@ -135,7 +136,7 @@ export function Agente({ codice }) {
       <Indietro titolo={a.nome} />
       <p className="nota-piccola">{a.cosa}. Gira {a.orari}.</p>
 
-      {a.senzaRichieste ? <p className="nota-piccola">Questo agente fa solo il suo lavoro: per chiedergli qualcosa scrivi all'agente Bozze mail Ceramex.</p> : <div className="scrivi-agente">
+      {a.senzaRichieste ? <p className="nota-piccola">Questo agente fa solo il suo lavoro: per chiedergli qualcosa scrivi all'agente {a.aree.includes('G') ? 'G&C' : 'Bozze mail Ceramex'}.</p> : <div className="scrivi-agente">
         <textarea value={testo} onChange={(e) => setTesto(e.target.value)} rows={3}
           placeholder={'Scrivi all\'agente cosa deve fare o cosa vuoi sapere…'} />
         <div className="azioni">

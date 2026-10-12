@@ -159,6 +159,10 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 ### Oggi: spunta sugli appuntamenti (12.10.2026)
 - Ogni appuntamento in Oggi ha la spunta come i promemoria: `eventi.fatto_il` (solo nel second brain, Google non cambia; l'agente calendario non la tocca). Gli agenti lavoro e privato riscrivono il punto del mattino quando qualcosa è stato spuntato o è arrivato di nuovo (solo cose ancora da fare).
 
+### Appunti durante un appuntamento (12.10.2026)
+- `#/visita/<id evento>` (`src/Visita.jsx`): tasto "Appunti" sugli appuntamenti di lavoro di oggi in Oggi (e tocco su un appuntamento senza ditta/persona). Testo salvato sul telefono (localStorage `visita:<id>`) mentre scrivi; se manca la ditta propone quelle col nome nel titolo. "Fine visita" → una nota "Appunti visita «…» del …" con ditta e persona, l'appuntamento diventa fatto. L'agente lavoro (punto 3f) crea le note brevi per sezione. Oggi avvisa se ci sono appunti non finiti.
+- `domande.mostra_dal`: una domanda si vede solo da quell'ora (es. gemelli alle 20 del 12.10).
+
 ### Gemelli (fase 6, 12.10.2026)
 - Leonardo ("Leo") e Jolie, nati il 03.05.2018, terza elementare. Persone area P con ruolo 'figlio'/'figlia'. Leo: calcio, tennis. Jolie: Gymnastique, atletica, Fashion design. Tutti e due pianoforte martedì 16:30–18:00. Accompagna Giovanni o vanno a piedi.
 - Schermata "Gemelli" (`#/gemelli`, in Dentro e nel menu del PC): questa settimana (attività fisse + appuntamenti P che li riguardano + feste), feste dei compagni (Ci va / Non ci va / Regalo preso), attività fisse, diario (note collegate ai bambini), "+ Leo" / "+ Jolie".

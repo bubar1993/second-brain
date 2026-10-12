@@ -13,6 +13,7 @@ import { Aziende, Azienda } from './Aziende'
 import { Bozze, Bozza, Mail } from './Bozze'
 import { Domande } from './Domande'
 import { Gemelli } from './Gemelli'
+import { Visita } from './Visita'
 import { ChatWhatsApp, ChatContatto, ModelliWhatsApp } from './WhatsApp'
 
 export default function App({ condiviso }) {
@@ -89,7 +90,7 @@ function Guscio({ utente, condiviso }) {
         const pagina = await (await fetch(`/?versione=${Date.now()}`, { cache: 'no-store' })).text()
         const mio = document.querySelector('script[type="module"][src*="/assets/"]')?.getAttribute('src')
         // Mai mentre stai scrivendo una nota.
-        if (mio && !pagina.includes(mio) && !location.hash.startsWith('#/aggiungi')) { location.reload(); return }
+        if (mio && !pagina.includes(mio) && !/^#\/(aggiungi|visita)/.test(location.hash)) { location.reload(); return }
       } catch { /* senza rete: si rileggono solo i dati */ }
       setGiro((g) => g + 1)
     }
@@ -107,6 +108,7 @@ function Guscio({ utente, condiviso }) {
     sb.from('bozze').select('id', { count: 'exact', head: true }).eq('stato', 'proposta')
       .then(({ count }) => setBozze(count || 0))
     sb.from('domande').select('id', { count: 'exact', head: true }).is('risposta_il', null)
+      .or(`mostra_dal.is.null,mostra_dal.lte.${new Date().toISOString()}`)
       .then(({ count }) => setDomande(count || 0))
   }, [rotta, giro])
 
@@ -150,6 +152,7 @@ function Guscio({ utente, condiviso }) {
     case 'mail': schermata = <Mail key={secondo} chiave={secondo} />; break
     case 'domande': schermata = <Domande />; break
     case 'gemelli': schermata = <Gemelli />; break
+    case 'visita': schermata = <Visita key={secondo} id={secondo} />; break
     case 'whatsapp': schermata = secondo === 'modelli' ? <ModelliWhatsApp /> : secondo ? <ChatContatto key={secondo} waId={secondo} /> : <ChatWhatsApp />; break
     default: schermata = <Oggi inbox={inbox} bozze={bozze} domande={domande} />
   }
@@ -216,7 +219,7 @@ function Guscio({ utente, condiviso }) {
       </header>
 
       {/* Nuovo "giro" = la schermata si rimonta e rilegge i dati (Aggiungi no: perderesti il testo). */}
-      <main key={primo === 'aggiungi' ? 'aggiungi' : giro}>{schermata}</main>
+      <main key={primo === 'aggiungi' || primo === 'visita' ? primo : giro}>{schermata}</main>
 
       <nav className="tasti">
         <a href="#/oggi" className={tasto === 'oggi' ? 'attivo' : ''} onClick={inCima}>

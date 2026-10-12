@@ -11,7 +11,7 @@ export function Domande() {
   const { dati, errore, carica, ricarica } = useCarica(async () => {
     let q = sb.from('domande')
       .select('id,area,agente,testo,scelte,creata_il,note(id,testo),persone(id,nome,cognome),aziende(id,nome)')
-      .is('risposta_il', null).order('creata_il')
+      .is('risposta_il', null).or(`mostra_dal.is.null,mostra_dal.lte.${new Date().toISOString()}`).order('creata_il')
     if (area !== 'T') q = q.or(`area.eq.${area},area.is.null`)
     return chk(await q)
   }, [area])

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { sb, areaDa, quando, giorniDaOggi, leggi, scrivi } from './supabase'
 import { useApp, useCarica, chk, messaggioErrore, NotaRiga, Stato, Icona } from './componenti'
 import Rete from './Rete'
+import { visiteAperte } from './Visita'
 
 const corto = (s, n = 16) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s)
 const numero = (n) => (n == null ? '…' : n.toLocaleString('de-CH'))
@@ -157,6 +158,13 @@ export default function Oggi({ inbox, bozze, domande }) {
           </section>
         ))}
 
+        {visiteAperte().map((v) => (
+          <a key={v.id} className="scheda scheda-allarme" href={`#/visita/${v.id}`}>
+            <span>Appunti non finiti{v.titolo ? `: ${v.titolo}` : ''}. Tocca per riprendere e salvarli.</span>
+            <Icona nome="freccia" size={18} />
+          </a>
+        ))}
+
         <AttivaImpronta />
         <AvvisoBackup />
         <AvvisoCopia />
@@ -271,8 +279,10 @@ function Appuntamenti({ eventi, ricarica }) {
   }
   // Prima della visita: la scheda. Dopo: "cosa vuoi annotare?" (Aggiungi con la persona già collegata).
   const finito = (e) => new Date(e.fine || e.inizio) < new Date()
+  // Senza ditta né persona collegate: si apre la pagina degli appunti (lì si sceglie la ditta).
   const link = (e) => (e.persone ? (finito(e) ? `#/aggiungi?persona=${e.persone.id}` : `#/persona/${e.persone.id}`)
-    : e.aziende ? `#/azienda/${e.aziende.id}` : undefined)
+    : e.aziende ? `#/azienda/${e.aziende.id}` : `#/visita/${e.id}`)
+  const diOggi = (e) => giorniDaOggi(e.inizio) === 0
 
   return (
     <>
@@ -318,6 +328,9 @@ function Appuntamenti({ eventi, ricarica }) {
                           {e.stato === 'da_creare' && (e.errore ? <span className="rosso"> · non creato: {e.errore}</span> : ' · in arrivo nel calendario')}
                         </span>
                       </a>
+                      {diOggi(e) && e.area !== 'P' && (
+                        <a className="tasto-piccolo tasto-appunti" href={`#/visita/${e.id}`} aria-label={`Prendi appunti: ${e.titolo}`}>Appunti</a>
+                      )}
                     </div>
                   </div>
                 </div>

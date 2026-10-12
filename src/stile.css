@@ -540,6 +540,8 @@ mark { background: rgba(255, 214, 102, 0.22); color: var(--testo); border-radius
 .interruttore-riga input { width: 20px; height: 20px; }
 .riga-proposta { align-items: center; }
 .azioni-proposta { display: flex; align-items: center; gap: 4px; flex: none; }
+.riga-promemoria .tasto-appunti { flex: none; align-self: center; }
+.visita textarea { min-height: 40vh; }
 .chip-con-chiama { display: inline-flex; gap: 2px; align-items: center; }
 .chip.chiama { padding-inline: 8px; display: inline-flex; align-items: center; }
 .gemelli-giorno h3 { text-transform: capitalize; margin-bottom: 4px; }

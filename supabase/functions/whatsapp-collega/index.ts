@@ -4,6 +4,8 @@
 // 2. iscrive l'app all'account (così arrivano i webhook);
 // 3. chiede a Meta i contatti della rubrica e lo storico 6 mesi (si può fare UNA sola volta, entro 24 ore).
 // Si chiama con l'intestazione x-collega-token (segreto WA_COLLEGA_TOKEN). Non manda messaggi a nessuno.
+// Modo prova (per l'analisi dell'app di Meta): token_prova = token temporaneo del numero di prova di Meta.
+// Salva quel numero e iscrive l'app, ma NON chiede contatti e storico (si fa una sola volta, col numero vero).
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -36,11 +38,21 @@ Deno.serve(async (req: Request) => {
   const atteso = Deno.env.get('WA_COLLEGA_TOKEN')
   if (!atteso || req.headers.get('x-collega-token') !== atteso) return risposta({ errore: 'Non autorizzato' }, 401)
 
-  const { code, waba_id, phone_number_id, solo } = await req.json().catch(() => ({}))
+  const { code, waba_id, phone_number_id, token_prova, ...resto } = await req.json().catch(() => ({}))
+  let solo: string | undefined = resto.solo
   const fatto: Record<string, unknown> = {}
   try {
     let [col] = await rest('wa_collegamento?id=eq.1&select=*') as Record<string, any>[]
     let token: string = col?.token
+
+    if (token_prova) {
+      if (!waba_id || !phone_number_id) return risposta({ errore: 'Per la prova servono waba_id e phone_number_id' }, 400)
+      token = token_prova
+      await salva({ token, waba_id, phone_number_id, collegato_il: new Date().toISOString(), errore: null })
+      ;[col] = await rest('wa_collegamento?id=eq.1&select=*') as Record<string, any>[]
+      fatto.prova = 'numero di prova salvato'
+      solo = 'iscrivi'
+    }
 
     if (code) {
       const segreto = Deno.env.get('WA_APP_SECRET')
@@ -59,7 +71,8 @@ Deno.serve(async (req: Request) => {
 
     if (!solo || solo === 'iscrivi') {
       await graph(`${col.waba_id}/subscribed_apps`, token, {})
-      const n = await graph(`${col.phone_number_id}?fields=display_phone_number,verified_name,is_on_biz_app,platform_type`, token)
+      const campi = token_prova ? 'display_phone_number,verified_name' : 'display_phone_number,verified_name,is_on_biz_app,platform_type'
+      const n = await graph(`${col.phone_number_id}?fields=${campi}`, token)
       await salva({ numero: n.display_phone_number })
       fatto.numero = n
     }

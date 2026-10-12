@@ -11,7 +11,7 @@ import Nota from './Nota'
 import { Aziende, Azienda } from './Aziende'
 import { Bozze, Bozza, Mail } from './Bozze'
 import { Domande } from './Domande'
-import { ChatWhatsApp, ChatContatto } from './WhatsApp'
+import { ChatWhatsApp, ChatContatto, ModelliWhatsApp } from './WhatsApp'
 
 export default function App({ condiviso }) {
   const [sessione, setSessione] = useState(undefined)
@@ -133,7 +133,7 @@ function Guscio({ utente, condiviso }) {
     case 'bozza': schermata = <Bozza key={secondo} id={secondo} />; break
     case 'mail': schermata = <Mail key={secondo} chiave={secondo} />; break
     case 'domande': schermata = <Domande />; break
-    case 'whatsapp': schermata = secondo ? <ChatContatto key={secondo} waId={secondo} /> : <ChatWhatsApp />; break
+    case 'whatsapp': schermata = secondo === 'modelli' ? <ModelliWhatsApp /> : secondo ? <ChatContatto key={secondo} waId={secondo} /> : <ChatWhatsApp />; break
     default: schermata = <Oggi inbox={inbox} bozze={bozze} domande={domande} />
   }
   const tasto = ['oggi', 'aggiungi', 'chiedi'].includes(primo) ? primo : primo ? null : 'oggi'

@@ -75,4 +75,6 @@ writeFileSync(new URL('icon-192.png', dir), disegna(192, 1))
 writeFileSync(new URL('icon-512.png', dir), disegna(512, 1))
 writeFileSync(new URL('icon-maskable-512.png', dir), disegna(512, 0.78))
 writeFileSync(new URL('apple-touch-icon.png', dir), disegna(180, 0.9))
+// Per l'app Meta "Second Brain GF" (Impostazioni app → Icona dell'app, 1024 x 1024).
+writeFileSync(new URL('icon-1024.png', dir), disegna(1024, 1))
 console.log('Icone create in public/')

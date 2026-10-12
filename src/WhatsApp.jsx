@@ -39,6 +39,7 @@ export function ChatWhatsApp() {
         </div>
       )}
       {stato?.errore && <div className="scheda scheda-allarme"><p>WhatsApp: {stato.errore}</p></div>}
+      {stato?.collegato && <a className="riga" href="#/whatsapp/modelli"><span className="riga-corpo"><span className="riga-testo">Modelli di messaggio</span></span><Icona nome="freccia" size={18} /></a>}
       <input type="search" value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca chat" />
       <Stato carica={carica} errore={errore} vuoto={dati && !visibili.length ? 'Nessuna chat.' : null}>
         {dati && (
@@ -111,13 +112,7 @@ export function ChatContatto({ waId }) {
     setConferma(false)
     setLavoro(true)
     try {
-      const { data, error } = await sb.functions.invoke('invia-whatsapp', { body: { wa_id: waId, testo } })
-      if (error) {
-        let msg = error.message
-        try { msg = (await error.context.json()).errore || msg } catch { /* resta il messaggio */ }
-        throw new Error(msg)
-      }
-      if (data?.errore) throw new Error(data.errore)
+      await funzione('invia-whatsapp', { body: { wa_id: waId, testo } })
       setTesto('')
       avvisa('Mandato')
       ricarica()
@@ -184,3 +179,100 @@ export function ChatContatto({ waId }) {
 }
 
 const STATI = { sent: 'mandato', delivered: 'consegnato', read: 'letto', failed: 'non partito' }
+
+// Chiama una funzione e trasforma la risposta d'errore in un messaggio leggibile.
+async function funzione(nome, opzioni) {
+  const { data, error } = await sb.functions.invoke(nome, opzioni)
+  if (error) {
+    let msg = error.message
+    try { msg = (await error.context.json()).errore || msg } catch { /* resta il messaggio */ }
+    throw new Error(msg)
+  }
+  if (data?.errore) throw new Error(data.errore)
+  return data
+}
+
+const STATI_MODELLO = { APPROVED: 'approvato', PENDING: 'in controllo da Meta', REJECTED: 'rifiutato', PAUSED: 'in pausa', DISABLED: 'disattivato' }
+
+// Modelli: i messaggi approvati da Meta, per scrivere a chi non ha scritto nelle ultime 24 ore.
+export function ModelliWhatsApp() {
+  const { avvisa } = useApp()
+  const [nome, setNome] = useState('')
+  const [categoria, setCategoria] = useState('UTILITY')
+  const [testo, setTesto] = useState('')
+  const [conferma, setConferma] = useState(false)
+  const [lavoro, setLavoro] = useState(false)
+  const timer = useRef(null)
+  useEffect(() => () => clearTimeout(timer.current), [])
+
+  const { dati, errore, carica, ricarica } = useCarica(async () => (await funzione('whatsapp-modelli', { method: 'GET' })).modelli, [])
+
+  async function crea() {
+    if (!nome.trim() || !testo.trim()) return avvisa('Scrivi nome e testo')
+    if (!conferma) {
+      setConferma(true)
+      clearTimeout(timer.current)
+      timer.current = setTimeout(() => setConferma(false), 4000)
+      return
+    }
+    clearTimeout(timer.current)
+    setConferma(false)
+    setLavoro(true)
+    try {
+      const r = await funzione('whatsapp-modelli', { body: { nome, categoria, testo } })
+      avvisa(`Modello «${r.nome}» mandato a Meta per il controllo`)
+      setNome('')
+      setTesto('')
+      ricarica()
+    } catch (e) {
+      avvisa(messaggioErrore(e))
+    } finally {
+      setLavoro(false)
+    }
+  }
+
+  return (
+    <div className="schermata">
+      <Indietro titolo="Modelli WhatsApp" />
+      <p className="nota-piccola">Servono per scrivere a chi non ti ha scritto nelle ultime 24 ore. Meta controlla ogni modello prima di approvarlo. Crearlo è gratis; si paga solo quando lo si manda.</p>
+
+      <div className="scheda">
+        <label className="campo">
+          Nome
+          <input value={nome} onChange={(e) => { setNome(e.target.value); setConferma(false) }} placeholder="es. conferma appuntamento" />
+        </label>
+        <div className="scelta-area">
+          {[['UTILITY', 'Servizio (appuntamenti, ordini)'], ['MARKETING', 'Promozione']].map(([v, t]) => (
+            <button key={v} type="button" className={'chip' + (categoria === v ? ' attivo' : '')} onClick={() => setCategoria(v)}>{t}</button>
+          ))}
+        </div>
+        <label className="campo">
+          Testo
+          <textarea value={testo} onChange={(e) => { setTesto(e.target.value); setConferma(false) }} rows={4}
+            placeholder="Buongiorno {{1}}, le confermo l'appuntamento di {{2}} alle {{3}}. Giovanni Fabris" />
+        </label>
+        <p className="nota-piccola">{'{{1}}'}, {'{{2}}'}… sono le parti che cambiano ogni volta (nome, giorno, ora).</p>
+        <button type="button" className={'tasto-grande' + (conferma ? ' conferma' : '')} onClick={crea} disabled={lavoro}>
+          {lavoro ? 'Mando…' : conferma ? 'Tocca ancora per mandarlo a Meta' : 'Crea modello'}
+        </button>
+      </div>
+
+      <Stato carica={carica} errore={errore} vuoto={dati && !dati.length ? 'Ancora nessun modello.' : null}>
+        {dati && (
+          <div className="elenco">
+            {dati.map((m) => (
+              <div key={m.id} className="riga">
+                <span className="pallino" style={{ background: m.stato === 'APPROVED' ? 'var(--verde, #34d58a)' : m.stato === 'REJECTED' ? 'var(--rosso, #ff6b6b)' : 'var(--grigio)' }} />
+                <span className="riga-corpo">
+                  <span className="riga-testo">{m.nome}</span>
+                  <span className="riga-meta">{STATI_MODELLO[m.stato] || m.stato} · {m.categoria === 'MARKETING' ? 'promozione' : 'servizio'} · {m.lingua}{m.motivo && m.motivo !== 'NONE' ? ` · ${m.motivo}` : ''}</span>
+                  <span className="riga-meta">{m.testo}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Stato>
+    </div>
+  )
+}

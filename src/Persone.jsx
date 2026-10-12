@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { sb, AREE, areaDa, nomePersona, quando, CAMPI_PERSONA, etichettePersona, numeroWhatsApp, scrivi } from './supabase'
-import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, EtichettePersona, Icona } from './componenti'
+import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, EtichettePersona, Icona, useModifiche } from './componenti'
 import { nomeSezione } from './Aziende'
 
 // Diagramma a cerchi: chi sta in più aree sta nell'intersezione.
@@ -151,6 +151,7 @@ export function Persona({ id }) {
   const [modulo, setModulo] = useState(null)
   const [modificato, setModificato] = useState(false)
   const [aperto, setAperto] = useState(false)
+  useModifiche(modificato)
 
   const { dati, errore, carica, ricarica } = useCarica(async () => {
     const p = chk(await sb.from('persone').select('*,' + CAMPI_PERSONA.replace('id,nome,cognome,', '')).eq('id', id).single())
@@ -280,16 +281,18 @@ export function Persona({ id }) {
 
       {dati.eventi.filter(nell).length > 0 && (
         <div className="elenco">
+          {/* Tocco: la pagina dell'appuntamento, dove prendi gli appunti della visita. */}
           {dati.eventi.filter(nell).map((e) => (
-            <div key={e.id} className="riga">
+            <a key={e.id} className="riga" href={`#/visita/${e.id}`}>
               <span className="pallino" style={{ background: areaDa(e.area)?.colore || 'var(--grigio)' }} />
               <span className="riga-corpo">
                 <span className="riga-testo">{e.titolo}</span>
                 <span className="riga-meta">
-                  Appuntamento {quando(e.inizio, !e.tutto_il_giorno)}{e.luogo ? ` · ${e.luogo}` : ''}{e.stato === 'proposto' ? ' · proposto' : ''}
+                  Appuntamento {quando(e.inizio, !e.tutto_il_giorno)}{e.luogo ? ` · ${e.luogo}` : ''}{e.stato === 'proposto' ? ' · proposto' : ' · appunti'}
                 </span>
               </span>
-            </div>
+              <Icona nome="freccia" size={18} />
+            </a>
           ))}
         </div>
       )}

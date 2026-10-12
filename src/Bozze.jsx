@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { sb, quando } from './supabase'
-import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro } from './componenti'
+import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, useModifiche } from './componenti'
 
 // Bozze di risposta dell'agente G&C (casella info@homeconcepts.ch).
 // Giovanni le approva (partono da info@) o le scarta. Se qualcuno risponde prima, si annullano da sole.
@@ -13,7 +13,7 @@ export function Bozze({ scelta }) {
     const settimana = new Date(Date.now() - 7 * 86400000).toISOString()
     const [aperte, vecchie] = await Promise.all([
       sb.from('bozze').select(CAMPI).in('stato', ['proposta', 'in_invio']).order('creata_il', { ascending: false }).then(chk),
-      sb.from('bozze').select(CAMPI).in('stato', ['annullata', 'inviata']).gte('modificata_il', settimana)
+      sb.from('bozze').select(CAMPI).in('stato', ['annullata', 'inviata', 'scartata', 'da_imparare']).gte('modificata_il', settimana)
         .order('modificata_il', { ascending: false }).limit(30).then(chk),
     ])
     return { aperte, vecchie }
@@ -32,7 +32,7 @@ export function Bozze({ scelta }) {
             {dati.vecchie.length > 0 && (
               <>
                 <button type="button" className="tasto-link" onClick={() => setAnnullate(!annullate)}>
-                  {annullate ? 'Nascondi gli ultimi 7 giorni' : `Ultimi 7 giorni: ${dati.vecchie.length} inviate o annullate`}
+                  {annullate ? 'Nascondi gli ultimi 7 giorni' : `Ultimi 7 giorni: ${dati.vecchie.length} inviate, scartate o annullate`}
                 </button>
                 {annullate && <div className="elenco">{dati.vecchie.map((b) => <RigaBozza key={b.id} b={b} scelta={scelta} />)}</div>}
               </>
@@ -46,9 +46,11 @@ export function Bozze({ scelta }) {
 
 function RigaBozza({ b, scelta }) {
   const chi = b.aziende?.nome || b.posta?.da_nome || b.a?.[0] || ''
-  const stato = b.stato === 'annullata' ? 'annullata' : b.stato === 'inviata' ? 'inviata' : b.errore ? 'da riprovare' : null
+  const stato = b.stato === 'annullata' ? 'annullata' : b.stato === 'inviata' ? 'inviata'
+    : b.stato === 'scartata' || b.stato === 'da_imparare' ? 'scartata' : b.errore ? 'da riprovare' : null
+  const spenta = ['annullata', 'scartata', 'da_imparare'].includes(b.stato)
   return (
-    <a className={'riga riga-bozza' + (scelta === b.id ? ' scelta' : '') + (b.stato === 'annullata' ? ' spenta' : '')} href={`#/bozza/${b.id}`}>
+    <a className={'riga riga-bozza' + (scelta === b.id ? ' scelta' : '') + (spenta ? ' spenta' : '')} href={`#/bozza/${b.id}`}>
       <span className="riga-corpo">
         <span className="riga-testo"><b>{chi}</b> — {b.oggetto || '(senza oggetto)'}</span>
         <span className="riga-meta">
@@ -63,9 +65,10 @@ function RigaBozza({ b, scelta }) {
 
 // Una bozza: la mail a cui risponde, il testo da correggere, Approva e invia / Scarta.
 export function Bozza({ id }) {
-  const { avvisa, vai } = useApp()
+  const { avvisa } = useApp()
   const [campi, setCampi] = useState(null)
   const [conferma, setConferma] = useState(false)
+  const [confermaScarta, setConfermaScarta] = useState(false)
   const [lavoro, setLavoro] = useState(false)
   const timer = useRef(null)
 
@@ -78,6 +81,9 @@ export function Bozza({ id }) {
     if (dati && !campi) setCampi({ a: (dati.a || []).join(', '), cc: (dati.cc || []).join(', '), oggetto: dati.oggetto || '', testo: dati.testo || '' })
   }, [dati, campi])
   useEffect(() => () => clearTimeout(timer.current), [])
+  const corretta = !!dati && !!campi && dati.stato === 'proposta' && (campi.testo !== (dati.testo || '') || campi.oggetto !== (dati.oggetto || '')
+    || campi.a !== (dati.a || []).join(', ') || campi.cc !== (dati.cc || []).join(', '))
+  useModifiche(corretta)
 
   if (!dati || !campi) return <div className="schermata"><Indietro titolo="Bozza" /><Stato carica={carica} errore={errore} /></div>
 
@@ -90,6 +96,7 @@ export function Bozza({ id }) {
   async function invia() {
     if (!conferma) {
       setConferma(true)
+      setConfermaScarta(false)
       clearTimeout(timer.current)
       timer.current = setTimeout(() => setConferma(false), 5000)
       return
@@ -108,7 +115,7 @@ export function Bozza({ id }) {
       }
       if (data?.errore) throw new Error(data.errore)
       avvisa('Inviata da info@')
-      vai('/bozze')
+      location.replace('#/bozze') // "indietro" non riporta alla bozza già mandata
     } catch (e) {
       avvisa(messaggioErrore(e))
       ricarica()
@@ -117,12 +124,22 @@ export function Bozza({ id }) {
     }
   }
 
+  // Anche scartare vuole due tocchi: non si torna indietro.
   async function scarta() {
+    if (!confermaScarta) {
+      setConfermaScarta(true)
+      setConferma(false)
+      clearTimeout(timer.current)
+      timer.current = setTimeout(() => setConfermaScarta(false), 5000)
+      return
+    }
+    clearTimeout(timer.current)
+    setConfermaScarta(false)
     setLavoro(true)
     try {
       chk(await sb.from('bozze').update({ stato: 'scartata', testo: campi.testo }).eq('id', id))
       avvisa('Scartata')
-      vai('/bozze')
+      location.replace('#/bozze')
     } catch (e) {
       avvisa(messaggioErrore(e))
     } finally {
@@ -153,7 +170,9 @@ export function Bozza({ id }) {
           <button type="button" className={'tasto-grande' + (conferma ? ' conferma' : '')} onClick={invia} disabled={lavoro}>
             {lavoro ? 'Invio…' : conferma ? 'Tocca ancora per inviare' : 'Approva e invia'}
           </button>
-          <button type="button" className="tasto-link" onClick={scarta} disabled={lavoro}>Scarta</button>
+          <button type="button" className={'tasto-link' + (confermaScarta ? ' pericolo-pieno' : '')} onClick={scarta} disabled={lavoro}>
+            {confermaScarta ? 'Tocca ancora per scartare' : 'Scarta'}
+          </button>
         </div>
       )}
       {(b.perche?.fonti || []).length > 0 && (

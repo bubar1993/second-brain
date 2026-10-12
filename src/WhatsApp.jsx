@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { sb, AREE, areaDa, nomePersona, quando, CAMPI_PERSONA } from './supabase'
-import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, SceltaPersone, Icona } from './componenti'
+import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, SceltaPersone, Icona, useModifiche } from './componenti'
 
 const FINESTRA = 24 * 3600 * 1000
 const nomeContatto = (c) => (c.persone ? nomePersona(c.persone) : c.nome_rubrica || c.nome_profilo || `+${c.wa_id}`)
@@ -71,6 +71,7 @@ export function ChatContatto({ waId }) {
   const [conferma, setConferma] = useState(false)
   const [lavoro, setLavoro] = useState(false)
   const fondo = useRef(null)
+  useModifiche(!!testo.trim())
   const timer = useRef(null)
 
   const { dati, errore, carica, ricarica } = useCarica(async () => {
@@ -205,6 +206,7 @@ export function ModelliWhatsApp() {
   const [conferma, setConferma] = useState(false)
   const [lavoro, setLavoro] = useState(false)
   const timer = useRef(null)
+  useModifiche(!!(nome.trim() || testo.trim()))
   useEffect(() => () => clearTimeout(timer.current), [])
 
   const { dati, errore, carica, ricarica } = useCarica(async () => (await funzione('whatsapp-modelli', { method: 'GET' })).modelli, [])

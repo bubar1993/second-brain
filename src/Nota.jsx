@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { sb, areaDa, quando } from './supabase'
 import {
   useApp, useCarica, chk, messaggioErrore, Stato, Indietro, SceltaArea, SceltaPersone, Icona,
-  caricaFoto, aggiungiAreaPersone,
+  caricaFoto, aggiungiAreaPersone, useModifiche,
 } from './componenti'
 import { nomeSezione } from './Aziende'
 
@@ -25,6 +25,7 @@ export default function Nota({ id }) {
   useEffect(() => {
     if (dati && testo === null) setTesto(dati.testo)
   }, [dati, testo])
+  useModifiche(!!dati && testo !== null && testo.trim() !== dati.testo)
 
   // Link temporanei (1 ora) per vedere le foto private.
   useEffect(() => {
@@ -106,10 +107,16 @@ export default function Nota({ id }) {
     }
   }
 
+  // Le note copiate dal gestionale Ceramex si correggono là: qui il testo verrebbe riscritto dalla copia.
+  const daCeramex = dati.da_ceramex && dati.area === 'C'
+
   return (
     <div className="schermata">
-      <Indietro titolo={a ? a.nome : 'Inbox'} />
-      <p className="nota-piccola">{FONTI[dati.fonte]} {quando(dati.creata_il, true)}</p>
+      <Indietro titolo="Nota" />
+      <p className="nota-piccola">
+        {a && <span className="etichetta" style={{ color: a.colore }}>{a.nome} · </span>}
+        {!a && 'Inbox · '}{FONTI[dati.fonte]} {quando(dati.creata_il, true)}
+      </p>
       {dati.aziende && (
         <p className="nota-piccola">
           <a href={`#/azienda/${dati.aziende.id}`}>{dati.aziende.nome}</a>
@@ -118,8 +125,11 @@ export default function Nota({ id }) {
         </p>
       )}
 
-      <textarea value={testo} onChange={(e) => setTesto(e.target.value)} rows={6} />
-      {testo.trim() !== dati.testo && (
+      <textarea value={testo} onChange={(e) => setTesto(e.target.value)} rows={6} readOnly={daCeramex} />
+      {daCeramex && (
+        <p className="nota-piccola">Questa nota arriva dal gestionale Ceramex: testo e area si correggono lì. Qui puoi collegare persone, promemoria e foto.</p>
+      )}
+      {!daCeramex && testo.trim() !== dati.testo && (
         <button type="button" className="tasto-grande" onClick={salvaTesto} disabled={lavoro}>Salva</button>
       )}
 
@@ -133,10 +143,12 @@ export default function Nota({ id }) {
         </div>
       )}
 
-      <div className="campo">
-        <span>Area</span>
-        <SceltaArea valore={dati.area} onChange={cambiaArea} />
-      </div>
+      {!daCeramex && (
+        <div className="campo">
+          <span>Area</span>
+          <SceltaArea valore={dati.area} onChange={cambiaArea} />
+        </div>
+      )}
 
       <div className="campo">
         <span>Persone</span>
@@ -164,7 +176,7 @@ export default function Nota({ id }) {
         <input ref={fotoRif} type="file" accept="image/*" multiple hidden onChange={aggiungiFoto} />
       </div>
 
-      <button type="button" className="tasto-link pericolo" onClick={elimina}>Metti nel cestino</button>
+      {!daCeramex && <button type="button" className="tasto-link pericolo" onClick={elimina}>Metti nel cestino</button>}
     </div>
   )
 }

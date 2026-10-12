@@ -159,6 +159,19 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 ### Oggi: spunta sugli appuntamenti (12.10.2026)
 - Ogni appuntamento in Oggi ha la spunta come i promemoria: `eventi.fatto_il` (solo nel second brain, Google non cambia; l'agente calendario non la tocca). Gli agenti lavoro e privato riscrivono il punto del mattino quando qualcosa è stato spuntato o è arrivato di nuovo (solo cose ancora da fare).
 
+### Comodità e correzioni (12.10.2026 pomeriggio, ok di Giovanni)
+- "In ritardo" solo dal giorno dopo (prima bastava passare l'ora).
+- Promemoria in Oggi: tocco → si apre sotto la riga: correggi testo e data, "Rimanda a" domani/lunedì/tra una settimana, "Elimina" (va nel Cestino), "Apri la nota". Ogni spunta, rimando, eliminazione o "No" alle proposte ha "Annulla" nell'avviso in basso (5 secondi).
+- Appuntamenti dei 7 giorni scorsi non spuntati: gruppo "Da chiudere" in Oggi con "Appunti" (restano finché non li spunti o salvi gli appunti). Appuntamenti di lavoro finiti → tocco = appunti (`#/visita/<id>`). Nella scheda persona gli appuntamenti si toccano (appunti).
+- Modifiche non salvate (bozza, nota, persona, WhatsApp, Domande, promemoria aperto): tornando nell'app la schermata non si ricarica (`useModifiche` in `componenti.jsx`). Aggiungi salva il testo sul telefono mentre scrivi (`aggiungi:<persona>:<azienda>`); se una foto non parte, "Salva" riprova solo le foto (niente note doppie, anche in Visita).
+- Tornando indietro si ritrova il punto della lista e la ricerca (Chiedi, Aziende): ogni pagina della cronologia ha un segno (`history.state.k`, App.jsx). Elenco aziende tenuto 3 minuti.
+- Scheda azienda: "+ Nota" (`#/aggiungi?azienda=<id>`, la nota va nella scheda solo se resta nella sua area) e note che si aprono col tocco. Note copiate da Ceramex: testo, area e cestino bloccati nell'app (si correggono nel gestionale).
+- Dentro: numeri di Inbox, Bozze e Domande. Contatore domande uguale all'elenco (area scelta). "Scarta" bozza con due tocchi; le scartate si vedono negli ultimi 7 giorni.
+- "Ricordamelo" detto: solo "alle N" è un'ora ("al 15" no); "ricordami domani/lunedì" senza ora → alle 8.
+- Con la tastiera aperta (telefono) i 3 tasti spariscono.
+- Agente calendario: riconosce le ditte anche nei titoli scritti di corsa ("creaceram" = Crea Ceram), sceglie quella dell'area e la capogruppo, e ricontrolla gli eventi C/G senza ditta (punto 1b). Agente lavoro: se la nota ha già la ditta (scelta da Giovanni) la tiene.
+- Sicurezza (migrazione `sicurezza_funzioni`): le 4 funzioni "security definer" non rispondono più ad anon. Per funzioni nuove dello stesso tipo: revoke da public/anon, grant ad authenticated, service_role e ai ruoli agente_*.
+
 ### Appunti durante un appuntamento (12.10.2026)
 - `#/visita/<id evento>` (`src/Visita.jsx`): tasto "Appunti" sugli appuntamenti di lavoro di oggi in Oggi (e tocco su un appuntamento senza ditta/persona). Testo salvato sul telefono (localStorage `visita:<id>`) mentre scrivi; se manca la ditta propone quelle col nome nel titolo. "Fine visita" → una nota "Appunti visita «…» del …" con ditta e persona, l'appuntamento diventa fatto. L'agente lavoro (punto 3f) crea le note brevi per sezione. Oggi avvisa se ci sono appunti non finiti.
 - `domande.mostra_dal`: una domanda si vede solo da quell'ora (es. gemelli alle 20 del 12.10).

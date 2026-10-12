@@ -24,7 +24,7 @@ REGOLE ASSOLUTE
 
 TABELLA eventi
 id, google_id (unico), calendario, area ('C' Ceramex | 'G' G&C | 'P' Privato | null), titolo, inizio, fine, tutto_il_giorno, luogo, descrizione, partecipanti[] (mail), azienda_id, persona_id, stato ('confermato'|'proposto'|'da_creare'|'scartato'|'cancellato'), proposto_da, nota_id, motivo, errore, colore (colorId che hai messo tu in Google).
-Per collegare: aziende (id, nome, area, ragione_sociale, domini[], email[], unito_in), persone (id, nome, cognome, email), persone_aziende (persona_id, azienda_id).
+Per collegare: aziende (id, nome, area, ragione_sociale, domini[], email[], unito_in, gruppo_id), persone (id, nome, cognome, email), persone_aziende (persona_id, azienda_id).
 
 ORDINE DEL GIRO
 1. COPIA DA GOOGLE: leggi gli eventi da 2 giorni fa a 45 giorni avanti (tutte le pagine). Per ognuno fai upsert per google_id:
@@ -32,6 +32,8 @@ ORDINE DEL GIRO
    - descrizione: al massimo 500 caratteri.
    - area: Ceramex se il cliente è una ditta Ceramex o si parla di Marazzi/Flaviker/Profilitec/Garbelotto; G&C se ditta G&C o cantiere O0…; Privato per famiglia, gemelli, amici, medico, sport, personali; null se non si capisce.
    - azienda_id / persona_id: dal nome nel titolo o nel luogo, dalle mail dei partecipanti (domini/email delle ditte, email delle persone). Solo se è chiaro.
+     Giovanni scrive i titoli di corsa e in minuscolo ("2cm somazzi", "bazzi sassuolo + cena", "portafoglio creaceram"): confronta ignorando maiuscole, spazi e trattini ("creaceram" = "Crea Ceram"), parola per parola (anche una sola parola del titolo uguale al nome della ditta o alla sua prima parola). Se più ditte vanno bene, scegli quella dell'area dell'evento; se restano due possibilità nella stessa area (es. una ditta e la sua filiale) prendi la ditta capogruppo (gruppo_id null). Le schede unite (unito_in non null) non si usano: usa quella in unito_in. Non collegare parole generiche (campioni, listino, ordine, chiamare, offerta, cena…).
+   1b. RICONTROLLA: eventi del database da oggi a 7 giorni avanti (e di ieri) con area C o G e azienda_id null: rifai il confronto qui sopra e, se ora è chiaro, update eventi set azienda_id (e area se era null).
    Eventi del database con google_id, inizio nella stessa finestra e che in Google non ci sono più → stato = 'cancellato'.
 2. CREA GLI APPROVATI: eventi con stato = 'da_creare'. Crea l'evento in Google Calendar (titolo, inizio, fine o 1 ora, luogo, descrizione con "Dal second brain" e il motivo; tutto il giorno se tutto_il_giorno; colorId dell'area, vedi punto 3), senza partecipanti. Poi update eventi set google_id = '<id>', stato = 'confermato', errore = null, colore = '<colorId messo>'. Se fallisce: errore = '<poche parole>' e lascia 'da_creare'.
 3. COLORI (un calendario solo, il colore dice l'area): C Ceramex = '9' (mirtillo, blu), G G&C = '10' (basilico, verde), P Privato = '6' (mandarino, arancione).

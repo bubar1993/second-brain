@@ -201,6 +201,23 @@ a.riga:active, button.riga:active { background: rgba(255, 255, 255, 0.04); }
 .riga-promemoria.fatto .spunta svg { opacity: 1; transform: scale(1); }
 .riga-promemoria.fatto .riga-testo { color: var(--tenue); text-decoration: line-through; }
 .riga-promemoria.lampo { animation: lampo 900ms ease-out; }
+.riga-tocca { border: 0; padding: 0; background: transparent; color: inherit; text-align: left; font: inherit; }
+.modifica-promemoria {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 0 16px 14px 56px; border-bottom: 1px solid var(--bordo);
+}
+.modifica-promemoria textarea { min-height: 0; }
+.modifica-promemoria .chips { align-items: center; }
+.modifica-promemoria .azioni { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.modifica-promemoria .tasto-link.pericolo { margin: 0 0 0 auto; }
+@media (max-width: 420px) { .modifica-promemoria { padding-left: 16px; } }
+.numero-voce {
+  flex: none; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 11px;
+  background: var(--rosso); color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center;
+  font-variant-numeric: tabular-nums;
+}
+.nota-cliente.apribile { cursor: pointer; }
+.nota-cliente.apribile:active { background: rgba(255, 255, 255, 0.04); }
 @keyframes lampo { from { background: color-mix(in srgb, var(--col) 28%, transparent); } to { background: transparent; } }
 
 .scheda {
@@ -265,6 +282,7 @@ a.riga:active, button.riga:active { background: rgba(255, 255, 255, 0.04); }
 }
 .tasto-link { border: 0; background: transparent; color: var(--tenue); text-decoration: underline; text-underline-offset: 3px; padding: 10px; }
 .tasto-link.pericolo { color: var(--rosso); align-self: center; margin-top: 16px; }
+.tasto-link.pericolo-pieno { color: var(--rosso); font-weight: 700; text-decoration: none; }
 .tasto-link.esci { align-self: center; margin-top: 24px; }
 .azioni { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
@@ -413,6 +431,17 @@ a.riga:active, button.riga:active { background: rgba(255, 255, 255, 0.04); }
   animation: sale 220ms var(--esci);
 }
 @keyframes sale { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+/* Avviso con "Annulla": il tasto sta a destra, grande abbastanza per il dito. */
+.avviso.con-azione { display: flex; align-items: center; gap: 14px; padding: 6px 6px 6px 18px; width: max-content; }
+.avviso.con-azione button {
+  flex: none; min-height: 40px; padding: 0 16px; border: 0; border-radius: 999px;
+  background: var(--vuoto); color: var(--testo); font-weight: 700;
+}
+
+/* Con la tastiera aperta (telefono) i 3 tasti spariscono: non coprono quello che scrivi. */
+@media (max-width: 1023px) {
+  body:has(input:focus, textarea:focus) .tasti { display: none; }
+}
 
 /* ---------- Accesso ---------- */
 .accesso {

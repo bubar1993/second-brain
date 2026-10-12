@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { sb, areaDa, quando, giorniDaOggi, leggi, scrivi } from './supabase'
-import { useApp, useCarica, chk, messaggioErrore, NotaRiga, Stato, Icona } from './componenti'
+import { useApp, useCarica, chk, messaggioErrore, NotaRiga, Stato, Icona, useModifiche, perCampo } from './componenti'
 import Rete from './Rete'
 import { visiteAperte } from './Visita'
 
@@ -23,6 +23,7 @@ export default function Oggi({ inbox, bozze, domande }) {
   const [fatti, setFatti] = useState(() => new Set())
   const [lampo, setLampo] = useState(null)
   const [avanti, setAvanti] = useState(false)
+  const [aperto, setAperto] = useState(null) // promemoria aperto per modificarlo
 
   const { dati, errore, carica, ricarica } = useCarica(async () => {
     let qp = sb.from('promemoria').select('id,testo,area,scade_il,urgente,nota_id,ricorrenza')
@@ -51,11 +52,17 @@ export default function Oggi({ inbox, bozze, domande }) {
       .in('stato', ['confermato', 'proposto', 'da_creare']).is('fatto_il', null).gte('inizio', da.toISOString()).lt('inizio', a7.toISOString())
       .order('inizio').limit(60)
     if (area !== 'T') qe = qe.or(`area.eq.${area},area.is.null`)
+    // Appuntamenti dei 7 giorni scorsi non ancora spuntati: restano finché non li chiudi (o annoti).
+    let qv = sb.from('eventi').select('id,titolo,inizio,fine,tutto_il_giorno,luogo,area,stato,motivo,errore,aziende(id,nome),persone(id,nome,cognome)')
+      .in('stato', ['confermato', 'da_creare']).is('fatto_il', null)
+      .gte('inizio', new Date(da.getTime() - 7 * 86400000).toISOString()).lt('inizio', da.toISOString())
+      .order('inizio', { ascending: false }).limit(40)
+    if (area !== 'T') qv = qv.or(`area.eq.${area},area.is.null`)
     const oggiIso = `${da.getFullYear()}-${String(da.getMonth() + 1).padStart(2, '0')}-${String(da.getDate()).padStart(2, '0')}`
     let qr = sb.from('riassunti_giorno').select('parte,momento,testo,creata_il').eq('giorno', oggiIso)
     if (area === 'P') qr = qr.eq('parte', 'privato')
     else if (area !== 'T') qr = qr.eq('parte', 'lavoro')
-    const [promemoria, note, recenti, nati, ev, ria] = await Promise.all([qp, qn, qa, qc, qe, qr])
+    const [promemoria, note, recenti, nati, ev, ria, vecchi] = await Promise.all([qp, qn, qa, qc, qe, qr, qv])
     const aziende = []
     for (const r of chk(recenti)) {
       if (r.aziende && !aziende.some((a) => a.id === r.aziende.id)) aziende.push(r.aziende)
@@ -68,7 +75,7 @@ export default function Oggi({ inbox, bozze, domande }) {
     // Il riassunto più recente di ogni parte (la sera sostituisce il mattino).
     const riassunti = ['lavoro', 'privato'].map((parte) => chk(ria).filter((r) => r.parte === parte)
       .sort((a, b) => (a.momento === 'sera' ? -1 : 1) - (b.momento === 'sera' ? -1 : 1))[0]).filter(Boolean)
-    return { promemoria: chk(promemoria), note: chk(note), aziende, compleanni, eventi: chk(ev), riassunti }
+    return { promemoria: chk(promemoria), note: chk(note), aziende, compleanni, eventi: chk(ev), passati: chk(vecchi), riassunti }
   }, [area])
 
   // Quanto è grande la memoria: si legge una volta.
@@ -80,31 +87,74 @@ export default function Oggi({ inbox, bozze, domande }) {
     ]).then(([n, a]) => setTotali({ note: n.count, aziende: a.count }))
   }, [])
 
+  const togliFatto = (id) => setFatti((s) => { const x = new Set(s); x.delete(id); return x })
+
   async function fatto(p) {
     if (fatti.has(p.id)) return
     setFatti((s) => new Set(s).add(p.id))
+    setAperto(null)
     rete.current?.assorbi(p.id)
     try {
       chk(await sb.from('promemoria').update({ fatto_il: new Date().toISOString() }).eq('id', p.id))
       // Le scadenze di ogni anno (cassa malati, gomme…) tornano l'anno dopo.
+      let nuovo = null
       if (p.ricorrenza === 'annuale' && p.scade_il) {
         const prossimo = new Date(p.scade_il)
         prossimo.setFullYear(prossimo.getFullYear() + 1)
-        chk(await sb.from('promemoria').insert({ testo: p.testo, area: p.area, scade_il: prossimo.toISOString(), ricorrenza: 'annuale', urgente: p.urgente }))
+        nuovo = chk(await sb.from('promemoria').insert({ testo: p.testo, area: p.area, scade_il: prossimo.toISOString(), ricorrenza: 'annuale', urgente: p.urgente })
+          .select('id').single())
       }
-      avvisa(p.ricorrenza === 'annuale' ? 'Fatto: torna l\'anno prossimo' : 'Fatto')
+      avvisa(nuovo ? 'Fatto: torna l\'anno prossimo' : 'Fatto', { etichetta: 'Annulla', fai: () => annullaFatto(p, nuovo) })
       setTimeout(ricarica, 450)
     } catch (e) {
-      setFatti((s) => { const x = new Set(s); x.delete(p.id); return x })
+      togliFatto(p.id)
       avvisa(messaggioErrore(e))
     }
   }
+
+  async function annullaFatto(p, nuovo) {
+    try {
+      chk(await sb.from('promemoria').update({ fatto_il: null }).eq('id', p.id))
+      // Il promemoria dell'anno dopo, appena creato, non serve più.
+      if (nuovo) chk(await sb.from('promemoria').delete().eq('id', nuovo.id))
+      togliFatto(p.id)
+      avvisa('Rimesso tra le cose da fare')
+      ricarica()
+    } catch (e) {
+      avvisa(messaggioErrore(e))
+    }
+  }
+
+  // Correggi, sposta o elimina un promemoria. Con "Annulla" torna com'era.
+  async function cambia(p, campi, messaggio) {
+    const prima = Object.fromEntries(Object.keys(campi).map((k) => [k, p[k] ?? null]))
+    try {
+      chk(await sb.from('promemoria').update(campi).eq('id', p.id))
+      setAperto(null)
+      avvisa(messaggio, {
+        etichetta: 'Annulla',
+        fai: async () => {
+          try {
+            chk(await sb.from('promemoria').update(prima).eq('id', p.id))
+            avvisa('Come prima')
+            ricarica()
+          } catch (e) { avvisa(messaggioErrore(e)) }
+        },
+      })
+      ricarica()
+    } catch (e) {
+      avvisa(messaggioErrore(e))
+    }
+  }
+
+  const azioni = { fatto, fatti, lampo, aperto, setAperto, cambia }
 
   const promemoria = (dati?.promemoria || []).filter((p) => !fatti.has(p.id))
   const gruppi = { ritardo: [], oggi: [], prossimi: [], avanti: [], senzaData: [] }
   for (const p of dati?.promemoria || []) {
     if (!p.scade_il) gruppi.senzaData.push(p)
-    else if (new Date(p.scade_il) < new Date()) gruppi.ritardo.push(p)
+    // In ritardo solo dal giorno dopo: le cose di oggi restano in "Oggi" anche passata l'ora.
+    else if (giorniDaOggi(p.scade_il) < 0) gruppi.ritardo.push(p)
     else if (giorniDaOggi(p.scade_il) === 0) gruppi.oggi.push(p)
     else if (giorniDaOggi(p.scade_il) <= 14) gruppi.prossimi.push(p)
     else gruppi.avanti.push(p)
@@ -129,6 +179,7 @@ export default function Oggi({ inbox, bozze, domande }) {
     if (n.tipo === 'nota') return vai(`/nota/${n.id}`)
     if (n.tipo === 'azienda') return vai(`/azienda/${n.id}`)
     setLampo({ id: n.id, k: Date.now() })
+    setAperto(n.id)
   }, [vai])
 
   const oggi = new Date()
@@ -191,22 +242,23 @@ export default function Oggi({ inbox, bozze, domande }) {
           </a>
         )}
 
-        {dati && <Appuntamenti eventi={dati.eventi} ricarica={ricarica} />}
+        {dati && <Appuntamenti eventi={dati.eventi} passati={dati.passati} ricarica={ricarica} />}
 
         <h2>Promemoria</h2>
         <Stato carica={carica} errore={errore} vuoto={nessunPromemoria ? 'Niente in sospeso. Quando aggiungi "Ricordamelo", compare qui e nella rete.' : null}>
           {dati && (
             <>
-              <Gruppo titolo="In ritardo" righe={gruppi.ritardo} fatto={fatto} fatti={fatti} lampo={lampo} ritardo />
-              <Gruppo titolo="Oggi" righe={gruppi.oggi} fatto={fatto} fatti={fatti} lampo={lampo} />
-              <Gruppo titolo="Prossimi giorni" righe={gruppi.prossimi} fatto={fatto} fatti={fatti} lampo={lampo} />
-              <Gruppo titolo="Senza data" righe={gruppi.senzaData} fatto={fatto} fatti={fatti} lampo={lampo} />
+              {!nessunPromemoria && <p className="nota-piccola">Tocca un promemoria per correggerlo, spostarlo o eliminarlo.</p>}
+              <Gruppo titolo="In ritardo" righe={gruppi.ritardo} {...azioni} ritardo />
+              <Gruppo titolo="Oggi" righe={gruppi.oggi} {...azioni} />
+              <Gruppo titolo="Prossimi giorni" righe={gruppi.prossimi} {...azioni} />
+              <Gruppo titolo="Senza data" righe={gruppi.senzaData} {...azioni} />
               {gruppi.avanti.length > 0 && (
                 <>
                   <button type="button" className="tasto-link" onClick={() => setAvanti(!avanti)} aria-expanded={avanti}>
                     {avanti ? 'Nascondi quelli più avanti' : `Più avanti: ${gruppi.avanti.length}`}
                   </button>
-                  {avanti && <Gruppo titolo="Più avanti" righe={gruppi.avanti} fatto={fatto} fatti={fatti} lampo={lampo} />}
+                  {avanti && <Gruppo titolo="Più avanti" righe={gruppi.avanti} {...azioni} />}
                 </>
               )}
             </>
@@ -240,13 +292,17 @@ export default function Oggi({ inbox, bozze, domande }) {
 }
 
 // Appuntamenti di oggi e dei prossimi giorni (da Google Calendar) e proposte degli agenti.
-// Toccando un appuntamento con un cliente si apre la sua scheda: il riassunto da guardare prima della visita.
-function Appuntamenti({ eventi, ricarica }) {
+// Prima della visita il tocco apre la scheda (il riassunto da guardare); dopo, gli appunti.
+// Quelli dei giorni scorsi non spuntati restano in "Da chiudere" per 7 giorni.
+function Appuntamenti({ eventi, passati, ricarica }) {
   const { avvisa } = useApp()
   const [fatti, setFatti] = useState(() => new Set())
+  const [tuttiPassati, setTuttiPassati] = useState(false)
   const proposte = eventi.filter((e) => e.stato === 'proposto')
   const fissi = eventi.filter((e) => e.stato !== 'proposto')
-  if (!eventi.length) return null
+  if (!eventi.length && !passati.length) return null
+
+  const togli = (id) => setFatti((s) => { const x = new Set(s); x.delete(id); return x })
 
   // Spunta: l'appuntamento sparisce da Oggi (in Google Calendar resta com'è).
   async function fatto(e) {
@@ -254,10 +310,19 @@ function Appuntamenti({ eventi, ricarica }) {
     setFatti((s) => new Set(s).add(e.id))
     try {
       chk(await sb.from('eventi').update({ fatto_il: new Date().toISOString() }).eq('id', e.id))
-      avvisa('Fatto')
+      avvisa('Fatto', {
+        etichetta: 'Annulla',
+        fai: async () => {
+          try {
+            chk(await sb.from('eventi').update({ fatto_il: null }).eq('id', e.id))
+            togli(e.id)
+            ricarica()
+          } catch (err) { avvisa(messaggioErrore(err)) }
+        },
+      })
       setTimeout(ricarica, 450)
     } catch (err) {
-      setFatti((s) => { const x = new Set(s); x.delete(e.id); return x })
+      togli(e.id)
       avvisa(messaggioErrore(err))
     }
   }
@@ -265,7 +330,16 @@ function Appuntamenti({ eventi, ricarica }) {
   async function decidi(e, si) {
     try {
       chk(await sb.from('eventi').update({ stato: si ? 'da_creare' : 'scartato' }).eq('id', e.id))
-      avvisa(si ? 'Lo metto nel calendario entro un\'ora' : 'Scartato')
+      const annulla = {
+        etichetta: 'Annulla',
+        fai: async () => {
+          try {
+            chk(await sb.from('eventi').update({ stato: 'proposto' }).eq('id', e.id))
+            ricarica()
+          } catch (err) { avvisa(messaggioErrore(err)) }
+        },
+      }
+      avvisa(si ? 'Lo metto nel calendario entro un\'ora' : 'Scartato', annulla)
       ricarica()
     } catch (err) {
       avvisa(messaggioErrore(err))
@@ -275,14 +349,48 @@ function Appuntamenti({ eventi, ricarica }) {
     : new Date(e.inizio).toLocaleTimeString('it-CH', { hour: '2-digit', minute: '2-digit' }))
   const giorno = (e) => {
     const g = giorniDaOggi(e.inizio)
-    return g === 0 ? 'Oggi' : g === 1 ? 'Domani' : new Date(e.inizio).toLocaleDateString('it-CH', { weekday: 'long', day: 'numeric', month: 'short' })
+    return g === 0 ? 'Oggi' : g === 1 ? 'Domani' : g === -1 ? 'Ieri'
+      : new Date(e.inizio).toLocaleDateString('it-CH', { weekday: 'long', day: 'numeric', month: 'short' })
   }
-  // Prima della visita: la scheda. Dopo: "cosa vuoi annotare?" (Aggiungi con la persona già collegata).
   const finito = (e) => new Date(e.fine || e.inizio) < new Date()
-  // Senza ditta né persona collegate: si apre la pagina degli appunti (lì si sceglie la ditta).
-  const link = (e) => (e.persone ? (finito(e) ? `#/aggiungi?persona=${e.persone.id}` : `#/persona/${e.persone.id}`)
-    : e.aziende ? `#/azienda/${e.aziende.id}` : `#/visita/${e.id}`)
-  const diOggi = (e) => giorniDaOggi(e.inizio) === 0
+  const lavoro = (e) => e.area !== 'P'
+  // Lavoro finito, o senza ditta né persona: gli appunti (lì si sceglie anche la ditta).
+  // Privato finito con una persona: la nota già collegata a lei.
+  const link = (e) => {
+    if (lavoro(e) && (finito(e) || (!e.persone && !e.aziende))) return `#/visita/${e.id}`
+    if (e.persone) return finito(e) ? `#/aggiungi?persona=${e.persone.id}` : `#/persona/${e.persone.id}`
+    if (e.aziende) return `#/azienda/${e.aziende.id}`
+    return `#/visita/${e.id}`
+  }
+  const dopo = (e) => (finito(e) ? (lavoro(e) || e.persone ? ' · com\'è andata? Annota' : '') : (e.persone || e.aziende) ? ' · scheda' : '')
+
+  const riga = (e, conAppunti) => {
+    const chiuso = fatti.has(e.id)
+    return (
+      <div key={e.id} className={'voce-promemoria' + (chiuso ? ' via' : '')}>
+        <div>
+          <div style={{ '--col': areaDa(e.area)?.colore || 'var(--grigio)' }}
+            className={'riga riga-promemoria' + (chiuso ? ' fatto' : '')}>
+            <button type="button" className="spunta" onClick={() => fatto(e)} aria-label={`Segna fatto: ${e.titolo}`}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+            </button>
+            <a className="riga-corpo" href={link(e)}>
+              <span className="riga-testo">{e.titolo}</span>
+              <span className="riga-meta">
+                {giorno(e)} {ora(e)}{e.luogo ? ` · ${e.luogo}` : ''}{dopo(e)}
+                {e.stato === 'da_creare' && (e.errore ? <span className="rosso"> · non creato: {e.errore}</span> : ' · in arrivo nel calendario')}
+              </span>
+            </a>
+            {conAppunti && lavoro(e) && (
+              <a className="tasto-piccolo tasto-appunti" href={`#/visita/${e.id}`} aria-label={`Prendi appunti: ${e.titolo}`}>Appunti</a>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const vecchi = tuttiPassati || passati.length <= 3 ? passati : passati.slice(0, 3)
 
   return (
     <>
@@ -309,41 +417,38 @@ function Appuntamenti({ eventi, ricarica }) {
       {fissi.length > 0 && (
         <>
           <h2>Appuntamenti</h2>
-          <div className="elenco">
-            {fissi.map((e) => {
-              const finito = fatti.has(e.id)
-              return (
-                <div key={e.id} className={'voce-promemoria' + (finito ? ' via' : '')}>
-                  <div>
-                    <div style={{ '--col': areaDa(e.area)?.colore || 'var(--grigio)' }}
-                      className={'riga riga-promemoria' + (finito ? ' fatto' : '')}>
-                      <button type="button" className="spunta" onClick={() => fatto(e)} aria-label={`Segna fatto: ${e.titolo}`}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
-                      </button>
-                      <a className="riga-corpo" href={link(e)}>
-                        <span className="riga-testo">{e.titolo}</span>
-                        <span className="riga-meta">
-                          {giorno(e)} {ora(e)}{e.luogo ? ` · ${e.luogo}` : ''}
-                          {(e.persone || e.aziende) && (new Date(e.fine || e.inizio) < new Date() ? ' · com\'è andata? Annota' : ' · scheda')}
-                          {e.stato === 'da_creare' && (e.errore ? <span className="rosso"> · non creato: {e.errore}</span> : ' · in arrivo nel calendario')}
-                        </span>
-                      </a>
-                      {diOggi(e) && e.area !== 'P' && (
-                        <a className="tasto-piccolo tasto-appunti" href={`#/visita/${e.id}`} aria-label={`Prendi appunti: ${e.titolo}`}>Appunti</a>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+          <div className="elenco">{fissi.map((e) => riga(e, giorniDaOggi(e.inizio) === 0))}</div>
+        </>
+      )}
+      {passati.length > 0 && (
+        <>
+          <h3>Da chiudere: giorni scorsi</h3>
+          <p className="nota-piccola">Spunta quelli finiti, oppure tocca Appunti per annotare com'è andata.</p>
+          <div className="elenco">{vecchi.map((e) => riga(e, true))}</div>
+          {passati.length > 3 && (
+            <button type="button" className="tasto-link" onClick={() => setTuttiPassati(!tuttiPassati)} aria-expanded={tuttiPassati}>
+              {tuttiPassati ? 'Mostra solo gli ultimi 3' : `Mostra tutti: ${passati.length}`}
+            </button>
+          )}
         </>
       )}
     </>
   )
 }
 
-function Gruppo({ titolo, righe, fatto, fatti, lampo, ritardo }) {
+// Quando rimandare: domani, lunedì prossimo o tra una settimana, alla stessa ora (senza ora: alle 8).
+function rimandato(p, quando) {
+  const prima = p.scade_il ? new Date(p.scade_il) : null
+  const d = new Date()
+  if (quando === 'domani') d.setDate(d.getDate() + 1)
+  else if (quando === 'lunedi') d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7))
+  else d.setDate(d.getDate() + 7)
+  d.setHours(prima ? prima.getHours() : 8, prima ? prima.getMinutes() : 0, 0, 0)
+  return d
+}
+const RIMANDA = [['domani', 'Domani'], ['lunedi', 'Lunedì'], ['settimana', 'Tra una settimana']]
+
+function Gruppo({ titolo, righe, fatto, fatti, lampo, aperto, setAperto, cambia, ritardo }) {
   if (!righe.length) return null
   return (
     <>
@@ -352,6 +457,7 @@ function Gruppo({ titolo, righe, fatto, fatti, lampo, ritardo }) {
         {righe.map((p) => {
           const a = areaDa(p.area)
           const finito = fatti.has(p.id)
+          const aperta = aperto === p.id
           return (
             <div key={p.id} className={'voce-promemoria' + (finito ? ' via' : '')}>
               <div>
@@ -360,20 +466,65 @@ function Gruppo({ titolo, righe, fatto, fatti, lampo, ritardo }) {
                   <button type="button" className="spunta" onClick={() => fatto(p)} aria-label={`Segna fatto: ${p.testo}`}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
                   </button>
-                  <a className="riga-corpo" href={p.nota_id ? `#/nota/${p.nota_id}` : undefined}>
+                  <button type="button" className="riga-corpo riga-tocca" onClick={() => setAperto(aperta ? null : p.id)} aria-expanded={aperta}>
                     <span className="riga-testo">{p.urgente && <strong className="rosso">! </strong>}{p.testo}</span>
                     <span className="riga-meta">
                       {a && <span className="etichetta" style={{ color: a.colore }}>{a.nome}</span>}
                       {p.scade_il && ` ${quando(p.scade_il, true)}`}
                     </span>
-                  </a>
+                  </button>
                 </div>
+                {aperta && <ModificaPromemoria p={p} cambia={cambia} chiudi={() => setAperto(null)} />}
               </div>
             </div>
           )
         })}
       </div>
     </>
+  )
+}
+
+// Il promemoria aperto: correggi il testo, cambia data, rimanda con un tocco, elimina (va nel Cestino).
+function ModificaPromemoria({ p, cambia, chiudi }) {
+  const [testo, setTesto] = useState(p.testo)
+  const [data, setData] = useState(perCampo(p.scade_il))
+  const cambiato = testo.trim() !== p.testo || data !== perCampo(p.scade_il)
+  useModifiche(cambiato)
+
+  function salva() {
+    if (!testo.trim()) return
+    cambia(p, { testo: testo.trim(), scade_il: data ? new Date(data).toISOString() : null }, 'Salvato')
+  }
+
+  return (
+    <div className="modifica-promemoria">
+      <textarea value={testo} onChange={(e) => setTesto(e.target.value)} rows={2} aria-label="Testo del promemoria" />
+      <label className="campo">
+        Quando
+        <input type="datetime-local" value={data} onChange={(e) => setData(e.target.value)} />
+      </label>
+      <div className="chips">
+        <span className="nota-piccola">Rimanda a:</span>
+        {RIMANDA.map(([k, nome]) => {
+          const d = rimandato(p, k)
+          return (
+            <button key={k} type="button" className="chip"
+              onClick={() => cambia(p, { scade_il: d.toISOString() }, `Spostato a ${quando(d.toISOString(), true)}`)}>
+              {nome}
+            </button>
+          )
+        })}
+      </div>
+      <div className="azioni">
+        {cambiato && <button type="button" className="tasto-piccolo tasto-salva" onClick={salva}>Salva</button>}
+        {p.nota_id && <a className="tasto-piccolo" href={`#/nota/${p.nota_id}`}>Apri la nota</a>}
+        <button type="button" className="tasto-link" onClick={chiudi}>Chiudi</button>
+        <button type="button" className="tasto-link pericolo"
+          onClick={() => cambia(p, { eliminata_il: new Date().toISOString() }, 'Eliminato (resta 30 giorni nel Cestino)')}>
+          Elimina
+        </button>
+      </div>
+    </div>
   )
 }
 

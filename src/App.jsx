@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { sb, AREE, areaDa, leggi, scrivi } from './supabase'
-import { AppCtx, Icona, useLargo } from './componenti'
+import { AppCtx, Icona, useLargo, haModifiche } from './componenti'
 import Accesso from './Accesso'
 import Consenso from './Consenso'
 import Oggi from './Oggi'
@@ -52,18 +52,51 @@ function Guscio({ utente, condiviso }) {
   }
 
   // Passi fatti dentro l'app: servono al tasto Dentro per tornare indietro senza uscire dall'app.
+  // Ogni pagina della cronologia ha un suo segno: tornando indietro si ritrova la posizione nella lista;
+  // una pagina nuova parte dall'alto.
   const passi = useRef(0)
   useEffect(() => {
-    const cambia = () => { passi.current++; setRotta(leggiRotta()); window.scrollTo(0, 0) }
+    try { history.scrollRestoration = 'manual' } catch { /* niente */ }
+    const segna = () => { const k = `${Date.now()}-${Math.random()}`; history.replaceState({ k }, ''); return k }
+    let attuale = history.state?.k || segna()
+    const posizioni = {}
+    const ricorda = () => { posizioni[attuale] = window.scrollY }
+    // La lista può arrivare dopo (dati dalla rete): riprovo per 2 secondi, smetto se tocchi lo schermo.
+    let fino = 0
+    const ferma = () => { fino = 0 }
+    const ritorna = (y) => {
+      fino = Date.now() + 2000
+      const prova = () => {
+        window.scrollTo(0, y)
+        if (Math.abs(window.scrollY - y) > 2 && Date.now() < fino) requestAnimationFrame(prova)
+      }
+      prova()
+    }
+    const cambia = () => {
+      passi.current++
+      const nuova = !history.state?.k
+      attuale = nuova ? segna() : history.state.k
+      setRotta(leggiRotta())
+      if (nuova) { fino = 0; window.scrollTo(0, 0) } else ritorna(posizioni[attuale] || 0)
+    }
+    window.addEventListener('scroll', ricorda, { passive: true })
+    window.addEventListener('touchstart', ferma, { passive: true })
+    window.addEventListener('wheel', ferma, { passive: true })
     window.addEventListener('hashchange', cambia)
-    return () => window.removeEventListener('hashchange', cambia)
+    return () => {
+      window.removeEventListener('scroll', ricorda)
+      window.removeEventListener('touchstart', ferma)
+      window.removeEventListener('wheel', ferma)
+      window.removeEventListener('hashchange', cambia)
+    }
   }, [])
 
   const setArea = (a) => { setAreaStato(a); scrivi('area', a) }
-  const avvisa = useCallback((testo) => {
+  // Avviso in basso; con un'azione (es. "Annulla") resta qualche secondo in più.
+  const avvisa = useCallback((testo, azione = null) => {
     clearTimeout(timer.current)
-    setAvviso(testo)
-    timer.current = setTimeout(() => setAvviso(null), 2600)
+    setAvviso({ testo, azione })
+    timer.current = setTimeout(() => setAvviso(null), azione ? 5000 : 2600)
   }, [])
   const vai = (percorso) => { location.hash = percorso }
 
@@ -86,6 +119,8 @@ function Guscio({ utente, condiviso }) {
       } catch { scrivi('chiamata', '') }
       if (!nascosta || Date.now() - nascosta < 120000) return
       nascosta = 0
+      // Stavi correggendo qualcosa (bozza, nota, persona, messaggio…): la schermata resta com'è.
+      if (haModifiche()) return
       try {
         const pagina = await (await fetch(`/?versione=${Date.now()}`, { cache: 'no-store' })).text()
         const mio = document.querySelector('script[type="module"][src*="/assets/"]')?.getAttribute('src')
@@ -107,10 +142,12 @@ function Guscio({ utente, condiviso }) {
       .then(({ count }) => setInbox(count || 0))
     sb.from('bozze').select('id', { count: 'exact', head: true }).eq('stato', 'proposta')
       .then(({ count }) => setBozze(count || 0))
-    sb.from('domande').select('id', { count: 'exact', head: true }).is('risposta_il', null)
+    // Le domande contano come nella loro schermata: quelle dell'area scelta più quelle senza area.
+    let qd = sb.from('domande').select('id', { count: 'exact', head: true }).is('risposta_il', null)
       .or(`mostra_dal.is.null,mostra_dal.lte.${new Date().toISOString()}`)
-      .then(({ count }) => setDomande(count || 0))
-  }, [rotta, giro])
+    if (area !== 'T') qd = qd.or(`area.eq.${area},area.is.null`)
+    qd.then(({ count }) => setDomande(count || 0))
+  }, [rotta, giro, area])
 
   const largo = useLargo()
   const [primo, secondo] = rotta.parti
@@ -136,9 +173,9 @@ function Guscio({ utente, condiviso }) {
     )
   } else switch (primo) {
     case 'aggiungi': schermata = <Aggiungi key={rotta.query.toString()} usaCondiviso={usaCondiviso} personaId={rotta.query.get('persona')}
-      chiamata={rotta.query.has('chiamata')} />; break
+      aziendaId={rotta.query.get('azienda')} chiamata={rotta.query.has('chiamata')} />; break
     case 'chiedi': schermata = <Chiedi />; break
-    case 'dentro': schermata = <Dentro inbox={inbox} />; break
+    case 'dentro': schermata = <Dentro inbox={inbox} bozze={bozze} domande={domande} />; break
     case 'inbox': schermata = <Inbox />; break
     case 'note': schermata = <ElencoNote />; break
     case 'cestino': schermata = <Cestino />; break
@@ -235,7 +272,16 @@ function Guscio({ utente, condiviso }) {
         </a>
       </nav>
 
-      {avviso && <div className="avviso" role="status">{avviso}</div>}
+      {avviso && (
+        <div className={'avviso' + (avviso.azione ? ' con-azione' : '')} role="status">
+          {avviso.testo}
+          {avviso.azione && (
+            <button type="button" onClick={() => { clearTimeout(timer.current); setAvviso(null); avviso.azione.fai() }}>
+              {avviso.azione.etichetta}
+            </button>
+          )}
+        </div>
+      )}
     </AppCtx.Provider>
   )
 }

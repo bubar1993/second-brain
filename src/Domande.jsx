@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { sb, areaDa, quando } from './supabase'
-import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro } from './componenti'
+import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, useModifiche } from './componenti'
 
 // Domande per Giovanni: i dubbi degli agenti. Un tocco su una risposta pronta, o due parole scritte.
 // L'agente legge la risposta al giro dopo (entro un'ora) e la usa.
 export function Domande() {
   const { area, avvisa } = useApp()
   const [scritte, setScritte] = useState({})
+  useModifiche(Object.values(scritte).some((s) => s?.trim()))
 
   const { dati, errore, carica, ricarica } = useCarica(async () => {
     let q = sb.from('domande')
@@ -20,6 +21,7 @@ export function Domande() {
     if (!risposta?.trim()) return avvisa('Scrivi la risposta')
     try {
       chk(await sb.from('domande').update({ risposta: risposta.trim(), risposta_il: new Date().toISOString() }).eq('id', d.id))
+      setScritte((s) => ({ ...s, [d.id]: '' }))
       avvisa('Grazie: l\'agente la usa al prossimo giro')
       ricarica()
     } catch (e) {
@@ -53,11 +55,11 @@ export function Domande() {
                       ))}
                     </div>
                   )}
-                  <div className="riga-campo">
-                    <input type="text" value={scritte[d.id] || ''} placeholder="Oppure scrivi…"
+                  <form className="riga-campo" onSubmit={(e) => { e.preventDefault(); rispondi(d, scritte[d.id]) }}>
+                    <input type="text" value={scritte[d.id] || ''} placeholder="Oppure scrivi…" enterKeyHint="send"
                       onChange={(e) => setScritte({ ...scritte, [d.id]: e.target.value })} />
-                    <button type="button" className="tasto-piccolo" onClick={() => rispondi(d, scritte[d.id])}>Rispondi</button>
-                  </div>
+                    <button type="submit" className="tasto-piccolo">Rispondi</button>
+                  </form>
                 </section>
               )
             })}

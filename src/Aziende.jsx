@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { sb, leggi, scrivi, areaDa } from './supabase'
-import { useApp, useCarica, chk, Stato, Indietro, Icona } from './componenti'
+import { useApp, useCarica, chk, Stato, Indietro, Icona, tenutoQui, tieniQui } from './componenti'
 
 // Le 6 sezioni come nel gestionale Ceramex: chiave, nome lungo, nome corto.
 export const SEZIONI = [
@@ -41,33 +41,45 @@ async function tutte(crea) {
   }
 }
 
+// L'elenco legge tutte le note dei clienti: lo tengo 3 minuti, così tornando indietro è subito pronto.
+let elencoTenuto = null
+
+async function leggiAziende(area) {
+  let qa = sb.from('aziende').select('id,nome,area,gruppo_id,ragione_sociale,email,contatti')
+    .is('eliminata_il', null).is('unito_in', null)
+  if (area !== 'T') qa = qa.eq('area', area)
+  const [aziende, note] = await Promise.all([
+    qa.then(chk),
+    tutte(() => sb.from('note').select('azienda_id,sezione,data,risolto_il')
+      .not('azienda_id', 'is', null).is('eliminata_il', null).is('scartata_il', null).order('id')),
+  ])
+  const capo = Object.fromEntries(aziende.map((a) => [a.id, a.gruppo_id || a.id]))
+  const info = Object.fromEntries(aziende.filter((a) => !a.gruppo_id)
+    .map((a) => [a.id, { ...a, filiali: [], note: 0, problemi: 0, ultima: '' }]))
+  for (const a of aziende) if (a.gruppo_id && info[a.gruppo_id]) info[a.gruppo_id].filiali.push(a)
+  for (const n of note) {
+    const i = info[capo[n.azienda_id]]
+    if (!i) continue
+    i.note++
+    if (aperto(n)) i.problemi++
+    if (n.data > i.ultima) i.ultima = n.data
+  }
+  return Object.values(info).sort((a, b) =>
+    b.problemi - a.problemi || b.ultima.localeCompare(a.ultima) || a.nome.localeCompare(b.nome, 'it'))
+}
+
 // Elenco schede: prima chi ha problemi aperti, poi chi ha scritto per ultimo. Le filiali contano nel gruppo.
+// Tornando indietro da una scheda ritrovi la ricerca (e il punto della lista, App.jsx).
 export function Aziende({ scelta }) {
   const { area } = useApp()
-  const [cerca, setCerca] = useState('')
+  const [cerca, setCercaStato] = useState(() => tenutoQui('aziende') || '')
+  const setCerca = (v) => { setCercaStato(v); tieniQui('aziende', v) }
 
   const { dati, errore, carica } = useCarica(async () => {
-    let qa = sb.from('aziende').select('id,nome,area,gruppo_id,ragione_sociale,email,contatti')
-      .is('eliminata_il', null).is('unito_in', null)
-    if (area !== 'T') qa = qa.eq('area', area)
-    const [aziende, note] = await Promise.all([
-      qa.then(chk),
-      tutte(() => sb.from('note').select('azienda_id,sezione,data,risolto_il')
-        .not('azienda_id', 'is', null).is('eliminata_il', null).is('scartata_il', null).order('id')),
-    ])
-    const capo = Object.fromEntries(aziende.map((a) => [a.id, a.gruppo_id || a.id]))
-    const info = Object.fromEntries(aziende.filter((a) => !a.gruppo_id)
-      .map((a) => [a.id, { ...a, filiali: [], note: 0, problemi: 0, ultima: '' }]))
-    for (const a of aziende) if (a.gruppo_id && info[a.gruppo_id]) info[a.gruppo_id].filiali.push(a)
-    for (const n of note) {
-      const i = info[capo[n.azienda_id]]
-      if (!i) continue
-      i.note++
-      if (aperto(n)) i.problemi++
-      if (n.data > i.ultima) i.ultima = n.data
-    }
-    return Object.values(info).sort((a, b) =>
-      b.problemi - a.problemi || b.ultima.localeCompare(a.ultima) || a.nome.localeCompare(b.nome, 'it'))
+    if (elencoTenuto?.area === area && Date.now() - elencoTenuto.ora < 180000) return elencoTenuto.dati
+    const nuovi = await leggiAziende(area)
+    elencoTenuto = { area, dati: nuovi, ora: Date.now() }
+    return nuovi
   }, [area])
 
   const testo = cerca.trim().toLowerCase()
@@ -148,9 +160,9 @@ export function Azienda({ id, cantiere: cantiereIniziale }) {
     return { a, filiali, note, cantieri, persone }
   }, [id])
 
-  // Una scheda unita a un'altra porta a quella giusta.
+  // Una scheda unita a un'altra porta a quella giusta (al posto suo: "indietro" non ci ritorna).
   const unita = dati?.a.unito_in
-  useEffect(() => { if (unita) vai(`/azienda/${unita}`) }, [unita, vai])
+  useEffect(() => { if (unita) location.replace(`#/azienda/${unita}`) }, [unita])
 
   if (!dati) {
     return <div className="schermata"><Indietro titolo="Azienda" /><Stato carica={carica} errore={errore} /></div>
@@ -208,6 +220,10 @@ export function Azienda({ id, cantiere: cantiereIniziale }) {
       <Indietro titolo={a.nome} />
       {a.ragione_sociale && a.ragione_sociale !== a.nome && <p className="nota-piccola">{a.ragione_sociale}</p>}
       {a.gruppo && <p className="nota-piccola">Filiale del gruppo <a href={`#/azienda/${a.gruppo.id}`}>{a.gruppo.nome}</a></p>}
+
+      <div className="contatti-persona">
+        <button type="button" className="tasto-piccolo" onClick={() => vai(`/aggiungi?azienda=${sede || a.id}`)}>+ Nota</button>
+      </div>
 
       {persone.length > 0 && (
         <div className="chips persone">
@@ -354,11 +370,14 @@ const linkMail = (n) => (n.area === 'G'
   ? (n.message_id ? `#/mail/${encodeURIComponent(n.message_id)}` : null)
   : (n.thread_id ? GMAIL + n.thread_id : null))
 
+// Tocco sulla nota: si apre (persone, promemoria, foto). I link dentro (persona, mail) restano i loro.
 function NotaCliente({ n, conSezione, sede, cantiere }) {
   const meta = sede || cantiere || n.contatto || conSezione
   const mail = linkMail(n)
+  const apri = (e) => { if (!e.target.closest('a')) location.hash = `/nota/${n.id}` }
   return (
-    <div className={'nota-cliente' + (n.risolto_il ? ' risolta' : '')}>
+    <div className={'nota-cliente apribile' + (n.risolto_il ? ' risolta' : '')} onClick={apri} role="link" tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter') apri(e) }}>
       <span className="data-breve">{dataBreve(n.data)}</span>
       <div className="nota-corpo">
         <p className="nota-testo">

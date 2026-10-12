@@ -4,7 +4,7 @@ import { useApp, useCarica, chk, messaggioErrore, NotaRiga, Stato, Indietro, Ico
 const CAMPI_NOTA = 'id,area,testo,fonte,creata_il,note_persone(persone(id,nome,cognome)),allegati(id)'
 
 // Il cassetto "Dentro": tutto quello che non sta nei 3 tasti.
-export function Dentro({ inbox }) {
+export function Dentro({ inbox, bozze, domande }) {
   async function esci() {
     scrivi('impronta-rimandata', '')
     await sb.auth.signOut()
@@ -13,12 +13,12 @@ export function Dentro({ inbox }) {
     <div className="schermata">
       <h1>Dentro</h1>
       <div className="elenco">
-        <Voce href="#/inbox" titolo="Inbox" dettaglio={inbox ? `${inbox} da smistare` : 'vuota'} />
+        <Voce href="#/inbox" titolo="Inbox" dettaglio={inbox ? `${inbox} da smistare` : 'vuota'} numero={inbox} />
         <Voce href="#/aziende" titolo="Aziende" dettaglio="Schede clienti con le note" />
-        <Voce href="#/bozze" titolo="Bozze G&C" dettaglio="Risposte da approvare per info@" />
+        <Voce href="#/bozze" titolo="Bozze G&C" dettaglio="Risposte da approvare per info@" numero={bozze} />
         <Voce href="#/persone" titolo="Persone" dettaglio="Schede persona: chi è, cosa chiedere, note e contatti" />
         <Voce href="#/gemelli" titolo="Gemelli" dettaglio="Leo e Jolie: settimana, feste dei compagni, diario" />
-        <Voce href="#/domande" titolo="Domande per te" dettaglio="I dubbi degli agenti" />
+        <Voce href="#/domande" titolo="Domande per te" dettaglio="I dubbi degli agenti" numero={domande} />
         <Voce href="#/whatsapp" titolo="WhatsApp" dettaglio="Chat del numero Business" />
         <Voce href="#/note" titolo="Tutte le note" />
         <Voce href="#/cestino" titolo="Cestino" dettaglio="30 giorni" />
@@ -28,13 +28,14 @@ export function Dentro({ inbox }) {
   )
 }
 
-function Voce({ href, titolo, dettaglio }) {
+function Voce({ href, titolo, dettaglio, numero }) {
   return (
     <a className="riga voce" href={href}>
       <span className="riga-corpo">
         <span className="riga-testo">{titolo}</span>
         {dettaglio && <span className="riga-meta">{dettaglio}</span>}
       </span>
+      {numero > 0 && <span className="numero-voce">{numero}</span>}
       <Icona nome="freccia" size={18} />
     </a>
   )

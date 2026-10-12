@@ -33,10 +33,11 @@ export function Visita({ id }) {
   const [salvo, setSalvo] = useState(false)
   const [salvataIl, setSalvataIl] = useState(null)
   const scattaRif = useRef(null)
+  const notaFatta = useRef(null)
 
   const { dati: e, errore, carica, ricarica } = useCarica(async () => {
     const ev = chk(await sb.from('eventi')
-      .select('id,titolo,inizio,fine,luogo,area,azienda_id,aziende(id,nome),persone(id,nome,cognome)').eq('id', id).single())
+      .select('id,titolo,inizio,fine,luogo,area,azienda_id,nota_id,fatto_il,aziende(id,nome),persone(id,nome,cognome)').eq('id', id).single())
     // Senza ditta: cerco quelle che hanno nel nome una parola del titolo ("2cm somazzi" → Somazzi…).
     let candidate = []
     if (!ev.aziende) {
@@ -82,22 +83,30 @@ export function Visita({ id }) {
     if (!pulito && !foto.length) return avvisa('Scrivi qualcosa o aggiungi una foto')
     setSalvo(true)
     try {
-      const giorno = new Date(e.inizio)
-      const intestazione = `Appunti visita «${e.titolo}» del ${giorno.toLocaleDateString('it-CH')}`
-      const nota = chk(await sb.from('note').insert({
-        testo: pulito ? `${intestazione}:\n${pulito}` : intestazione,
-        area: e.area || null, azienda_id: e.aziende?.id || null,
-        data: giorno.toLocaleDateString('sv-SE', { timeZone: 'Europe/Zurich' }),
-        fonte: !pulito ? 'foto' : dettata ? 'voce' : 'scritta',
-      }).select('id').single())
-      if (e.persone) await collegaPersone(nota.id, e.area || null, [e.persone])
-      for (const f of foto) await caricaFoto(utente.id, nota.id, f.file)
+      // Nota già creata a un tentativo prima (foto non partita): non la rifaccio.
+      let nota = notaFatta.current
+      if (!nota) {
+        const giorno = new Date(e.inizio)
+        const intestazione = `Appunti visita «${e.titolo}» del ${giorno.toLocaleDateString('it-CH')}`
+        nota = chk(await sb.from('note').insert({
+          testo: pulito ? `${intestazione}:\n${pulito}` : intestazione,
+          area: e.area || null, azienda_id: e.aziende?.id || null,
+          data: giorno.toLocaleDateString('sv-SE', { timeZone: 'Europe/Zurich' }),
+          fonte: !pulito ? 'foto' : dettata ? 'voce' : 'scritta',
+        }).select('id').single())
+        notaFatta.current = nota
+        if (e.persone) await collegaPersone(nota.id, e.area || null, [e.persone])
+      }
+      for (const f of foto) {
+        await caricaFoto(utente.id, nota.id, f.file)
+        setFoto((x) => x.filter((y) => y !== f))
+      }
       chk(await sb.from('eventi').update({ fatto_il: new Date().toISOString(), nota_id: nota.id }).eq('id', id))
       scrivi(chiave(id), '')
       avvisa('Visita salvata: l\'agente la mette nella scheda')
       vai('/oggi')
     } catch (err) {
-      avvisa(messaggioErrore(err))
+      avvisa(notaFatta.current ? `Appunti salvati, ma una foto non è partita: tocca Fine visita per riprovare. (${messaggioErrore(err)})` : messaggioErrore(err))
       setSalvo(false)
     }
   }
@@ -116,6 +125,11 @@ export function Visita({ id }) {
               {e.aziende && <a className="tasto-piccolo" href={`#/azienda/${e.aziende.id}`}>Scheda {e.aziende.nome}</a>}
               {e.persone && <a className="tasto-piccolo" href={`#/persona/${e.persone.id}`}>{[e.persone.nome, e.persone.cognome].filter(Boolean).join(' ')}</a>}
             </div>
+            {e.nota_id && (
+              <p className="nota-piccola">
+                Appunti già salvati: <a className="link-persona" href={`#/nota/${e.nota_id}`}>apri la nota</a>. Se scrivi ancora, diventa una nota in più.
+              </p>
+            )}
             {!e.aziende && e.candidate.length > 0 && (
               <div className="campo">
                 <span>Quale ditta?</span>

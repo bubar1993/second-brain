@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { sb, areaDa } from './supabase'
+import { sb, areaDa, leggi, scrivi } from './supabase'
 import {
   useApp, chk, messaggioErrore, SceltaArea, SceltaPersone, Icona,
   useDettatura, caricaFoto, collegaPersone,
@@ -9,42 +9,55 @@ const GIORNI = ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 've
 
 // "Ricordami oggi alle 19:30", "ricordamelo domani alle 9", "ricordami venerdì alle 10.15":
 // se la nota lo dice, il promemoria si crea subito (senza aspettare l'agente).
+// Solo "alle": "al 15 ottobre" o "fino al 12" sono date, non ore (quelle le capisce l'agente).
+// Giorno detto senza ora ("ricordami domani"): alle 8.
 export function quandoRicordare(testo, adesso = new Date()) {
   const t = testo.toLowerCase()
   if (!/ricord/.test(t)) return null
-  const ora = t.match(/\balle?\s+(\d{1,2})(?:[:.](\d{2}))?\b/)
-  if (!ora) return null
-  const h = Number(ora[1])
-  const m = Number(ora[2] || 0)
+  const ora = t.match(/\balle\s+(\d{1,2})(?:[:.](\d{2}))?\b/)
+  const g = GIORNI.findIndex((x) => new RegExp(`\\b${x}|\\b${x.replace('ì', 'i')}\\b`).test(t))
+  const giorno = /dopodomani/.test(t) ? 2 : /domani/.test(t) ? 1 : null
+  if (!ora && (giorno === null && g < 0)) return null
+  // Senza ora serve proprio "ricordami/ricordamelo" ("mi ricordo che lunedì…" non è un promemoria).
+  if (!ora && !/ricorda(mi|melo|rmi|rmelo)\b/.test(t)) return null
+  const h = ora ? Number(ora[1]) : 8
+  const m = ora ? Number(ora[2] || 0) : 0
   if (h > 23 || m > 59) return null
   const d = new Date(adesso)
   d.setSeconds(0, 0)
   let salto = 1 // "alle 9" detto la sera senza giorno: domani
-  if (/dopodomani/.test(t)) d.setDate(d.getDate() + 2)
-  else if (/domani/.test(t)) d.setDate(d.getDate() + 1)
-  else {
-    const g = GIORNI.findIndex((x) => t.includes(x) || t.includes(x.replace('ì', 'i')))
-    if (g >= 0) { d.setDate(d.getDate() + ((g - d.getDay() + 7) % 7)); salto = 7 }
-  }
+  if (giorno !== null) d.setDate(d.getDate() + giorno)
+  else if (g >= 0) { d.setDate(d.getDate() + ((g - d.getDay() + 7) % 7)); salto = 7 }
   d.setHours(h, m)
   if (d < adesso) d.setDate(d.getDate() + salto)
   return d
 }
 
+// Il testo che stai scrivendo resta sul telefono finché non salvi (anche se Android chiude l'app).
+const chiaveBozza = (personaId, aziendaId) => `aggiungi:${personaId || ''}:${aziendaId || ''}`
+function bozzaSalvata(k) {
+  try { return JSON.parse(leggi(k) || 'null') } catch { return null }
+}
+
 // Aggiungi: scrivi, parla o foto. Senza area la nota va nell'Inbox.
-export default function Aggiungi({ usaCondiviso, personaId, chiamata }) {
+export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata }) {
   const { area, avvisa, utente } = useApp()
   const [condiviso] = useState(() => usaCondiviso())
-  const [testo, setTesto] = useState(condiviso?.testo || '')
-  const [areaNota, setAreaNota] = useState(area === 'T' ? null : area)
-  const [persone, setPersone] = useState([])
+  const chiave = chiaveBozza(personaId, aziendaId)
+  const [ripresa] = useState(() => (condiviso ? null : bozzaSalvata(chiave)))
+  const [testo, setTesto] = useState(condiviso?.testo || ripresa?.testo || '')
+  const [areaNota, setAreaNota] = useState(ripresa ? ripresa.area : area === 'T' ? null : area)
+  const [persone, setPersone] = useState(ripresa?.persone || [])
+  const [ditta, setDitta] = useState(null)
   const [foto, setFoto] = useState([])
-  const [ricorda, setRicorda] = useState('')
-  const [conPromemoria, setConPromemoria] = useState(false)
-  const [fonte, setFonte] = useState(condiviso ? 'condivisa' : 'scritta')
+  const [ricorda, setRicorda] = useState(ripresa?.ricorda || '')
+  const [conPromemoria, setConPromemoria] = useState(!!ripresa?.conPromemoria)
+  const [fonte, setFonte] = useState(condiviso ? 'condivisa' : ripresa?.fonte || 'scritta')
   const [salvo, setSalvo] = useState(false)
   const scattaRif = useRef(null)
   const testoRif = useRef(null)
+  // Nota già creata ma foto non tutte caricate: "Salva" riprova solo le foto (niente note doppie).
+  const notaFatta = useRef(null)
 
   const dettatura = useDettatura((t) => {
     setTesto((x) => (x.trim() ? x.trimEnd() + ' ' : '') + t)
@@ -57,10 +70,30 @@ export default function Aggiungi({ usaCondiviso, personaId, chiamata }) {
     sb.from('persone').select('id,nome,cognome').eq('id', personaId).single()
       .then(({ data }) => {
         if (!data) return
-        setPersone([data])
+        setPersone((p) => (p.some((x) => x.id === data.id) ? p : [data, ...p]))
         if (chiamata) setTesto((t) => t || `Telefonata con ${[data.nome, data.cognome].filter(Boolean).join(' ')}: `)
       })
   }, [personaId, chiamata])
+
+  // Arrivo dalla scheda di un'azienda: la nota va in quella scheda (e nella sua area).
+  useEffect(() => {
+    if (!aziendaId) return
+    sb.from('aziende').select('id,nome,area').eq('id', aziendaId).single()
+      .then(({ data }) => {
+        if (!data) return
+        setDitta(data)
+        if (!ripresa) setAreaNota(data.area)
+      })
+  }, [aziendaId, ripresa])
+
+  // Salvo sul telefono mentre scrivi (le foto no: si scelgono di nuovo).
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (testo.trim()) scrivi(chiave, JSON.stringify({ testo, area: areaNota, persone, ricorda, conPromemoria, fonte }))
+      else scrivi(chiave, '')
+    }, 600)
+    return () => clearTimeout(t)
+  }, [chiave, testo, areaNota, persone, ricorda, conPromemoria, fonte])
 
   // Libera le anteprime quando si esce dalla schermata.
   const fotoRif = useRef(foto)
@@ -80,6 +113,8 @@ export default function Aggiungi({ usaCondiviso, personaId, chiamata }) {
     setRicorda('')
     setConPromemoria(false)
     setFonte('scritta')
+    notaFatta.current = null
+    scrivi(chiave, '')
     testoRif.current?.focus()
   }
 
@@ -89,24 +124,34 @@ export default function Aggiungi({ usaCondiviso, personaId, chiamata }) {
     if (conPromemoria && !ricorda) return avvisa('Scegli quando ricordartelo')
     setSalvo(true)
     try {
-      const nota = chk(await sb.from('note')
-        .insert({ testo: pulito, area: areaNota, fonte: !pulito && foto.length ? 'foto' : fonte })
-        .select('id').single())
-      await collegaPersone(nota.id, areaNota, persone)
-      for (const f of foto) await caricaFoto(utente.id, nota.id, f.file)
-      // Promemoria scelto col tasto, oppure detto nella nota ("ricordami alle 19:30").
+      let nota = notaFatta.current
       const detto = !conPromemoria ? quandoRicordare(pulito) : null
-      if (conPromemoria || detto) {
-        chk(await sb.from('promemoria').insert({
-          testo: pulito || 'Foto', area: areaNota, nota_id: nota.id,
-          scade_il: (detto || new Date(ricorda)).toISOString(),
-        }))
+      // Nella scheda della ditta solo se la nota resta nella sua area (mai cose private nelle schede clienti).
+      const inScheda = ditta && ditta.area === areaNota ? ditta : null
+      if (!nota) {
+        nota = chk(await sb.from('note')
+          .insert({ testo: pulito, area: areaNota, azienda_id: inScheda?.id || null, fonte: !pulito && foto.length ? 'foto' : fonte })
+          .select('id').single())
+        notaFatta.current = nota
+        await collegaPersone(nota.id, areaNota, persone)
+        // Promemoria scelto col tasto, oppure detto nella nota ("ricordami alle 19:30").
+        if (conPromemoria || detto) {
+          chk(await sb.from('promemoria').insert({
+            testo: pulito || 'Foto', area: areaNota, nota_id: nota.id,
+            scade_il: (detto || new Date(ricorda)).toISOString(),
+          }))
+        }
       }
-      const dove = areaNota ? `Salvata in ${areaDa(areaNota).nome}` : 'Salvata nell\'Inbox'
+      // Ogni foto caricata esce dall'elenco: se una non va, "Salva" riprova solo quelle rimaste.
+      for (const f of foto) {
+        await caricaFoto(utente.id, nota.id, f.file)
+        setFoto((x) => x.filter((y) => y !== f))
+      }
+      const dove = inScheda ? `Salvata nella scheda ${inScheda.nome}` : areaNota ? `Salvata in ${areaDa(areaNota).nome}` : 'Salvata nell\'Inbox'
       avvisa(detto ? `${dove}. Te lo ricordo ${detto.toLocaleDateString('it-CH', { weekday: 'long' })} alle ${detto.toLocaleTimeString('it-CH', { hour: '2-digit', minute: '2-digit' })}` : dove)
       svuota()
     } catch (e) {
-      avvisa(messaggioErrore(e))
+      avvisa(notaFatta.current ? `Nota salvata, ma una foto non è partita: tocca Salva per riprovare. (${messaggioErrore(e)})` : messaggioErrore(e))
     } finally {
       setSalvo(false)
     }
@@ -116,6 +161,12 @@ export default function Aggiungi({ usaCondiviso, personaId, chiamata }) {
     <div className="schermata aggiungi-schermata">
       <textarea ref={testoRif} value={testo} onChange={(e) => setTesto(e.target.value)}
         placeholder="Cosa vuoi ricordare?" rows={5} autoFocus={!condiviso} />
+      {ripresa?.testo && testo === ripresa.testo && (
+        <p className="nota-piccola">
+          Ho ripreso il testo che stavi scrivendo.{' '}
+          <button type="button" className="tasto-link" onClick={svuota}>Ricomincia da zero</button>
+        </p>
+      )}
 
       <div className="strumenti">
         {dettatura.supportata && (
@@ -156,6 +207,21 @@ export default function Aggiungi({ usaCondiviso, personaId, chiamata }) {
           Quando
           <input type="datetime-local" value={ricorda} onChange={(e) => setRicorda(e.target.value)} />
         </label>
+      )}
+
+      {ditta && (
+        <div className="campo">
+          <span>Nella scheda</span>
+          <div className="chips">
+            <span className="chip attivo">
+              <a href={`#/azienda/${ditta.id}`}>{ditta.nome}</a>
+              <button type="button" aria-label={`Non nella scheda ${ditta.nome}`} onClick={() => setDitta(null)}>
+                <Icona nome="x" size={14} />
+              </button>
+            </span>
+          </div>
+          {ditta.area !== areaNota && <span className="nota-piccola">Con un'altra area la nota non va nella scheda.</span>}
+        </div>
       )}
 
       <div className="campo">

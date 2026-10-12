@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { sb, areaDa, nomePersona, quando, CAMPI_PERSONA, etichettePersona } from './supabase'
-import { useApp, chk, messaggioErrore, Icona, EtichettePersona } from './componenti'
+import { useApp, chk, messaggioErrore, Icona, EtichettePersona, tenutoQui, tieniQui } from './componenti'
 import { iniziali, battesimo } from './Aziende'
 
 const pulisci = (s) => s.replace(/[,()%*\\.:]/g, '')
@@ -16,11 +16,16 @@ function Evidenzia({ testo }) {
     ? <mark key={i}>{p.slice(1, -1)}</mark> : p))
 }
 
+// Tornando da una scheda ritrovi domanda e risultati; toccando Chiedi riparti da zero.
+const tieniRicerca = (domanda, risultati) => tieniQui('chiedi', { domanda, risultati })
+
 // Chiedi (fase 4, gratis): clienti e cantieri mentre scrivi; con Invio cerca per parole simili ovunque.
 export default function Chiedi() {
   const { area } = useApp()
-  const [domanda, setDomanda] = useState('')
-  const [risultati, setRisultati] = useState(null)
+  const [tenuta] = useState(() => tenutoQui('chiedi'))
+  const [domanda, setDomandaStato] = useState(tenuta?.domanda || '')
+  const [risultati, setRisultati] = useState(tenuta?.risultati || null)
+  const setDomanda = (d) => { setDomandaStato(d); tieniRicerca(d, risultati) }
   const [msg, setMsg] = useState('')
   const [lavoro, setLavoro] = useState(false)
 
@@ -67,8 +72,8 @@ export default function Chiedi() {
       let pers = chk(persone)
       // Prima chi ha più parole della domanda nel nome.
       const conta = (p) => parole.filter((w) => nomePersona(p).toLowerCase().split(/\s+/).some((x) => x.startsWith(w.toLowerCase()))).length
-      pers = pers.map((p) => ({ ...p, n: conta(p) })).sort((a, b) => b.n - a.n).filter((p, _, t) => p.n === t[0].n).slice(0, 6)
       if (area !== 'T') pers = pers.filter((p) => etichettePersona(p).some((x) => x.area.codice === area))
+      pers = pers.map((p) => ({ ...p, n: conta(p) })).sort((a, b) => b.n - a.n).filter((p, _, t) => p.n === t[0].n).slice(0, 6)
       // Le mail citate più volte nella stessa conversazione: una sola.
       const visti = new Set()
       const cose = chk(trovati).filter((r) => {
@@ -78,6 +83,7 @@ export default function Chiedi() {
         return true
       })
       setRisultati({ cose, persone: pers })
+      tieniRicerca(domanda, { cose, persone: pers })
     } catch (e) {
       setMsg(messaggioErrore(e))
     } finally {
@@ -91,7 +97,7 @@ export default function Chiedi() {
     <div className="schermata">
       <form className="cerca" onSubmit={cerca}>
         <input type="search" value={domanda} onChange={(e) => setDomanda(e.target.value)}
-          placeholder="Cerca clienti, cantieri, note e persone" enterKeyHint="search" autoFocus />
+          placeholder="Cerca clienti, cantieri, note e persone" enterKeyHint="search" autoFocus={!tenuta?.domanda} />
         <button type="submit" className="tasto-pieno" disabled={lavoro} aria-label="Cerca">
           <Icona nome="cerca" />
         </button>

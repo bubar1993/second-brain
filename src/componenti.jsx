@@ -15,6 +15,38 @@ export function messaggioErrore(e) {
   return e?.message || 'Qualcosa non ha funzionato.'
 }
 
+// Schermate con modifiche non ancora salvate: tornando nell'app non si ricaricano (App.jsx).
+const modifiche = new Set()
+export const haModifiche = () => modifiche.size > 0
+export function useModifiche(attive) {
+  useEffect(() => {
+    if (!attive) return
+    const k = {}
+    modifiche.add(k)
+    return () => { modifiche.delete(k) }
+  }, [attive])
+}
+
+// Cose da ritrovare tornando indietro su questa pagina (ricerca, risultati). Una pagina nuova parte vuota:
+// ogni pagina della cronologia ha il suo segno (App.jsx).
+export function tenutoQui(nome) {
+  try {
+    const t = JSON.parse(sessionStorage.getItem(`qui:${nome}`) || 'null')
+    return t?.k && t.k === history.state?.k ? t.valore : null
+  } catch { return null }
+}
+export function tieniQui(nome, valore) {
+  try { sessionStorage.setItem(`qui:${nome}`, JSON.stringify({ k: history.state?.k, valore })) } catch { /* niente */ }
+}
+
+// Data e ora per un campo datetime-local ("2026-10-12T08:00"), nell'ora del telefono.
+export function perCampo(d) {
+  if (!d) return ''
+  const x = new Date(d)
+  const due = (n) => String(n).padStart(2, '0')
+  return `${x.getFullYear()}-${due(x.getMonth() + 1)}-${due(x.getDate())}T${due(x.getHours())}:${due(x.getMinutes())}`
+}
+
 // Carica dati per una schermata; ricarica() li rilegge.
 export function useCarica(fn, deps) {
   const [stato, setStato] = useState({ dati: null, errore: null, carica: true })

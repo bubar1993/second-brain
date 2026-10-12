@@ -12,7 +12,7 @@ if (-not (Test-Path (Join-Path $venv 'Scripts\python.exe'))) {
   New-Item -ItemType Directory -Force $cartella | Out-Null
   py -3.12 -m venv $venv
   & (Join-Path $venv 'Scripts\python.exe') -m pip install --upgrade pip -q
-  & (Join-Path $venv 'Scripts\python.exe') -m pip install faster-whisper nvidia-cublas-cu12 'nvidia-cudnn-cu12==9.*' -q
+  & (Join-Path $venv 'Scripts\python.exe') -m pip install faster-whisper nvidia-cublas-cu12 'nvidia-cudnn-cu12==9.*' 'av<16' -q  # av 16+ non va con faster-whisper 1.2
 }
 
 $azione = New-ScheduledTaskAction -Execute (Join-Path $venv 'Scripts\pythonw.exe') -Argument "`"$script`"" -WorkingDirectory $cartella

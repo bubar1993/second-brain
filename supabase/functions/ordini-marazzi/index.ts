@@ -14,6 +14,8 @@ const CERCA = 'from:marazzigroup.com has:attachment filename:pdf newer_than:3d'
 const PAROLE = /(ordine|order|auftrag|bestellung|commande|conferm|confirm|bestätigung)/i
 const INOLTRO = /^\s*(i|r|re|aw|wg|tr|fw|fwd|rif)\s*:/i
 const NUMERO = /\b20\d{9}\b/g
+// Si parte dal 12.10.2026 (scelta di Giovanni: niente conferme più vecchie).
+const DAL = Date.parse('2026-10-11T22:00:00Z')
 
 const sbHeaders = { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json' }
 async function rest(percorso: string, init: RequestInit = {}) {
@@ -73,7 +75,7 @@ async function leggi() {
       const p = m.payload as Parte
       const oggetto = intestazione(p, 'Subject')
       const numeri = [...new Set(oggetto.match(NUMERO) || [])]
-      if (INOLTRO.test(oggetto) || !numeri.length || !PAROLE.test(oggetto)) continue
+      if (Number(m.internalDate) < DAL || INOLTRO.test(oggetto) || !numeri.length || !PAROLE.test(oggetto)) continue
       const pdf = pdfDi(p)
       let testo = ''
       for (const a of pdf) {

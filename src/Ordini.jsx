@@ -6,21 +6,32 @@ import { useCarica, chk, Stato, Indietro } from './componenti'
 // restano solo nella scheda del cliente (sezione ordini).
 
 const GMAIL_WEB = 'https://mail.google.com/mail/?authuser=giovannifabris%40ceramex.ch#all/'
+
+// Inizio dei "2 giorni lavorativi" (scelta di Giovanni): oggi e il giorno lavorativo prima.
+// Il lunedì si vedono ancora gli ordini del venerdì; sabato e domenica non contano.
+function inizioDueGiorniLavorativi(oggi = new Date()) {
+  const d = new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate())
+  const lavorativo = (x) => x.getDay() !== 0 && x.getDay() !== 6
+  if (!lavorativo(d)) while (!lavorativo(d)) d.setDate(d.getDate() - 1) // nel weekend: da venerdì
+  d.setDate(d.getDate() - 1)
+  while (!lavorativo(d)) d.setDate(d.getDate() - 1)
+  return d
+}
 const DISPONIBILE = { si: ['disponibile', 'verde'], in_parte: ['disponibile in parte', 'giallo'], no: ['non ancora disponibile', 'rosso'] }
 
 export function Ordini() {
   const { dati, errore, carica } = useCarica(async () => chk(
     await sb.from('ordini_marazzi')
       .select('id,data,oggetto,numeri,riferimento,cliente,righe,riepilogo,disponibile,stato,errore,gmail_thread_id,aziende(id,nome)')
-      .gte('data', new Date(Date.now() - 2 * 86400000).toISOString())
+      .gte('data', inizioDueGiorniLavorativi().toISOString())
       .order('data', { ascending: false }),
   ), [])
 
   return (
     <div className="schermata">
       <Indietro titolo="Ordini Marazzi" />
-      <p className="nota-piccola">Le conferme d'ordine degli ultimi 2 giorni. Le più vecchie restano nella scheda del cliente, sezione Ordini.</p>
-      <Stato carica={carica} errore={errore} vuoto={dati?.length === 0 ? 'Nessuna conferma d\'ordine negli ultimi 2 giorni.' : null}>
+      <p className="nota-piccola">Le conferme d'ordine di oggi e del giorno lavorativo prima. Le più vecchie restano nella scheda del cliente, sezione Ordini.</p>
+      <Stato carica={carica} errore={errore} vuoto={dati?.length === 0 ? 'Nessuna conferma d\'ordine negli ultimi 2 giorni lavorativi.' : null}>
         {dati && (
           <div className="ordini">
             {dati.map((o) => {

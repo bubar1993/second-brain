@@ -17,7 +17,7 @@ function giorniAlCompleanno(iso) {
   return Math.round((d - oggi) / 86400000)
 }
 
-export default function Oggi({ inbox, bozze, domande, risposte, riordino }) {
+export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguire }) {
   const { area, avvisa, vai } = useApp()
   const scorri = useScorriAree()
   const rete = useRef(null)
@@ -227,6 +227,13 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino }) {
         {bozze > 0 && area !== 'P' && (
           <a className="scheda scheda-bozze" href="#/bozze">
             <span><strong>{bozze}</strong> {bozze === 1 ? 'bozza di risposta da approvare' : 'bozze di risposta da approvare'}</span>
+            <Icona nome="freccia" size={18} />
+          </a>
+        )}
+
+        {seguire > 0 && area !== 'P' && (
+          <a className="scheda scheda-domande" href="#/seguire">
+            <span><strong>{seguire}</strong> {seguire === 1 ? 'cosa da seguire' : 'cose da seguire'}: promesse scadute e problemi fermi</span>
             <Icona nome="freccia" size={18} />
           </a>
         )}

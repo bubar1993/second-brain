@@ -134,7 +134,7 @@ main {
   position: fixed; z-index: 10; left: 50%; transform: translateX(-50%);
   bottom: calc(14px + env(safe-area-inset-bottom));
   width: calc(100% - 32px); max-width: 480px; height: var(--tasti);
-  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+  display: grid; grid-template-columns: 1fr 1fr auto 1fr 1fr; align-items: center;
   border-radius: 26px; background: var(--vetro-forte); border: 1px solid var(--bordo);
   backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
@@ -660,3 +660,21 @@ mark { background: rgba(255, 214, 102, 0.22); color: var(--testo); border-radius
 .riassunto-giorno { padding: 12px 16px; border-radius: var(--raggio); background: rgba(91, 147, 255, 0.07); border: 1px solid rgba(91, 147, 255, 0.2); }
 .riassunto-giorno h3 { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: var(--tenue); font-family: var(--sans); font-style: normal; }
 .riassunto-giorno p { margin: 0; white-space: pre-line; }
+
+/* Tasti in basso: Oggi, Dentro, +, Chiedi e un posto libero per dopo (13.10.2026). */
+.tasti .icona-badge { position: relative; display: grid; place-items: center; }
+.tasti .icona-badge .badge { top: -6px; right: -12px; min-width: 18px; height: 18px; font-size: 11px; }
+.tasti a.tasto-sotto-dentro.attivo { color: var(--testo); }
+.tasto-libero { height: 100%; }
+
+/* ---------- Da seguire e Circolari (13.10.2026) ---------- */
+.riga-fermo { flex-wrap: wrap; }
+.riga-fermo .riga-corpo { flex: 1 1 220px; }
+.azioni-fermo { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.azioni-fermo .tasto-link { padding: 8px; font-size: 14px; }
+.gruppo-circolari { display: flex; flex-direction: column; gap: 8px; }
+.gruppo-circolari h2 { color: var(--c); }
+.circolare p { line-height: 1.45; }
+.circolare.nuova { border-color: color-mix(in srgb, var(--blu) 45%, var(--bordo)); }
+.circolare.nuova .ordine-cliente::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--blu); margin-right: 8px; vertical-align: middle; }
+.circolare.importante { border-left: 3px solid var(--giallo); }

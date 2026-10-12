@@ -79,7 +79,7 @@ export function useCarica(fn, deps) {
 }
 
 // Scorrendo col dito a sinistra/destra si cambia area (Ceramex ↔ G&C ↔ Privato), comodo con una mano
-// (scelta di Giovanni, 12.10.2026: in Dentro e in Oggi sotto la rete). Da "Tutte": a sinistra Ceramex, a destra Privato.
+// (scelta di Giovanni, 12.10.2026: in Dentro e in Oggi sotto la rete). Dito verso sinistra = area dopo, verso destra = area prima.
 // Uso: <div {...useScorriAree()}>. Non scatta partendo da campi di testo o da righe che scorrono di lato.
 export function useScorriAree() {
   const { area, setArea } = useApp()
@@ -97,11 +97,10 @@ export function useScorriAree() {
     const dx = e.changedTouches[0].clientX - t.x
     const dy = e.changedTouches[0].clientY - t.y
     if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return
-    const codici = AREE.map((a) => a.codice)
+    // Stesso ordine dell'interruttore in alto: Tutte ↔ Ceramex ↔ G&C ↔ Privato (13.10.2026: si torna anche a Tutte).
+    const codici = ['T', ...AREE.map((a) => a.codice)]
     const i = codici.indexOf(area)
-    const nuova = dx < 0
-      ? (i === -1 ? codici[0] : codici[i + 1])
-      : (i === -1 ? codici[codici.length - 1] : codici[i - 1])
+    const nuova = codici[dx < 0 ? i + 1 : i - 1]
     if (!nuova) return
     setArea(nuova)
     // Il contenuto entra dal lato verso cui vai.
@@ -151,6 +150,8 @@ const PERCORSI = {
   agenti: 'M12 3v3M8 3h8M5 7h14v12H5zM9.5 12v.01M14.5 12v.01M9 16h6M2 12v3M22 12v3',
   ordini: 'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10',
   riordino: 'M3 6h6l2 2h10v11H3zM3 11h18M12 13v4M10 15l2 2 2-2',
+  seguire: 'M5 4h14v17l-7-4-7 4zM9 9l2 2 4-4',
+  circolari: 'M4 10v4h3l6 4V6L7 10zM16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11',
 }
 
 export function Icona({ nome, size = 22 }) {

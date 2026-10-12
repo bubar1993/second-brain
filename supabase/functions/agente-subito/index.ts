@@ -21,6 +21,7 @@ const ROUTINE: Record<string, string> = {
   privato: 'trig_014BzqnSAWeuSq97vzQdwG15',
   archiviazione: 'trig_01Go1LUFLhtADpTeZs2GjY8s',
   smistatore: 'trig_01EmGQxMLKmQgRjYHJw77p9L',
+  seguire: 'trig_01DznF5caV1wjdxjt2bH1w2a',
 }
 
 const cors = {

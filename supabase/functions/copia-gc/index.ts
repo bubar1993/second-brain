@@ -71,8 +71,13 @@ async function copia() {
       email, domini: [...new Set([...(e?.domini || []), ...domini(c.email)])], creata_il: c.created_at }
   }))
 
+  // Schede doppie unite qui dall'agente "da seguire" (ok di Giovanni): cantieri e mail vanno sulla scheda tenuta.
+  const uniteQui = new Map(((await rest('aziende?select=id,unito_in&area=eq.G&unito_in=not.is.null')) as { id: string, unito_in: string }[])
+    .map((a) => [a.id, a.unito_in]))
+  const scheda = (id: string | null) => (id && uniteQui.get(id)) || id
+
   await upsert('cantieri', cantieri.map((s) => ({
-    id: s.id, utente_id: UTENTE, area: 'G', azienda_id: s.client_id, nome: s.name, stato: s.status,
+    id: s.id, utente_id: UTENTE, area: 'G', azienda_id: scheda(s.client_id), nome: s.name, stato: s.status,
     descrizione: s.notes || null, creata_il: s.created_at,
   })))
 
@@ -93,7 +98,7 @@ async function copia() {
       da: (indirizzi(m.from_addr)[0] || m.from_addr || '').toLowerCase(), da_nome: m.from_name,
       a: indirizzi(m.to_addrs), cc: indirizzi(m.cc_addrs), oggetto: m.subject, data: m.sent_at,
       testo: (m.body_text || '').slice(0, 60000), allegati: m.attachments || [],
-      azienda_id: m.client_id, cantiere_id: m.site_id, fornitore_id: idForn.has(m.supplier_id) ? m.supplier_id : null,
+      azienda_id: scheda(m.client_id), cantiere_id: m.site_id, fornitore_id: idForn.has(m.supplier_id) ? m.supplier_id : null,
       nota_gestionale: m.note, fonte: 'gestionale',
     }
   }).filter((r) => r.message_id)

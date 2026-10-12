@@ -9,9 +9,11 @@ const CAMPI_NOTA = 'id,area,testo,fonte,creata_il,note_persone(persone(id,nome,c
 export const VOCI_DENTRO = [
   { chiave: 'inbox', titolo: 'Inbox' },
   { chiave: 'aziende', titolo: 'Aziende', dettaglio: 'Schede clienti con le note', aree: ['C', 'G'] },
+  { chiave: 'seguire', titolo: 'Da seguire', dettaglio: 'Promesse, campioni in giro e problemi fermi', aree: ['C', 'G'] },
   { chiave: 'bozze', titolo: 'Bozze', aree: ['C', 'G'] },
   { chiave: 'riordino', titolo: 'Riordino casella', aree: ['C', 'G'] },
   { chiave: 'ordini', titolo: 'Ordini Marazzi', dettaglio: 'Conferme d\'ordine degli ultimi 2 giorni lavorativi: cosa, quanto, se è disponibile', aree: ['C'] },
+  { chiave: 'circolari', titolo: 'Circolari', aree: ['C', 'G'] },
   { chiave: 'persone', titolo: 'Persone', dettaglio: 'Schede persona: chi è, cosa chiedere, note e contatti', aree: ['P'] },
   { chiave: 'gemelli', titolo: 'Gemelli', dettaglio: 'Leo e Jolie: settimana, feste dei compagni, diario', aree: ['P'] },
   { chiave: 'domande', titolo: 'Domande per te', dettaglio: 'I dubbi degli agenti' },
@@ -23,18 +25,20 @@ export const VOCI_DENTRO = [
 export const voceVisibile = (v, area) => area === 'T' || !v.aree || v.aree.includes(area)
 
 const DETTAGLIO_BOZZE = { C: 'Risposte da approvare dalla tua Gmail', G: 'Risposte da approvare per info@', T: 'Risposte da approvare: Gmail (Ceramex) e info@ (G&C)' }
+const DETTAGLIO_CIRCOLARI = { C: 'Listini, aumenti e novità dei mandanti', G: 'Listini, aumenti e novità dei fornitori', T: 'Listini, aumenti e novità di mandanti e fornitori' }
 const DETTAGLIO_RIORDINO = { C: 'Mail della Gmail da mettere sotto la loro etichetta', G: 'Mail di info@ da spostare nelle cartelle di Hostpoint', T: 'Mail da spostare: Gmail (Ceramex) e info@ (G&C)' }
 
 // Il cassetto "Dentro": tutto quello che non sta nei 3 tasti. Scorrendo col dito si cambia area (useScorriAree).
-export function Dentro({ inbox, bozze, domande, risposte, riordino }) {
+export function Dentro({ inbox, bozze, domande, risposte, riordino, seguire, circolari }) {
   const { area } = useApp()
   const scorri = useScorriAree()
   async function esci() {
     scrivi('impronta-rimandata', '')
     await sb.auth.signOut()
   }
-  const numeri = { inbox, bozze, domande, agenti: risposte, riordino }
-  const dettagli = { inbox: inbox ? `${inbox} da smistare` : 'vuota', bozze: DETTAGLIO_BOZZE[area] || DETTAGLIO_BOZZE.T, riordino: DETTAGLIO_RIORDINO[area] || DETTAGLIO_RIORDINO.T }
+  const numeri = { inbox, bozze, domande, agenti: risposte, riordino, seguire, circolari }
+  const dettagli = { inbox: inbox ? `${inbox} da smistare` : 'vuota', bozze: DETTAGLIO_BOZZE[area] || DETTAGLIO_BOZZE.T, riordino: DETTAGLIO_RIORDINO[area] || DETTAGLIO_RIORDINO.T,
+    circolari: circolari ? ` ` : DETTAGLIO_CIRCOLARI[area] || DETTAGLIO_CIRCOLARI.T }
   return (
     <div className="schermata dentro" {...scorri}>
       <h1>Dentro</h1>

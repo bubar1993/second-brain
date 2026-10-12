@@ -69,11 +69,16 @@ async function copia() {
   }
   const [clienti, note, tutteIds, regole, viste, mailBozze, contatti] = dati
 
+  // Schede unite qui dall'agente "da seguire" (schede doppie, ok di Giovanni): restano unite e le loro note
+  // vanno nella scheda tenuta, anche se nel gestionale sono ancora due.
+  const uniteQui = new Map(((await rest('aziende?select=id,unito_in&area=eq.C&unito_in=not.is.null')) as { id: string, unito_in: string }[])
+    .map((a) => [a.id, a.unito_in]))
+
   // Schede: solo quelle cambiate nel gestionale (dal 12.10.2026 l'agente Ceramex aggiunge persone e indirizzi qui,
   // e una copia completa ogni 10 minuti le cancellerebbe). Tutte le schede servono comunque a copiaBozze.
   await upsert('aziende', clienti.filter((c) => c.id !== CERAMEX_GC && new Date(c.aggiornato_il) > new Date(da)).map((c) => ({
     id: c.id, utente_id: UTENTE, area: 'C', nome: c.nome, ragione_sociale: c.azienda,
-    email: c.email, domini: c.domini, contatti: c.persone, gruppo_id: c.gruppo_id, unito_in: c.unito_in,
+    email: c.email, domini: c.domini, contatti: c.persone, gruppo_id: c.gruppo_id, unito_in: uniteQui.get(c.id) ?? c.unito_in,
     creata_il: c.creato_il, modificata_il: c.aggiornato_il,
   })))
 
@@ -86,7 +91,7 @@ async function copia() {
   }
   await upsert('note', note.filter((n) => !inG.has(n.id)).map((n) => ({
     id: n.id, utente_id: UTENTE, area: n.cliente_id === CERAMEX_GC ? 'G' : 'C', testo: n.testo, fonte: n.fonte === 'mano' ? 'scritta' : n.fonte,
-    azienda_id: n.cliente_id === CERAMEX_GC ? PARCHEGGIO_G : n.cliente_id, mandante: n.mandante, sezione: n.sezione, data: n.data, contatto: n.persona,
+    azienda_id: n.cliente_id === CERAMEX_GC ? PARCHEGGIO_G : uniteQui.get(n.cliente_id) ?? n.cliente_id, mandante: n.mandante, sezione: n.sezione, data: n.data, contatto: n.persona,
     risolto_il: n.risolto_il, scartata_il: n.scartata_il, thread_id: n.thread_id, message_id: n.message_id,
     testo_agente: n.testo_agente, sezione_agente: n.sezione_agente, imparata: n.imparata,
     creata_il: n.creato_il, modificata_il: n.aggiornato_il, da_ceramex: true,

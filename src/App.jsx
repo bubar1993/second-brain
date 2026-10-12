@@ -18,6 +18,8 @@ import { ChatWhatsApp, ChatContatto, ModelliWhatsApp } from './WhatsApp'
 import { Agenti, Agente } from './Agenti'
 import { Ordini } from './Ordini'
 import { Riordino } from './Riordino'
+import { Seguire, contaDaSeguire } from './Seguire'
+import { Circolari, contaCircolari } from './Circolari'
 
 // Nell'interruttore in alto i loghi delle due ditte al posto di C e G (scelta di Giovanni, 12.10.2026); P resta P.
 const LOGHI = { C: '/logo-ceramex.svg', G: '/logo-gc.png' }
@@ -144,7 +146,12 @@ function Guscio({ utente, condiviso }) {
   const [domande, setDomande] = useState(0)
   const [risposte, setRisposte] = useState(0)
   const [riordino, setRiordino] = useState(0)
+  const [seguire, setSeguire] = useState(0)
+  const [circolari, setCircolari] = useState(0)
   useEffect(() => {
+    // Da seguire (promesse scadute + problemi fermi) e circolari non lette, solo Ceramex e G&C.
+    contaDaSeguire(area).then(setSeguire).catch(() => {})
+    contaCircolari(area).then(setCircolari).catch(() => {})
     // Mail con la cartella/etichetta proposta, da spostare: info@ (G&C) e Gmail (Ceramex), secondo l'area.
     if (area !== 'P') {
       let qr = sb.from('riordino_mail').select('id', { count: 'exact', head: true }).eq('stato', 'proposta').not('cartella_proposta', 'is', null)
@@ -194,8 +201,10 @@ function Guscio({ utente, condiviso }) {
     case 'aggiungi': schermata = <Aggiungi key={rotta.query.toString()} usaCondiviso={usaCondiviso} personaId={rotta.query.get('persona')}
       aziendaId={rotta.query.get('azienda')} chiamata={rotta.query.has('chiamata')} />; break
     case 'chiedi': schermata = <Chiedi />; break
-    case 'dentro': schermata = <Dentro inbox={inbox} bozze={bozze} domande={domande} risposte={risposte} riordino={riordino} />; break
+    case 'dentro': schermata = <Dentro inbox={inbox} bozze={bozze} domande={domande} risposte={risposte} riordino={riordino} seguire={seguire} circolari={circolari} />; break
     case 'riordino': schermata = <Riordino />; break
+    case 'seguire': schermata = <Seguire />; break
+    case 'circolari': schermata = <Circolari />; break
     case 'agenti': schermata = <Agenti />; break
     case 'ordini': schermata = <Ordini />; break
     case 'agente': schermata = <Agente key={secondo} codice={secondo} />; break
@@ -214,7 +223,7 @@ function Guscio({ utente, condiviso }) {
     case 'gemelli': schermata = <Gemelli />; break
     case 'visita': schermata = <Visita key={secondo} id={secondo} />; break
     case 'whatsapp': schermata = secondo === 'modelli' ? <ModelliWhatsApp /> : secondo ? <ChatContatto key={secondo} waId={secondo} /> : <ChatWhatsApp />; break
-    default: schermata = <Oggi inbox={inbox} bozze={bozze} domande={domande} risposte={risposte} riordino={riordino} />
+    default: schermata = <Oggi inbox={inbox} bozze={bozze} domande={domande} risposte={risposte} riordino={riordino} seguire={seguire} />
   }
   const tasto = ['oggi', 'aggiungi', 'chiedi'].includes(primo) ? primo : primo ? null : 'oggi'
   const sezioneLato = primo === 'azienda' ? 'aziende' : primo === 'persona' ? 'persone' : primo === 'bozza' ? 'bozze'
@@ -240,7 +249,7 @@ function Guscio({ utente, condiviso }) {
         <a href="#/aggiungi" className={'lato-aggiungi' + (sezioneLato === 'aggiungi' ? ' attivo' : '')}>
           <Icona nome="piu" size={20} /><span>Aggiungi</span>
         </a>
-        {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], null, ['aziende', 'Aziende'], ['bozze', 'Bozze'], ['riordino', 'Riordino casella'], ['ordini', 'Ordini Marazzi'], ['persone', 'Persone'], ['gemelli', 'Gemelli'], ['whatsapp', 'WhatsApp'],
+        {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], null, ['aziende', 'Aziende'], ['seguire', 'Da seguire'], ['bozze', 'Bozze'], ['riordino', 'Riordino casella'], ['ordini', 'Ordini Marazzi'], ['circolari', 'Circolari'], ['persone', 'Persone'], ['gemelli', 'Gemelli'], ['whatsapp', 'WhatsApp'],
           ['domande', 'Domande per te'], ['agenti', 'Agenti'], ['inbox', 'Inbox'], ['note', 'Tutte le note'], ['cestino', 'Cestino']]
           .filter((v) => !v || voceVisibile(VOCI_DENTRO.find((x) => x.chiave === v[0]) || {}, area)).map((v, i) => v ? (
           <a key={v[0]} href={`#/${v[0]}`} className={'lato-voce' + (sezioneLato === v[0] ? ' attivo' : '')}
@@ -251,6 +260,8 @@ function Guscio({ utente, condiviso }) {
             {v[0] === 'domande' && domande > 0 && <span className="lato-badge">{domande}</span>}
             {v[0] === 'agenti' && risposte > 0 && <span className="lato-badge">{risposte}</span>}
             {v[0] === 'riordino' && riordino > 0 && <span className="lato-badge">{riordino}</span>}
+            {v[0] === 'seguire' && seguire > 0 && <span className="lato-badge">{seguire}</span>}
+            {v[0] === 'circolari' && circolari > 0 && <span className="lato-badge">{circolari}</span>}
           </a>
         ) : <hr key={i} />)}
         <button type="button" className="lato-voce lato-esci" onClick={esci}><Icona nome="esci" size={20} /><span>Esci</span></button>
@@ -269,17 +280,6 @@ function Guscio({ utente, condiviso }) {
             </button>
           ))}
         </div>
-        {/* Ritoccato quando sei già in Dentro: torna dove eri (o a Oggi). */}
-        <a href="#/dentro" className={'tasto-dentro' + (primo === 'dentro' ? ' attivo' : '')} aria-label={primo === 'dentro' ? 'Chiudi Dentro' : 'Dentro'}
-          onClick={(e) => {
-            if (primo !== 'dentro') return
-            e.preventDefault()
-            if (passi.current > 0) history.back()
-            else vai('#/oggi')
-          }}>
-          <Icona nome="dentro" />
-          {inbox > 0 && <span className="badge">{inbox}</span>}
-        </a>
       </header>
 
       {/* Nuovo "giro" = la schermata si rimonta e rilegge i dati (Aggiungi no: perderesti il testo). */}
@@ -289,6 +289,17 @@ function Guscio({ utente, condiviso }) {
         <a href="#/oggi" className={tasto === 'oggi' ? 'attivo' : ''} onClick={inCima}>
           <Icona nome="oggi" /><span>Oggi</span>
         </a>
+        {/* Dentro accanto a Oggi (scelta di Giovanni, 13.10.2026). Ritoccato quando sei già in Dentro: torna dove eri (o a Oggi). */}
+        <a href="#/dentro" className={'tasto-sotto-dentro' + (primo === 'dentro' ? ' attivo' : '')} aria-label={primo === 'dentro' ? 'Chiudi Dentro' : 'Dentro'}
+          onClick={(e) => {
+            if (primo !== 'dentro') return
+            e.preventDefault()
+            if (passi.current > 0) history.back()
+            else vai('#/oggi')
+          }}>
+          <span className="icona-badge"><Icona nome="dentro" />{inbox > 0 && <span className="badge">{inbox}</span>}</span>
+          <span>Dentro</span>
+        </a>
         <a href="#/aggiungi" className={'aggiungi' + (tasto === 'aggiungi' ? ' attivo' : '')} aria-label="Aggiungi">
           <span className="alone" aria-hidden="true" />
           <span className="anello" aria-hidden="true" />
@@ -297,6 +308,8 @@ function Guscio({ utente, condiviso }) {
         <a href="#/chiedi" className={tasto === 'chiedi' ? 'attivo' : ''}>
           <Icona nome="cerca" /><span>Chiedi</span>
         </a>
+        {/* Posto libero: per un tasto che servirà più avanti. */}
+        <span className="tasto-libero" aria-hidden="true" />
       </nav>
 
       {avviso && (

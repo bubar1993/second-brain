@@ -12,6 +12,7 @@ import Nota from './Nota'
 import { Aziende, Azienda } from './Aziende'
 import { Bozze, Bozza, Mail } from './Bozze'
 import { Domande } from './Domande'
+import { Gemelli } from './Gemelli'
 import { ChatWhatsApp, ChatContatto, ModelliWhatsApp } from './WhatsApp'
 
 export default function App({ condiviso }) {
@@ -148,11 +149,19 @@ function Guscio({ utente, condiviso }) {
     case 'bozza': schermata = <Bozza key={secondo} id={secondo} />; break
     case 'mail': schermata = <Mail key={secondo} chiave={secondo} />; break
     case 'domande': schermata = <Domande />; break
+    case 'gemelli': schermata = <Gemelli />; break
     case 'whatsapp': schermata = secondo === 'modelli' ? <ModelliWhatsApp /> : secondo ? <ChatContatto key={secondo} waId={secondo} /> : <ChatWhatsApp />; break
     default: schermata = <Oggi inbox={inbox} bozze={bozze} domande={domande} />
   }
   const tasto = ['oggi', 'aggiungi', 'chiedi'].includes(primo) ? primo : primo ? null : 'oggi'
   const sezioneLato = primo === 'azienda' ? 'aziende' : primo === 'persona' ? 'persone' : primo === 'bozza' ? 'bozze' : primo || 'oggi'
+
+  // Ritoccando Oggi quando ci sei già: torna in cima alla pagina.
+  const inCima = (e) => {
+    if (tasto !== 'oggi') return
+    e.preventDefault()
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   async function esci() {
     scrivi('impronta-rimandata', '')
@@ -167,9 +176,10 @@ function Guscio({ utente, condiviso }) {
         <a href="#/aggiungi" className={'lato-aggiungi' + (sezioneLato === 'aggiungi' ? ' attivo' : '')}>
           <Icona nome="piu" size={20} /><span>Aggiungi</span>
         </a>
-        {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], null, ['aziende', 'Aziende'], ['bozze', 'Bozze G&C'], ['persone', 'Persone'], ['whatsapp', 'WhatsApp'],
+        {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], null, ['aziende', 'Aziende'], ['bozze', 'Bozze G&C'], ['persone', 'Persone'], ['gemelli', 'Gemelli'], ['whatsapp', 'WhatsApp'],
           ['domande', 'Domande per te'], ['inbox', 'Inbox'], ['note', 'Tutte le note'], ['cestino', 'Cestino']].map((v, i) => v ? (
-          <a key={v[0]} href={`#/${v[0]}`} className={'lato-voce' + (sezioneLato === v[0] ? ' attivo' : '')}>
+          <a key={v[0]} href={`#/${v[0]}`} className={'lato-voce' + (sezioneLato === v[0] ? ' attivo' : '')}
+            onClick={v[0] === 'oggi' ? inCima : undefined}>
             <Icona nome={v[0] === 'chiedi' ? 'cerca' : v[0]} size={20} /><span>{v[1]}</span>
             {v[0] === 'inbox' && inbox > 0 && <span className="lato-badge">{inbox}</span>}
             {v[0] === 'bozze' && bozze > 0 && <span className="lato-badge">{bozze}</span>}
@@ -209,7 +219,7 @@ function Guscio({ utente, condiviso }) {
       <main key={primo === 'aggiungi' ? 'aggiungi' : giro}>{schermata}</main>
 
       <nav className="tasti">
-        <a href="#/oggi" className={tasto === 'oggi' ? 'attivo' : ''}>
+        <a href="#/oggi" className={tasto === 'oggi' ? 'attivo' : ''} onClick={inCima}>
           <Icona nome="oggi" /><span>Oggi</span>
         </a>
         <a href="#/aggiungi" className={'aggiungi' + (tasto === 'aggiungi' ? ' attivo' : '')} aria-label="Aggiungi">

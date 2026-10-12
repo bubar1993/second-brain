@@ -47,7 +47,7 @@ export default function Oggi({ inbox, bozze, domande }) {
     const da = new Date(); da.setHours(0, 0, 0, 0)
     const a7 = new Date(da.getTime() + 8 * 86400000)
     let qe = sb.from('eventi').select('id,titolo,inizio,fine,tutto_il_giorno,luogo,area,stato,motivo,errore,aziende(id,nome),persone(id,nome,cognome)')
-      .in('stato', ['confermato', 'proposto', 'da_creare']).gte('inizio', da.toISOString()).lt('inizio', a7.toISOString())
+      .in('stato', ['confermato', 'proposto', 'da_creare']).is('fatto_il', null).gte('inizio', da.toISOString()).lt('inizio', a7.toISOString())
       .order('inizio').limit(60)
     if (area !== 'T') qe = qe.or(`area.eq.${area},area.is.null`)
     const oggiIso = `${da.getFullYear()}-${String(da.getMonth() + 1).padStart(2, '0')}-${String(da.getDate()).padStart(2, '0')}`
@@ -235,9 +235,24 @@ export default function Oggi({ inbox, bozze, domande }) {
 // Toccando un appuntamento con un cliente si apre la sua scheda: il riassunto da guardare prima della visita.
 function Appuntamenti({ eventi, ricarica }) {
   const { avvisa } = useApp()
+  const [fatti, setFatti] = useState(() => new Set())
   const proposte = eventi.filter((e) => e.stato === 'proposto')
   const fissi = eventi.filter((e) => e.stato !== 'proposto')
   if (!eventi.length) return null
+
+  // Spunta: l'appuntamento sparisce da Oggi (in Google Calendar resta com'è).
+  async function fatto(e) {
+    if (fatti.has(e.id)) return
+    setFatti((s) => new Set(s).add(e.id))
+    try {
+      chk(await sb.from('eventi').update({ fatto_il: new Date().toISOString() }).eq('id', e.id))
+      avvisa('Fatto')
+      setTimeout(ricarica, 450)
+    } catch (err) {
+      setFatti((s) => { const x = new Set(s); x.delete(e.id); return x })
+      avvisa(messaggioErrore(err))
+    }
+  }
 
   async function decidi(e, si) {
     try {
@@ -285,19 +300,29 @@ function Appuntamenti({ eventi, ricarica }) {
         <>
           <h2>Appuntamenti</h2>
           <div className="elenco">
-            {fissi.map((e) => (
-              <a key={e.id} className="riga" href={link(e)}>
-                <span className="pallino" style={{ background: areaDa(e.area)?.colore || 'var(--grigio)' }} />
-                <span className="riga-corpo">
-                  <span className="riga-testo">{e.titolo}</span>
-                  <span className="riga-meta">
-                    {giorno(e)} {ora(e)}{e.luogo ? ` · ${e.luogo}` : ''}
-                    {(e.persone || e.aziende) && (new Date(e.fine || e.inizio) < new Date() ? ' · com\'è andata? Annota' : ' · scheda')}
-                    {e.stato === 'da_creare' && (e.errore ? <span className="rosso"> · non creato: {e.errore}</span> : ' · in arrivo nel calendario')}
-                  </span>
-                </span>
-              </a>
-            ))}
+            {fissi.map((e) => {
+              const finito = fatti.has(e.id)
+              return (
+                <div key={e.id} className={'voce-promemoria' + (finito ? ' via' : '')}>
+                  <div>
+                    <div style={{ '--col': areaDa(e.area)?.colore || 'var(--grigio)' }}
+                      className={'riga riga-promemoria' + (finito ? ' fatto' : '')}>
+                      <button type="button" className="spunta" onClick={() => fatto(e)} aria-label={`Segna fatto: ${e.titolo}`}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+                      </button>
+                      <a className="riga-corpo" href={link(e)}>
+                        <span className="riga-testo">{e.titolo}</span>
+                        <span className="riga-meta">
+                          {giorno(e)} {ora(e)}{e.luogo ? ` · ${e.luogo}` : ''}
+                          {(e.persone || e.aziende) && (new Date(e.fine || e.inizio) < new Date() ? ' · com\'è andata? Annota' : ' · scheda')}
+                          {e.stato === 'da_creare' && (e.errore ? <span className="rosso"> · non creato: {e.errore}</span> : ' · in arrivo nel calendario')}
+                        </span>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </>
       )}

@@ -156,6 +156,14 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 - Funzione SQL `cerca(q, area_scelta, quanti)`: ricerca italiana (radici, parole vuote tolte, nomi di ditte/persone pesano 4) in note, mail G&C, riassunti persone, WhatsApp. Ordina per parole trovate, poi note prima delle mail e cose recenti. L'app la usa al tasto Invio; clienti e cantieri restano istantanei mentre scrivi.
 - Risposte scritte dall'AI: con il **connettore "Second Brain"** nell'app Claude (gratis col piano Max, ok di Giovanni 12.10.2026). Funzione `mcp` (server MCP solo lettura: cerca, agenda, azienda, persona, nota, mail; `--no-verify-jwt`, controlla da sé il token e che sia di Giovanni). Indirizzo del connettore: `https://vgurncqvgulldolhetyr.supabase.co/functions/v1/mcp`. Accesso col server OAuth 2.1 di Supabase Auth (acceso, registrazione dinamica sì, pagina di consenso `/oauth/consent` dell'app = `src/Consenso.jsx`, accetta solo ritorni a claude.ai/claude.com). Regole "connettori solo lettura" (migrazione `mcp_solo_lettura`): i token con `client_id` non possono scrivere in nessuna tabella; **per le tabelle nuove rilanciare quella migrazione**. Attenzione: un connettore dell'account finisce anche nelle routine nuove create via API (ridurle sempre).
 
+### Oggi: spunta sugli appuntamenti (12.10.2026)
+- Ogni appuntamento in Oggi ha la spunta come i promemoria: `eventi.fatto_il` (solo nel second brain, Google non cambia; l'agente calendario non la tocca). Gli agenti lavoro e privato riscrivono il punto del mattino quando qualcosa è stato spuntato o è arrivato di nuovo (solo cose ancora da fare).
+
+### Gemelli (fase 6, 12.10.2026)
+- Leonardo ("Leo") e Jolie, nati il 03.05.2018, terza elementare. Persone area P con ruolo 'figlio'/'figlia'. Leo: calcio, tennis. Jolie: Gymnastique, atletica, Fashion design. Tutti e due pianoforte martedì 16:30–18:00. Accompagna Giovanni o vanno a piedi.
+- Schermata "Gemelli" (`#/gemelli`, in Dentro e nel menu del PC): questa settimana (attività fisse + appuntamenti P che li riguardano + feste), feste dei compagni (Ci va / Non ci va / Regalo preso), attività fisse, diario (note collegate ai bambini), "+ Leo" / "+ Jolie".
+- Tabelle `attivita_figli` e `feste` (le aggiorna l'agente privato dalle note e dal calendario; regole in `agenti/agente-privato.md`, ora allineato alla routine).
+
 ### Privato (fase 6, primo pezzo)
 - Promemoria `ricorrenza = 'annuale'` (quando si segna fatto torna l'anno dopo): gomme, cassa malati (confronto e disdetta entro 30.11), vignetta, dichiarazione d'imposta TI.
 - Domande per Giovanni (agente privato): scadenze documenti, auto, abbonamenti, compleanni.

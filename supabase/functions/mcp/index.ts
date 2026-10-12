@@ -66,7 +66,7 @@ const STRUMENTI: Record<string, Strumento> = {
       const da = new Date(); da.setHours(0, 0, 0, 0)
       const fino = new Date(da.getTime() + (g + 1) * 864e5)
       let qe = sb.from('eventi').select('titolo,inizio,fine,tutto_il_giorno,luogo,area,stato,aziende(nome),persone(nome,cognome)')
-        .in('stato', ['confermato', 'proposto']).gte('inizio', da.toISOString()).lt('inizio', fino.toISOString()).order('inizio')
+        .in('stato', ['confermato', 'proposto']).is('fatto_il', null).gte('inizio', da.toISOString()).lt('inizio', fino.toISOString()).order('inizio')
       let qp = sb.from('promemoria').select('testo,scade_il,area,urgente').is('fatto_il', null).is('eliminata_il', null)
         .lt('scade_il', fino.toISOString()).order('scade_il').limit(40)
       if (area(a.area)) { qe = qe.eq('area', area(a.area)); qp = qp.eq('area', area(a.area)) }

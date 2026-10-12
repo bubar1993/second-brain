@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { sb, leggi, scrivi, areaDa } from './supabase'
-import { useApp, useCarica, chk, Stato, Indietro } from './componenti'
+import { useApp, useCarica, chk, Stato, Indietro, Icona } from './componenti'
 
 // Le 6 sezioni come nel gestionale Ceramex: chiave, nome lungo, nome corto.
 export const SEZIONI = [
@@ -140,7 +140,7 @@ export function Azienda({ id, cantiere: cantiereIniziale }) {
         .in('azienda_id', ids).is('eliminata_il', null).is('scartata_il', null)
         .order('data', { ascending: false }).order('creata_il', { ascending: false })),
       a.area === 'G' ? sb.from('cantieri').select('id,nome,stato').in('azienda_id', ids).is('eliminata_il', null).then(chk) : [],
-      sb.from('persone_aziende').select('azienda_id,ruolo,persone(id,nome,cognome,eliminata_il)').in('azienda_id', ids).then(chk),
+      sb.from('persone_aziende').select('azienda_id,ruolo,persone(id,nome,cognome,telefono,eliminata_il)').in('azienda_id', ids).then(chk),
     ])
     // Persone della ditta (con scheda): si toccano per aprire la loro scheda.
     const persone = gente.filter((g) => g.persone && !g.persone.eliminata_il)
@@ -183,7 +183,7 @@ export function Azienda({ id, cantiere: cantiereIniziale }) {
   // Persone con scheda; se la ditta non ne ha ancora, i contatti scritti nella scheda.
   const conScheda = dati.persone.filter((x) => !sede || x.azienda_id === sede)
   const persone = conScheda.length
-    ? conScheda.map((x) => ({ id: x.id, nome: [x.nome, x.cognome].filter(Boolean).join(' '), ruolo: x.ruolo }))
+    ? conScheda.map((x) => ({ id: x.id, nome: [x.nome, x.cognome].filter(Boolean).join(' '), ruolo: x.ruolo, telefono: x.telefono }))
     : (sede ? (sede === a.id ? a.contatti : filiali.find((f) => f.id === sede)?.contatti)
       : [...(a.contatti || []), ...filiali.flatMap((f) => f.contatti || [])]) || []
 
@@ -214,9 +214,21 @@ export function Azienda({ id, cantiere: cantiereIniziale }) {
           {(tutteLePersone ? persone : persone.slice(0, 4)).map((c, i) => {
             const testo = tutteLePersone ? [c.nome, c.ruolo].filter(Boolean).join(' · ') : battesimo(c.nome)
             const titolo = [c.nome, c.ruolo, c.email].filter(Boolean).join(' · ')
-            return c.id
-              ? <a key={c.id} className="chip piccolo" href={`#/persona/${c.id}`} title={titolo}>{testo}</a>
-              : <span key={i} className="chip piccolo" title={titolo}>{testo}</span>
+            const nome = c.id
+              ? <a className="chip piccolo" href={`#/persona/${c.id}`} title={titolo}>{testo}</a>
+              : <span className="chip piccolo" title={titolo}>{testo}</span>
+            // Chiama: dopo la telefonata, tornando nell'app si apre la nota già collegata alla persona (App.jsx).
+            return (
+              <span key={c.id || i} className="chip-con-chiama">
+                {nome}
+                {c.telefono && (
+                  <a className="chip piccolo chiama" href={`tel:${c.telefono}`} aria-label={`Chiama ${c.nome}`} title={`Chiama ${c.telefono}`}
+                    onClick={() => c.id && scrivi('chiamata', JSON.stringify({ id: c.id, ora: Date.now() }))}>
+                    <Icona nome="telefono" size={14} />
+                  </a>
+                )}
+              </span>
+            )
           })}
           {persone.length > 4 && (
             <button type="button" className="chip piccolo" onClick={() => setTutteLePersone(!tutteLePersone)}>

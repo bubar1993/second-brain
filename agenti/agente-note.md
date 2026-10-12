@@ -36,7 +36,7 @@ TABELLE
 - cantieri (G): id, azienda_id, nome (O0…). fornitori (G): nome_breve.
 - wa_contatti: wa_id, nome_profilo, nome_rubrica, area, azienda_id, persona_id. wa_messaggi: wa_id, direzione 'in'|'out', testo, data, vista_il, esito, motivo.
 - regole_agenti (area C|G, agente 'note_app'): regole imparate. Valgono più di queste istruzioni.
-- eventi (appuntamenti da Google Calendar): id, area, titolo, inizio, fine, luogo, azienda_id, persona_id, stato ('confermato'|'proposto'|'da_creare'|'scartato'|'cancellato'), proposto_da, nota_id, motivo. Tu puoi proporne (stato 'proposto') e collegare quelli senza ditta/persona.
+- eventi (appuntamenti da Google Calendar): id, area, titolo, inizio, fine, luogo, azienda_id, persona_id, stato ('confermato'|'proposto'|'da_creare'|'scartato'|'cancellato'), proposto_da, nota_id, motivo, fatto_il (segnato fatto da Giovanni). Tu puoi proporne (stato 'proposto') e collegare quelli senza ditta/persona.
 - riassunti_giorno: giorno, parte 'lavoro', momento 'mattino'|'sera', testo.
 
 ORDINE DEL GIRO
@@ -63,8 +63,9 @@ ORDINE DEL GIRO
    - consigli: come parlarle o scriverle (lingua, tu/lei da contatti_stile, tono, cosa le sta a cuore, cosa evitare). Solo se i dati lo mostrano; altrimenti null.
    Dati di Ceramex e di G&C stanno in righe separate (area 'C' e 'G'): non mescolarli.
 6. WHATSAPP (quando ci saranno messaggi): wa_contatti con area is null → decidi l'area dal nome e dai messaggi come al punto 2 (privato → area 'P' e basta). Messaggi C/G con vista_il null: annota solo i fatti importanti come note fonte 'whatsapp' (stesse regole del punto 3), poi vista_il = now(), esito 'nota'|'niente', motivo.
-7. IL PUNTO DEL GIORNO (oggi = (now() at time zone 'Europe/Zurich')::date):
-   - MATTINO: se non c'è ancora la riga di oggi con parte 'lavoro' e momento 'mattino', scrivila. 4–8 righe corte, senza titoli né elenchi lunghi, prima le cose che contano: appuntamenti di oggi (eventi C/G) con una cosa da ricordare per ognuno (dal riassunto della persona o dalle note della ditta), promemoria C/G scaduti o di oggi, problemi aperti fermi da più di 14 giorni (max 3), offerte senza risposta da più di 7 giorni (max 3), quante domande per Giovanni sono aperte.
+7. IL PUNTO DEL GIORNO (oggi = (now() at time zone 'Europe/Zurich')::date). Deve contenere SOLO cose ancora da fare: niente appuntamenti con eventi.fatto_il, niente promemoria con fatto_il (Giovanni li spunta nell'app).
+   - MATTINO: 4–8 righe corte, senza titoli né elenchi lunghi, prima le cose che contano: appuntamenti di oggi ancora da fare (eventi C/G) con una cosa da ricordare per ognuno (dal riassunto della persona o dalle note della ditta), promemoria C/G scaduti o di oggi, problemi aperti fermi da più di 14 giorni (max 3), offerte senza risposta da più di 7 giorni (max 3), quante domande per Giovanni sono aperte.
+     Se la riga di oggi (parte 'lavoro', momento 'mattino') non c'è → insert. Se c'è, non c'è ancora la 'sera' e dopo la sua creata_il Giovanni ha segnato fatto qualcosa (eventi.fatto_il o promemoria.fatto_il > creata_il) o sono arrivati appuntamenti/promemoria nuovi → riscrivila: update riassunti_giorno set testo = '…', creata_il = now() where giorno = … and parte = 'lavoro' and momento = 'mattino'.
    - SERA: se sono passate le 20 (ora svizzera) e non c'è la riga 'sera', scrivila: cosa è successo oggi nel lavoro (note nuove importanti, mail G&C importanti), cosa resta aperto, gli appuntamenti di domani.
    insert into riassunti_giorno (giorno, parte, momento, testo) values ((now() at time zone 'Europe/Zurich')::date, 'lavoro', 'mattino', '…') on conflict (giorno, parte, momento) do nothing;
 8. FINE: insert into lavori_registro (lavoro, ok, dettagli) values ('agente-lavoro', true, jsonb_build_object('smistate', n, 'note', n, 'persone', n, 'riassunti', n, 'domande', n)). Rispondi con un riepilogo di 3–5 righe. Se una chiamata fallisce riprova una volta, poi vai avanti.

@@ -6,7 +6,7 @@ import Consenso from './Consenso'
 import Oggi from './Oggi'
 import Aggiungi from './Aggiungi'
 import Chiedi from './Chiedi'
-import { Dentro, Inbox, ElencoNote, Cestino } from './Dentro'
+import { Dentro, Inbox, ElencoNote, Cestino, VOCI_DENTRO, voceVisibile } from './Dentro'
 import { Persone, Persona } from './Persone'
 import Nota from './Nota'
 import { Aziende, Azienda } from './Aziende'
@@ -227,7 +227,8 @@ function Guscio({ utente, condiviso }) {
           <Icona nome="piu" size={20} /><span>Aggiungi</span>
         </a>
         {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], null, ['aziende', 'Aziende'], ['bozze', 'Bozze'], ['persone', 'Persone'], ['gemelli', 'Gemelli'], ['whatsapp', 'WhatsApp'],
-          ['domande', 'Domande per te'], ['agenti', 'Agenti'], ['inbox', 'Inbox'], ['note', 'Tutte le note'], ['cestino', 'Cestino']].map((v, i) => v ? (
+          ['domande', 'Domande per te'], ['agenti', 'Agenti'], ['inbox', 'Inbox'], ['note', 'Tutte le note'], ['cestino', 'Cestino']]
+          .filter((v) => !v || voceVisibile(VOCI_DENTRO.find((x) => x.chiave === v[0]) || {}, area)).map((v, i) => v ? (
           <a key={v[0]} href={`#/${v[0]}`} className={'lato-voce' + (sezioneLato === v[0] ? ' attivo' : '')}
             onClick={v[0] === 'oggi' ? inCima : undefined}>
             <Icona nome={v[0] === 'chiedi' ? 'cerca' : v[0]} size={20} /><span>{v[1]}</span>

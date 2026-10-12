@@ -3,26 +3,40 @@ import { useApp, useCarica, chk, messaggioErrore, NotaRiga, Stato, Indietro, Ico
 
 const CAMPI_NOTA = 'id,area,testo,fonte,creata_il,note_persone(persone(id,nome,cognome)),allegati(id)'
 
+// Le voci di "Dentro" e del menu del PC, con le aree in cui hanno senso (scelta di Giovanni, 12.10.2026:
+// in Ceramex e G&C niente Gemelli, nel Privato niente Aziende e Bozze). Con "Tutte" si vede tutto.
+export const VOCI_DENTRO = [
+  { chiave: 'inbox', titolo: 'Inbox' },
+  { chiave: 'aziende', titolo: 'Aziende', dettaglio: 'Schede clienti con le note', aree: ['C', 'G'] },
+  { chiave: 'bozze', titolo: 'Bozze', aree: ['C', 'G'] },
+  { chiave: 'persone', titolo: 'Persone', dettaglio: 'Schede persona: chi è, cosa chiedere, note e contatti' },
+  { chiave: 'gemelli', titolo: 'Gemelli', dettaglio: 'Leo e Jolie: settimana, feste dei compagni, diario', aree: ['P'] },
+  { chiave: 'domande', titolo: 'Domande per te', dettaglio: 'I dubbi degli agenti' },
+  { chiave: 'agenti', titolo: 'Agenti', dettaglio: 'Cosa fanno, quando hanno girato; scrivigli' },
+  { chiave: 'whatsapp', titolo: 'WhatsApp', dettaglio: 'Chat del numero Business' },
+  { chiave: 'note', titolo: 'Tutte le note' },
+  { chiave: 'cestino', titolo: 'Cestino', dettaglio: '30 giorni' },
+]
+export const voceVisibile = (v, area) => area === 'T' || !v.aree || v.aree.includes(area)
+
+const DETTAGLIO_BOZZE = { C: 'Risposte da approvare dalla tua Gmail', G: 'Risposte da approvare per info@', T: 'Risposte da approvare: Gmail (Ceramex) e info@ (G&C)' }
+
 // Il cassetto "Dentro": tutto quello che non sta nei 3 tasti.
 export function Dentro({ inbox, bozze, domande, risposte }) {
+  const { area } = useApp()
   async function esci() {
     scrivi('impronta-rimandata', '')
     await sb.auth.signOut()
   }
+  const numeri = { inbox, bozze, domande, agenti: risposte }
+  const dettagli = { inbox: inbox ? `${inbox} da smistare` : 'vuota', bozze: DETTAGLIO_BOZZE[area] || DETTAGLIO_BOZZE.T }
   return (
     <div className="schermata">
       <h1>Dentro</h1>
       <div className="elenco">
-        <Voce href="#/inbox" titolo="Inbox" dettaglio={inbox ? `${inbox} da smistare` : 'vuota'} numero={inbox} />
-        <Voce href="#/aziende" titolo="Aziende" dettaglio="Schede clienti con le note" />
-        <Voce href="#/bozze" titolo="Bozze" dettaglio="Risposte da approvare: info@ (G&C) e Gmail (Ceramex)" numero={bozze} />
-        <Voce href="#/persone" titolo="Persone" dettaglio="Schede persona: chi è, cosa chiedere, note e contatti" />
-        <Voce href="#/gemelli" titolo="Gemelli" dettaglio="Leo e Jolie: settimana, feste dei compagni, diario" />
-        <Voce href="#/domande" titolo="Domande per te" dettaglio="I dubbi degli agenti" numero={domande} />
-        <Voce href="#/agenti" titolo="Agenti" dettaglio="Cosa fanno, quando hanno girato; scrivigli" numero={risposte} />
-        <Voce href="#/whatsapp" titolo="WhatsApp" dettaglio="Chat del numero Business" />
-        <Voce href="#/note" titolo="Tutte le note" />
-        <Voce href="#/cestino" titolo="Cestino" dettaglio="30 giorni" />
+        {VOCI_DENTRO.filter((v) => voceVisibile(v, area)).map((v) => (
+          <Voce key={v.chiave} href={`#/${v.chiave}`} titolo={v.titolo} dettaglio={dettagli[v.chiave] || v.dettaglio} numero={numeri[v.chiave]} />
+        ))}
       </div>
       <button type="button" className="tasto-link esci" onClick={esci}>Esci</button>
     </div>

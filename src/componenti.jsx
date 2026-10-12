@@ -15,6 +15,18 @@ export function messaggioErrore(e) {
   return e?.message || 'Qualcosa non ha funzionato.'
 }
 
+// Chiama una funzione del second brain e restituisce il suo messaggio d'errore leggibile.
+export async function chiama(nome, body) {
+  const { data, error } = await sb.functions.invoke(nome, { body })
+  if (error) {
+    let msg = error.message
+    try { msg = (await error.context.json()).errore || msg } catch { /* resta il messaggio */ }
+    throw new Error(msg)
+  }
+  if (data?.errore) throw new Error(data.errore)
+  return data
+}
+
 // Schermate con modifiche non ancora salvate: tornando nell'app non si ricaricano (App.jsx).
 const modifiche = new Set()
 export const haModifiche = () => modifiche.size > 0
@@ -101,6 +113,7 @@ const PERCORSI = {
   domande: 'M12 21a9 9 0 1 0-8-4.9L3 21l4.9-1A9 9 0 0 0 12 21zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.2M12 16.5v.01',
   telefono: 'M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2',
   gemelli: 'M8 9.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM16 9.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM4 20v-3a4 4 0 0 1 8 0v3M12 20v-3a4 4 0 0 1 8 0v3',
+  agenti: 'M12 3v3M8 3h8M5 7h14v12H5zM9.5 12v.01M14.5 12v.01M9 16h6M2 12v3M22 12v3',
 }
 
 export function Icona({ nome, size = 22 }) {

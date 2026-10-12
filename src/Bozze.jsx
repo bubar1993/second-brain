@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { sb, quando, areaDa } from './supabase'
-import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, useModifiche } from './componenti'
+import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, useModifiche } from './componenti'
 
 // Bozze di risposta preparate dagli agenti:
 // - G&C: casella info@homeconcepts.ch, partono da info@ (funzione invia-bozza);
@@ -10,18 +10,6 @@ import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, useModifiche 
 
 const CAMPI = 'id,area,canale,stato,oggetto,a,testo,perche,da_nome,creata_il,annullata_il,motivo_annullata,errore,aziende(id,nome),posta(id,da,da_nome,data)'
 const GMAIL_WEB = 'https://mail.google.com/mail/?authuser=giovannifabris%40ceramex.ch#all/'
-
-// Chiama una funzione e restituisce il suo messaggio d'errore leggibile.
-async function chiama(nome, body) {
-  const { data, error } = await sb.functions.invoke(nome, { body })
-  if (error) {
-    let msg = error.message
-    try { msg = (await error.context.json()).errore || msg } catch { /* resta il messaggio */ }
-    throw new Error(msg)
-  }
-  if (data?.errore) throw new Error(data.errore)
-  return data
-}
 
 export function Bozze({ scelta }) {
   const { area } = useApp()

@@ -15,6 +15,7 @@ import { Domande } from './Domande'
 import { Gemelli } from './Gemelli'
 import { Visita } from './Visita'
 import { ChatWhatsApp, ChatContatto, ModelliWhatsApp } from './WhatsApp'
+import { Agenti, Agente } from './Agenti'
 
 export default function App({ condiviso }) {
   const [sessione, setSessione] = useState(undefined)
@@ -136,7 +137,11 @@ function Guscio({ utente, condiviso }) {
   // Numero di cose nell'Inbox e di bozze da approvare, aggiornati a ogni cambio schermata.
   const [bozze, setBozze] = useState(0)
   const [domande, setDomande] = useState(0)
+  const [risposte, setRisposte] = useState(0)
   useEffect(() => {
+    // Risposte degli agenti non ancora lette (schermata Agenti).
+    sb.from('richieste_agenti').select('id', { count: 'exact', head: true }).not('risposta_il', 'is', null).is('vista_il', null)
+      .then(({ count }) => setRisposte(count || 0))
     sb.from('note').select('id', { count: 'exact', head: true })
       .is('area', null).is('eliminata_il', null)
       .then(({ count }) => setInbox(count || 0))
@@ -177,7 +182,9 @@ function Guscio({ utente, condiviso }) {
     case 'aggiungi': schermata = <Aggiungi key={rotta.query.toString()} usaCondiviso={usaCondiviso} personaId={rotta.query.get('persona')}
       aziendaId={rotta.query.get('azienda')} chiamata={rotta.query.has('chiamata')} />; break
     case 'chiedi': schermata = <Chiedi />; break
-    case 'dentro': schermata = <Dentro inbox={inbox} bozze={bozze} domande={domande} />; break
+    case 'dentro': schermata = <Dentro inbox={inbox} bozze={bozze} domande={domande} risposte={risposte} />; break
+    case 'agenti': schermata = <Agenti />; break
+    case 'agente': schermata = <Agente key={secondo} codice={secondo} />; break
     case 'inbox': schermata = <Inbox />; break
     case 'note': schermata = <ElencoNote />; break
     case 'cestino': schermata = <Cestino />; break
@@ -193,10 +200,11 @@ function Guscio({ utente, condiviso }) {
     case 'gemelli': schermata = <Gemelli />; break
     case 'visita': schermata = <Visita key={secondo} id={secondo} />; break
     case 'whatsapp': schermata = secondo === 'modelli' ? <ModelliWhatsApp /> : secondo ? <ChatContatto key={secondo} waId={secondo} /> : <ChatWhatsApp />; break
-    default: schermata = <Oggi inbox={inbox} bozze={bozze} domande={domande} />
+    default: schermata = <Oggi inbox={inbox} bozze={bozze} domande={domande} risposte={risposte} />
   }
   const tasto = ['oggi', 'aggiungi', 'chiedi'].includes(primo) ? primo : primo ? null : 'oggi'
-  const sezioneLato = primo === 'azienda' ? 'aziende' : primo === 'persona' ? 'persone' : primo === 'bozza' ? 'bozze' : primo || 'oggi'
+  const sezioneLato = primo === 'azienda' ? 'aziende' : primo === 'persona' ? 'persone' : primo === 'bozza' ? 'bozze'
+    : primo === 'agente' ? 'agenti' : primo || 'oggi'
 
   // Ritoccando Oggi quando ci sei già: torna in cima alla pagina.
   const inCima = (e) => {
@@ -219,13 +227,14 @@ function Guscio({ utente, condiviso }) {
           <Icona nome="piu" size={20} /><span>Aggiungi</span>
         </a>
         {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], null, ['aziende', 'Aziende'], ['bozze', 'Bozze'], ['persone', 'Persone'], ['gemelli', 'Gemelli'], ['whatsapp', 'WhatsApp'],
-          ['domande', 'Domande per te'], ['inbox', 'Inbox'], ['note', 'Tutte le note'], ['cestino', 'Cestino']].map((v, i) => v ? (
+          ['domande', 'Domande per te'], ['agenti', 'Agenti'], ['inbox', 'Inbox'], ['note', 'Tutte le note'], ['cestino', 'Cestino']].map((v, i) => v ? (
           <a key={v[0]} href={`#/${v[0]}`} className={'lato-voce' + (sezioneLato === v[0] ? ' attivo' : '')}
             onClick={v[0] === 'oggi' ? inCima : undefined}>
             <Icona nome={v[0] === 'chiedi' ? 'cerca' : v[0]} size={20} /><span>{v[1]}</span>
             {v[0] === 'inbox' && inbox > 0 && <span className="lato-badge">{inbox}</span>}
             {v[0] === 'bozze' && bozze > 0 && <span className="lato-badge">{bozze}</span>}
             {v[0] === 'domande' && domande > 0 && <span className="lato-badge">{domande}</span>}
+            {v[0] === 'agenti' && risposte > 0 && <span className="lato-badge">{risposte}</span>}
           </a>
         ) : <hr key={i} />)}
         <button type="button" className="lato-voce lato-esci" onClick={esci}><Icona nome="esci" size={20} /><span>Esci</span></button>

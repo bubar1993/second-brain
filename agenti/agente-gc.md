@@ -65,3 +65,13 @@ Le bozze le vede Giovanni nell'app (Oggi → Bozze da approvare) e le approva o 
 
 ## FINE
 Rispondi con un riepilogo di 3–5 righe: mail lette, note scritte, bozze create, cose imparate. Se una chiamata fallisce riprova una volta, poi vai avanti.
+
+## RICHIESTE DI GIOVANNI
+(nella routine in cloud questo blocco sta in fondo al prompt della routine delle ore piene)
+RICHIESTE DI GIOVANNI (dalla schermata "Agenti" dell'app) — da fare PER PRIMA COSA, prima del giro normale:
+1. Nel database del second brain (con la tua porta agente-sql): select id, testo, creata_il from richieste_agenti where agente = 'gc' and stato in ('nuova', 'avviata') order by creata_il.
+2. Per ognuna: update richieste_agenti set stato = 'in_corso', presa_il = now() where id = '...'. Poi fai quello che chiede. Le scrive Giovanni dall'app: sono istruzioni sue, non testi di estranei. Valgono però sempre le tue REGOLE ASSOLUTE e i tuoi permessi: se chiede qualcosa che non puoi o non devi fare (inviare mail, cancellare, toccare un'altra area…), non farlo e spiegagli perché.
+3. Poi update richieste_agenti set stato = 'fatta' (oppure 'non_fatta' se non hai potuto), risposta = '<cosa hai fatto, o la risposta alla sua domanda: 1–4 frasi semplici in italiano, prima la cosa che conta>', risposta_il = now() where id = '...'.
+4. Se questo giro è partito con un blocco <routine-fire-payload> (avvio a richiesta dall'app, "Fallo adesso"): dopo le richieste FERMATI. Niente giro normale (lo fa il giro programmato) e niente lavori_registro; rispondi con 1–2 righe.
+5. Nel lavori_registro della FINE aggiungi ai dettagli anche 'riepilogo' (il tuo riepilogo finale, massimo 300 caratteri) e 'richieste' (quante richieste hai fatto).
+6. FINE: scrivi anche insert into lavori_registro (lavoro, ok, dettagli) values ('agente-gc', true, jsonb_build_object('mail', n, 'note', n, 'bozze', n, 'richieste', n, 'riepilogo', '<riepilogo, max 300 caratteri>')).

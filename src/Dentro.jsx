@@ -4,7 +4,7 @@ import { useApp, useCarica, chk, messaggioErrore, NotaRiga, Stato, Indietro, Ico
 const CAMPI_NOTA = 'id,area,testo,fonte,creata_il,note_persone(persone(id,nome,cognome)),allegati(id)'
 
 // Il cassetto "Dentro": tutto quello che non sta nei 3 tasti.
-export function Dentro({ inbox, bozze, domande }) {
+export function Dentro({ inbox, bozze, domande, risposte }) {
   async function esci() {
     scrivi('impronta-rimandata', '')
     await sb.auth.signOut()
@@ -19,6 +19,7 @@ export function Dentro({ inbox, bozze, domande }) {
         <Voce href="#/persone" titolo="Persone" dettaglio="Schede persona: chi è, cosa chiedere, note e contatti" />
         <Voce href="#/gemelli" titolo="Gemelli" dettaglio="Leo e Jolie: settimana, feste dei compagni, diario" />
         <Voce href="#/domande" titolo="Domande per te" dettaglio="I dubbi degli agenti" numero={domande} />
+        <Voce href="#/agenti" titolo="Agenti" dettaglio="Cosa fanno, quando hanno girato; scrivigli" numero={risposte} />
         <Voce href="#/whatsapp" titolo="WhatsApp" dettaglio="Chat del numero Business" />
         <Voce href="#/note" titolo="Tutte le note" />
         <Voce href="#/cestino" titolo="Cestino" dettaglio="30 giorni" />

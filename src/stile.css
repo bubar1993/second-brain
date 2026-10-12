@@ -564,6 +564,19 @@ a.riga:active, button.riga:active { background: rgba(255, 255, 255, 0.04); }
 .domanda p { margin: 0; }
 .domanda-testo { font-size: 17px; font-weight: 600; }
 .domanda .riga-campo input { flex: 1; min-width: 0; }
+
+/* Agenti: scrivere a un agente e leggere le sue risposte. */
+.scrivi-agente { display: flex; flex-direction: column; gap: 10px; }
+.scrivi-agente textarea { font-size: 16px; min-height: 90px; }
+.scrivi-agente .azioni { flex-direction: column; align-items: stretch; }
+.scrivi-agente .tasto-link { align-self: center; }
+.richieste { display: flex; flex-direction: column; gap: 10px; }
+.richiesta { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: var(--raggio); background: var(--superficie); border: 1px solid var(--bordo); }
+.richiesta p { margin: 0; }
+.richiesta.in-attesa { border-color: rgba(91, 147, 255, 0.45); }
+.richiesta-testo { font-weight: 600; }
+.richiesta-risposta { padding: 10px 12px; border-radius: 12px; background: rgba(52, 213, 138, 0.08); border: 1px solid rgba(52, 213, 138, 0.22); }
+.richiesta a { text-decoration: underline; text-underline-offset: 3px; }
 .riga-trovato .riga-corpo { gap: 2px; }
 .riga-trovato .riga-testo { font-size: 15px; }
 mark { background: rgba(255, 214, 102, 0.22); color: var(--testo); border-radius: 3px; padding: 0 2px; }

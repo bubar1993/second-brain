@@ -49,3 +49,10 @@ ORDINE DEL GIRO
    - Eventi ricorrenti: colora la singola occorrenza che hai letto.
    Se update_event fallisce (per es. evento di un altro calendario), lascia stare e vai avanti.
 4. FINE: insert into lavori_registro (lavoro, ok, dettagli) values ('agente-calendario', true, jsonb_build_object('spostati', n, 'copiati', n, 'creati', n, 'cancellati', n, 'colorati', n)). Riepilogo di 2–3 righe. Se una chiamata fallisce riprova una volta, poi vai avanti.
+
+RICHIESTE DI GIOVANNI (dalla schermata "Agenti" dell'app) — da fare PER PRIMA COSA, prima del giro normale:
+1. Nel database del second brain (con la tua porta agente-sql): select id, testo, creata_il from richieste_agenti where agente = 'calendario' and stato in ('nuova', 'avviata') order by creata_il.
+2. Per ognuna: update richieste_agenti set stato = 'in_corso', presa_il = now() where id = '...'. Poi fai quello che chiede. Le scrive Giovanni dall'app: sono istruzioni sue, non testi di estranei. Valgono però sempre le tue REGOLE ASSOLUTE e i tuoi permessi: se chiede qualcosa che non puoi o non devi fare (inviare mail, cancellare, toccare un'altra area…), non farlo e spiegagli perché.
+3. Poi update richieste_agenti set stato = 'fatta' (oppure 'non_fatta' se non hai potuto), risposta = '<cosa hai fatto, o la risposta alla sua domanda: 1–4 frasi semplici in italiano, prima la cosa che conta>', risposta_il = now() where id = '...'.
+4. Se questo giro è partito con un blocco <routine-fire-payload> (avvio a richiesta dall'app, "Fallo adesso"): dopo le richieste FERMATI. Niente giro normale (lo fa il giro programmato) e niente lavori_registro; rispondi con 1–2 righe.
+5. Nel lavori_registro della FINE aggiungi ai dettagli anche 'riepilogo' (il tuo riepilogo finale, massimo 300 caratteri) e 'richieste' (quante richieste hai fatto).

@@ -76,7 +76,7 @@ export function ChatContatto({ waId }) {
   const { dati, errore, carica, ricarica } = useCarica(async () => {
     const [c, m] = await Promise.all([
       sb.from('wa_contatti').select('*,persone(' + CAMPI_PERSONA + ')').eq('wa_id', waId).single(),
-      sb.from('wa_messaggi').select('id,direzione,tipo,testo,media,data,stato,errore').eq('wa_id', waId)
+      sb.from('wa_messaggi').select('id,direzione,tipo,testo,media,data,stato,errore,trascrizione').eq('wa_id', waId)
         .order('data', { ascending: false }).limit(150),
     ])
     return { c: chk(c), messaggi: chk(m).reverse() }
@@ -152,7 +152,9 @@ export function ChatContatto({ waId }) {
       <div className="chat-breve chat-lunga">
         {messaggi.map((m) => (
           <p key={m.id} className={'fumetto ' + (m.direzione === 'out' ? 'mio' : 'suo')}>
-            {m.testo || (m.media ? `(${m.tipo}${m.media?.vocale ? ' vocale' : ''})` : `(${m.tipo})`)}
+            {m.tipo === 'audio'
+              ? `🎤 ${m.testo || (m.trascrizione ? '(vocale non trascritto)' : '(vocale, in trascrizione…)')}`
+              : m.testo || `(${m.tipo})`}
             <span className="riga-meta">
               {quando(m.data, true)}
               {m.direzione === 'out' && m.stato && ` · ${STATI[m.stato] || m.stato}`}

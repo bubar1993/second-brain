@@ -41,5 +41,14 @@ if (!collega) {
 }
 segreti.push({ name: 'WA_COLLEGA_TOKEN', value: collega })
 
+// Chiave per la trascrizione delle note vocali sul PC (funzione whatsapp-vocali, variabile di Windows TRASCRIVI_TOKEN).
+let trascrivi = leggiWin('TRASCRIVI_TOKEN')
+if (!trascrivi) {
+  trascrivi = randomBytes(24).toString('hex')
+  execSync(`powershell -NoProfile -Command "[Environment]::SetEnvironmentVariable('TRASCRIVI_TOKEN','${trascrivi}','User')"`)
+  console.log('Creata la chiave per le note vocali (variabile di Windows TRASCRIVI_TOKEN).')
+}
+segreti.push({ name: 'TRASCRIVI_TOKEN', value: trascrivi })
+
 const r = await fetch(`https://api.supabase.com/v1/projects/${REF}/secrets`, { method: 'POST', headers: MGMT, body: JSON.stringify(segreti) })
 console.log(r.ok ? `Segreti salvati: ${segreti.map((s) => s.name).join(', ')}` : `ERRORE segreti: ${r.status}`)

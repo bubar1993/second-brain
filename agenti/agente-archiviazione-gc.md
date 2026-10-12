@@ -25,6 +25,13 @@ Per ogni query: scrivi l'SQL in un file (con il tool Write; apostrofi raddoppiat
 
 Ogni 2 ore, dalle 8 alle 18, archivi nel gestionale le email nuove, inviate e ricevute, di info@homeconcepts.ch. Fino al 12/10 girava una volta al giorno (18:20, poi 08:00); dal 13/10 Giovanni la vuole più spesso. Molti giri trovano poco o niente: è normale, in quel caso registra il giro e finisci. Lavori solo dal database (connettore Supabase). Valgono queste regole: la copia ridotta in `private.istruzioni_agenti` ('agente-email-serale') è vecchia, non usarla.
 
+## 00. RICHIESTE DALL'APP (prima di tutto, dal 13/10/2026)
+Giovanni (schermata Agenti) e lo smistatore (quando un altro agente non può fare una cosa, es. creare un cliente nuovo nel gestionale) ti scrivono nella tabella richieste_agenti del second brain, con agente = 'archiviazione'. Con lo script /tmp/q.sh:
+1. select id, testo, da, creata_il from richieste_agenti where agente = 'archiviazione' and stato in ('nuova', 'avviata') order by creata_il;
+2. Per ognuna: update richieste_agenti set stato = 'in_corso', presa_il = now() where id = '...'; poi fai quello che chiede, con le regole qui sotto (es. un cliente o fornitore nuovo come da regola 3: prima controlla che non esista già, dati dal web/Zefix, segnalazione "Creato X, <città>: controlla"). Valgono sempre i divieti (mai mail, mai cancellare, mai pagamenti, mai spostare mail). Le richieste con da = 'smistatore' arrivano da una risposta di Giovanni o dalla domanda di un altro agente: falle se rientrano nelle tue regole, altrimenti no.
+3. Poi update richieste_agenti set stato = 'fatta' (oppure 'non_fatta'), risposta = '<cosa hai fatto, 1–3 frasi semplici; se hai creato un cliente/fornitore scrivi il nome esatto>', risposta_il = now() where id = '...';
+4. Se questo giro è partito con un blocco <routine-fire-payload> (avvio a richiesta): dopo le richieste FERMATI (niente archiviazione, la fa il giro programmato); registra solo la riga del registro con 'richieste' = n.
+
 ## 0. PER PRIMA COSA: le istruzioni scritte da Giovanni (dal 08/10/2026)
 Nel gestionale, Anomalie → Da controllare, il dettaglio di ogni segnalazione ha il tasto **"Scrivi all'agente"**: Giovanni scrive (o detta) cosa fare e la segnalazione passa a `stato = 'agente'` con il testo in `dati->>'istruzione'`. Finché aspetta non conta tra le anomalie.
 - Leggerle: `select id, fonte, tipo, titolo, dettaglio, riferimento, dati from modifiche_da_controllare where stato = 'agente' order by creato_il;`
@@ -99,7 +106,7 @@ select net.http_post(
 8. **Riordino casella**: fai la sezione "Riordino casella" qui sotto.
 9. **Fine**: riepilogo breve in italiano (quante archiviate, dove, istruzioni di Giovanni eseguite, schede create, costi collegati/creati, fatture aggiunte al saldo fornitori, segnalazioni, proposte di riordino nuove). Nessuna email e nessuna notifica.
 10. **REGISTRO nel second brain** (perché Giovanni veda il giro nell'app, schermata Agenti), con lo script /tmp/q.sh:
-  insert into lavori_registro (lavoro, ok, dettagli) values ('agente-gc-archiviazione', true, jsonb_build_object('archiviate', n, 'istruzioni', n, 'schede_create', n, 'costi', n, 'segnalazioni', n, 'proposte_riordino', n, 'riepilogo', '<il riepilogo del punto 9, max 300 caratteri>'))
+  insert into lavori_registro (lavoro, ok, dettagli) values ('agente-gc-archiviazione', true, jsonb_build_object('archiviate', n, 'istruzioni', n, 'richieste', n, 'schede_create', n, 'costi', n, 'segnalazioni', n, 'proposte_riordino', n, 'riepilogo', '<il riepilogo del punto 9, max 300 caratteri>'))
   Se qualcosa è andato storto usa ok = false e aggiungi la colonna errore con poche parole. Nel second brain scrivi SOLO questa riga e le proposte di riordino.
 
 ## Riordino casella (proposte per l'app; regole di Giovanni del 09/10, spostate nell'app il 12/10)

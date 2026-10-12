@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { sb, areaDa, quando } from './supabase'
-import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, useModifiche } from './componenti'
+import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, useModifiche } from './componenti'
 
 // Domande per Giovanni: i dubbi degli agenti. Un tocco su una risposta pronta, o due parole scritte.
-// L'agente legge la risposta al giro dopo (entro un'ora) e la usa.
+// L'agente legge la risposta al giro dopo (entro un'ora) e la usa. Per le domande di lavoro, appena rispondi parte anche lo
+// smistatore: se la risposta chiede cose che spettano ad altri agenti, le passa a loro (12.10.2026).
 export function Domande() {
   const { area, avvisa } = useApp()
   const [scritte, setScritte] = useState({})
@@ -14,7 +15,13 @@ export function Domande() {
       .select('id,area,agente,testo,scelte,creata_il,note(id,testo),persone(id,nome,cognome),aziende(id,nome)')
       .is('risposta_il', null).or(`mostra_dal.is.null,mostra_dal.lte.${new Date().toISOString()}`).order('creata_il')
     if (area !== 'T') q = q.or(`area.eq.${area},area.is.null`)
-    return chk(await q)
+    // Quelle che lo smistatore ha passato a un altro agente negli ultimi 3 giorni (solo lavoro).
+    let qs = sb.from('domande').select('id,area,testo,risposta,smistata_nota,smistata_il')
+      .not('smistata_nota', 'is', null).gte('smistata_il', new Date(Date.now() - 3 * 86400e3).toISOString())
+      .not('smistata_nota', 'ilike', 'niente%').order('smistata_il', { ascending: false })
+    if (area !== 'T') qs = qs.eq('area', area)
+    const [aperte, passate] = await Promise.all([q.then(chk), qs.then(chk)])
+    return { aperte, passate }
   }, [area])
 
   async function rispondi(d, risposta) {
@@ -23,6 +30,8 @@ export function Domande() {
       chk(await sb.from('domande').update({ risposta: risposta.trim(), risposta_il: new Date().toISOString() }).eq('id', d.id))
       setScritte((s) => ({ ...s, [d.id]: '' }))
       avvisa('Grazie: l\'agente la usa al prossimo giro')
+      // Lavoro (non Privato): sveglia lo smistatore, che passa subito agli altri agenti quello che serve.
+      if (d.area !== 'P' && d.agente !== 'privato') chiama('agente-subito', { sveglia: 'smistatore' }).catch(() => {})
       ricarica()
     } catch (e) {
       avvisa(messaggioErrore(e))
@@ -32,10 +41,11 @@ export function Domande() {
   return (
     <div className="schermata">
       <Indietro titolo="Domande per te" />
-      <Stato carica={carica} errore={errore} vuoto={dati?.length === 0 ? 'Nessuna domanda. Gli agenti hanno capito tutto.' : null}>
+      <Stato carica={carica} errore={errore} vuoto={dati && !dati.aperte.length && !dati.passate.length ? 'Nessuna domanda. Gli agenti hanno capito tutto.' : null}>
         {dati && (
+          <>
           <div className="domande">
-            {dati.map((d) => {
+            {dati.aperte.map((d) => {
               const a = areaDa(d.area)
               return (
                 <section key={d.id} className="domanda" style={{ '--c': a?.colore || 'var(--grigio)' }}>
@@ -64,6 +74,23 @@ export function Domande() {
               )
             })}
           </div>
+          {dati.passate.length > 0 && (
+            <>
+              <h2>Passate dallo smistatore</h2>
+              <p className="nota-piccola">Domande e risposte che lo smistatore ha passato a un altro agente (ultimi 3 giorni). Vedi com'è andata in Agenti.</p>
+              <div className="elenco">
+                {dati.passate.map((d) => (
+                  <a key={d.id} className="riga" href="#/agenti">
+                    <span className="riga-corpo">
+                      <span className="riga-testo">{d.testo}</span>
+                      <span className="riga-meta">→ {d.smistata_nota} · {quando(d.smistata_il, true)}</span>
+                    </span>
+                  </a>
+                ))}
+              </div>
+            </>
+          )}
+          </>
         )}
       </Stato>
     </div>

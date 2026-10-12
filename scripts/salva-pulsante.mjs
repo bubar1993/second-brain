@@ -2,13 +2,13 @@
 // Giovanni genera il token su claude.ai (routine → Edit → Add another trigger → API → Generate token)
 // e lo copia negli appunti; questo script lo legge dagli appunti, lo salva come segreto
 // ROUTINE_TOKEN_<AGENTE> nel second brain e svuota gli appunti. Non stampa mai il token.
-// Uso: node scripts/salva-pulsante.mjs <lavoro|ceramex|gc|calendario|privato>   (serve SUPABASE_ACCESS_TOKEN)
+// Uso: node scripts/salva-pulsante.mjs <lavoro|ceramex|gc|calendario|privato|archiviazione|smistatore>   (serve SUPABASE_ACCESS_TOKEN)
 import { execSync } from 'node:child_process'
 
 const REF = 'vgurncqvgulldolhetyr'
 const agente = process.argv[2]
-if (!['lavoro', 'ceramex', 'gc', 'calendario', 'privato'].includes(agente)) {
-  console.log('Uso: node scripts/salva-pulsante.mjs <lavoro|ceramex|gc|calendario|privato>')
+if (!['lavoro', 'ceramex', 'gc', 'calendario', 'privato', 'archiviazione', 'smistatore'].includes(agente)) {
+  console.log('Uso: node scripts/salva-pulsante.mjs <lavoro|ceramex|gc|calendario|privato|archiviazione|smistatore>')
   process.exit(1)
 }
 const tokenApi = process.env.SUPABASE_ACCESS_TOKEN

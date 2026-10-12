@@ -236,7 +236,7 @@ export function ModelliWhatsApp() {
       <Indietro titolo="Modelli WhatsApp" />
       <p className="nota-piccola">Servono per scrivere a chi non ti ha scritto nelle ultime 24 ore. Meta controlla ogni modello prima di approvarlo. Crearlo è gratis; si paga solo quando lo si manda.</p>
 
-      <div className="scheda">
+      <div className="scheda scheda-modulo">
         <label className="campo">
           Nome
           <input value={nome} onChange={(e) => { setNome(e.target.value); setConferma(false) }} placeholder="es. conferma appuntamento" />

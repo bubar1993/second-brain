@@ -208,6 +208,7 @@ a.riga:active, button.riga:active { background: rgba(255, 255, 255, 0.04); }
   padding: 14px 16px; border-radius: var(--raggio);
   background: var(--superficie); border: 1px solid var(--bordo);
 }
+.scheda-modulo { flex-direction: column; align-items: stretch; }
 .scheda-inbox { background: linear-gradient(90deg, rgba(255, 214, 102, 0.13), rgba(255, 214, 102, 0.02)); border-color: rgba(255, 214, 102, 0.24); }
 .scheda-inbox strong { color: var(--giallo); }
 .scheda-allarme { background: rgba(255, 93, 108, 0.12); border-color: rgba(255, 93, 108, 0.35); color: #ffc2c8; font-weight: 600; }

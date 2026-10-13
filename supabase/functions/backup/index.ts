@@ -8,6 +8,11 @@
 // Dati e struttura si tengono 90 giorni (poi nel cestino di Drive). Le foto restano.
 // L'esito finisce in public.backup_registro: se qualcosa va storto l'app lo mostra in Oggi.
 // Verify JWT disattivato: l'autorizzazione è la chiave BACKUP_TOKEN.
+//
+// Con { "ceramex_note": true } fa invece una copia una tantum delle note del gestionale Ceramex
+// (trasloco, passo 3, 13.10.2026), letta con brain_lettore: ceramex-note-AAAA-MM-GG.json.gz (tutto)
+// e ceramex-note-AAAA-MM-GG.csv (da leggere in Fogli Google). Il nome non inizia con "brain-": la pulizia dei 90 giorni non li tocca.
+import postgres from 'npm:postgres@3.4.5'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -132,6 +137,43 @@ async function gzip(testo: string): Promise<Uint8Array> {
   return new Uint8Array(await new Response(flusso).arrayBuffer())
 }
 
+const csvCampo = (v: unknown) => {
+  const s = v == null ? '' : v instanceof Date ? v.toISOString().slice(0, 10) : String(v)
+  return /[",\n\r;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+async function backupNoteCeramex(giorno: string) {
+  const sql = postgres(Deno.env.get('CERAMEX_DB_URL')!, { prepare: false, max: 1, connect_timeout: 15, idle_timeout: 5 })
+  let clienti, note, regole, viste
+  try {
+    clienti = await sql`select * from clienti order by nome`
+    note = await sql`select * from note_clienti order by cliente_id, data, creato_il`
+    regole = await sql`select * from note_regole order by creato_il`
+    viste = await sql`select * from note_mail_viste order by visto_il`
+  } finally {
+    sql.end({ timeout: 2 }).catch(() => {})
+  }
+  const conteggi = { clienti: clienti.length, note_clienti: note.length, note_regole: regole.length, note_mail_viste: viste.length }
+  const token = await tokenGoogle()
+  const dati = await gzip(JSON.stringify({
+    creato_il: new Date().toISOString(), fonte: 'Gestionale Ceramex (Supabase nouxqowregwnyqlrvqqo), prima di cancellare le note',
+    conteggi, tabelle: { clienti, note_clienti: note, note_regole: regole, note_mail_viste: viste },
+  }))
+  const nomeDati = `ceramex-note-${giorno}.json.gz`
+  await sostituisci(token, GDRIVE_FOLDER_ID!, nomeDati, dati, 'application/gzip')
+
+  const nomeCliente = new Map(clienti.map((c) => [c.id, c.nome]))
+  const righe = [['Cliente', 'Mandante', 'Sezione', 'Data', 'Persona', 'Testo', 'Risolto il', 'Scartata il', 'Fonte']]
+  for (const n of note) {
+    righe.push([nomeCliente.get(n.cliente_id) || '', n.mandante, n.sezione, n.data, n.persona, n.testo, n.risolto_il, n.scartata_il, n.fonte])
+  }
+  // BOM: così Fogli ed Excel leggono bene accenti e umlaut.
+  const csv = '﻿' + righe.map((r) => r.map(csvCampo).join(',')).join('\r\n')
+  const nomeCsv = `ceramex-note-${giorno}.csv`
+  await sostituisci(token, GDRIVE_FOLDER_ID!, nomeCsv, new TextEncoder().encode(csv), 'text/csv; charset=UTF-8')
+  return { file: [nomeDati, nomeCsv], kb: Math.round(dati.length / 1024), righe: conteggi }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return json({ ok: false, error: 'Metodo non permesso.' }, 405)
   if (!BACKUP_TOKEN || req.headers.get('x-backup-token') !== BACKUP_TOKEN) {
@@ -140,6 +182,15 @@ Deno.serve(async (req: Request) => {
   if (!GDRIVE_CLIENT_ID || !GDRIVE_CLIENT_SECRET || !GDRIVE_REFRESH_TOKEN || !GDRIVE_FOLDER_ID) {
     await registra(false, null, 'Configurazione Google incompleta')
     return json({ ok: false, error: 'Configurazione incompleta.' }, 500)
+  }
+
+  const corpo = await req.json().catch(() => ({}))
+  if (corpo?.ceramex_note) {
+    try {
+      return json({ ok: true, ...(await backupNoteCeramex(new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Zurich' }))) })
+    } catch (e) {
+      return json({ ok: false, error: String((e as Error)?.message || e) }, 500)
+    }
   }
 
   const ora = new Date()

@@ -3,7 +3,7 @@
 Deciso con Giovanni il 12.10.2026 notte. Un agente che non fa lavori: legge le domande degli agenti, le risposte di Giovanni
 e le richieste non riuscite, capisce quale agente può farlo e gli passa il comando (richieste_agenti, da = 'smistatore'),
 poi lo fa partire subito (funzione agente-subito). Può farlo da solo anche per creare clienti/fornitori (ok di Giovanni).
-Routine claude.ai "Smistatore" (ogni ora alle :10, dalle 6 alle 2 di notte dal 14.10.2026, Sonnet), ambiente "Second Brain", solo connettore Claude Docs (non serve).
+Routine claude.ai "Smistatore" (ogni ora alle :10, dalle 6 alle 22 dal 14.10.2026, Sonnet), ambiente "Second Brain", solo connettore Claude Docs (non serve).
 Utente DB `agente_smistatore` (token AGENTE_TOKEN_SMISTATORE al posto di <TOKEN>): legge domande, richieste e registro
 di Ceramex e G&C (mai il Privato), scrive solo richieste agli agenti e lo smistamento delle domande.
 Se cambi le regole qui, aggiorna anche la routine.
@@ -24,7 +24,7 @@ GLI AGENTI E COSA POSSONO FARE (agente = valore di richieste_agenti.agente)
 - 'lavoro' (Agente note lavoro, ogni ora alle :15): note di Ceramex e G&C nel second brain, collegare note a ditte, persone e cantieri GIÀ esistenti, creare e collegare persone, smistare l'Inbox, promemoria di lavoro, punto del mattino/sera, proporre appuntamenti. NON può creare ditte.
 - 'ceramex' (Bozze mail Ceramex, ore piene): legge la Gmail di giovannifabris@ceramex.ch, bozze di risposta, note clienti Ceramex, CREA le schede ditta Ceramex (area C) e ci aggiunge contatti.
 - 'gc' (Agente G&C, ore piene): legge le mail di info@homeconcepts.ch, bozze di risposta, note G&C. Le ditte G&C nascono nel gestionale G&C: per un cliente o fornitore G&C nuovo NON usare lui.
-- 'archiviazione' (Archiviazione email G&C, ogni 2 ore dalle 6 alle 2 di notte): lavora nel GESTIONALE G&C. CREA clienti e fornitori nel gestionale (con i dati dal web, Zefix), archivia mail di info@, collega fatture e costi. Un cliente creato qui arriva nel second brain entro un'ora (copia-gc): dopo serve 'lavoro' per collegare le note.
+- 'archiviazione' (Archiviazione email G&C, ogni 2 ore dalle 6 alle 22): lavora nel GESTIONALE G&C. CREA clienti e fornitori nel gestionale (con i dati dal web, Zefix), archivia mail di info@, collega fatture e costi. Un cliente creato qui arriva nel second brain entro un'ora (copia-gc): dopo serve 'lavoro' per collegare le note.
 - 'calendario' (Agente calendario, ogni ora): appuntamenti di Google Calendar (copiare, creare quelli approvati, spostare).
 - 'seguire' (Agente da seguire, ogni 2 ore): promesse e campioni (schermata "Da seguire"), circolari di mandanti e fornitori, schede ditta doppie e note doppie in una scheda (le unisce: "unisci la scheda X con Y" è per lui).
 - 'privato': MAI (non lo vedi e non gli scrivi).

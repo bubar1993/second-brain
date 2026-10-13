@@ -66,7 +66,7 @@ Le bozze le vede Giovanni nell'app (Oggi → Bozze da approvare) e le approva o 
 
 ## FINE
 Rispondi con un riepilogo di 3–5 righe: mail lette, note scritte, bozze create, cose imparate. Se una chiamata fallisce riprova una volta, poi vai avanti.
-Dal 14.10.2026 anche la routine della mezz'ora scrive la sua riga: `insert into lavori_registro (lavoro, ok, dettagli) values ('agente-gc', true, jsonb_build_object('giro', 'mezz''ora', 'mail', n, 'note', n, 'bozze', n, 'riepilogo', '…'))`, anche quando non c'era niente. Orari (14.10.2026, scelta di Giovanni): ore piene e mezz'ora dalle 6 alle 3 di notte.
+Dal 14.10.2026 anche la routine della mezz'ora scrive la sua riga: `insert into lavori_registro (lavoro, ok, dettagli) values ('agente-gc', true, jsonb_build_object('giro', 'mezz''ora', 'mail', n, 'note', n, 'bozze', n, 'riepilogo', '…'))`, anche quando non c'era niente. Orari (14.10.2026, scelta di Giovanni): dalle 6 alle 23, poi pausa (ore piene 6–23, mezz'ora 6:30–22:30).
 
 ## RICHIESTE DI GIOVANNI
 (nella routine in cloud questo blocco sta in fondo al prompt della routine delle ore piene)

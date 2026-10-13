@@ -136,6 +136,88 @@ export function Persone() {
   )
 }
 
+// Ditte della persona scelte a mano (13.10.2026): cerca e aggiungi, oppure togli.
+// Le ditte tolte si ricordano (persone_aziende_tolte), così la copia dai contatti delle schede non le rimette.
+function DittePersona({ id, collegate, ricarica }) {
+  const { area, avvisa } = useApp()
+  const [testo, setTesto] = useState('')
+  const [trovate, setTrovate] = useState([])
+  const giaCollegate = collegate.map((c) => c.aziende.id).join(',')
+
+  useEffect(() => {
+    const parole = testo.trim().split(/\s+/).map((s) => s.replace(/[,()%*\\.:]/g, '')).filter(Boolean)
+    if (!parole.length || testo.trim().length < 2) { setTrovate([]); return }
+    let annullato = false
+    const t = setTimeout(async () => {
+      let q = sb.from('aziende').select('id,nome,area').is('eliminata_il', null).is('unito_in', null).order('nome').limit(8)
+      if (area !== 'T') q = q.eq('area', area)
+      for (const p of parole) q = q.or(`nome.ilike.%${p}%,ragione_sociale.ilike.%${p}%`)
+      const { data } = await q
+      if (!annullato) setTrovate((data || []).filter((a) => !giaCollegate.split(',').includes(a.id)))
+    }, 200)
+    return () => { annullato = true; clearTimeout(t) }
+  }, [testo, area, giaCollegate])
+
+  async function aggiungi(a, ruolo = null) {
+    chk(await sb.from('persone_aziende_tolte').delete().eq('persona_id', id).eq('azienda_id', a.id))
+    chk(await sb.from('persone_aziende').upsert({ persona_id: id, azienda_id: a.id, ruolo }, { onConflict: 'persona_id,azienda_id' }))
+  }
+  async function togli(a) {
+    chk(await sb.from('persone_aziende').delete().eq('persona_id', id).eq('azienda_id', a.id))
+    chk(await sb.from('persone_aziende_tolte').upsert({ persona_id: id, azienda_id: a.id }, { onConflict: 'persona_id,azienda_id' }))
+  }
+
+  async function scegli(a) {
+    try {
+      await aggiungi(a)
+      setTesto('')
+      ricarica()
+      avvisa(`Aggiunta ${a.nome}`, { etichetta: 'Annulla', fai: async () => { await togli(a); ricarica() } })
+    } catch (e) {
+      avvisa(messaggioErrore(e))
+    }
+  }
+  async function toglila(d) {
+    try {
+      await togli(d.aziende)
+      ricarica()
+      avvisa(`Tolta ${d.aziende.nome}`, { etichetta: 'Annulla', fai: async () => { await aggiungi(d.aziende, d.ruolo); ricarica() } })
+    } catch (e) {
+      avvisa(messaggioErrore(e))
+    }
+  }
+
+  return (
+    <div className="scelta-persone">
+      <p className="nota-piccola">Ditte</p>
+      {collegate.length > 0 && (
+        <div className="chips">
+          {collegate.map((d) => (
+            <span key={d.aziende.id} className="chip attivo" style={{ '--c': areaDa(d.aziende.area)?.colore }}>
+              <a href={`#/azienda/${d.aziende.id}`}>{d.aziende.nome}</a>
+              <button type="button" aria-label={`Togli ${d.aziende.nome}`} onClick={() => toglila(d)}>
+                <Icona nome="x" size={14} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <input type="text" value={testo} onChange={(e) => setTesto(e.target.value)}
+        placeholder="Aggiungi una ditta…" autoComplete="off" enterKeyHint="search" />
+      {testo.trim().length >= 2 && (
+        <div className="tendina">
+          {trovate.map((a) => (
+            <button key={a.id} type="button" onClick={() => scegli(a)}>
+              <span className="pallino" style={{ background: areaDa(a.area)?.colore }} /> {a.nome} <span className="nota-piccola">{areaDa(a.area)?.nome}</span>
+            </button>
+          ))}
+          {!trovate.length && <p className="msg">Nessuna ditta con questo nome{area !== 'T' ? ' in quest\'area' : ''}.</p>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Le voci del riassunto scritto dagli agenti, nell'ordine in cui servono prima di un incontro.
 const VOCI_RIASSUNTO = [
   ['da_chiedere', 'Da chiedere'],
@@ -415,6 +497,7 @@ export function Persona({ id }) {
               )
             })}
           </div>
+          <DittePersona id={id} collegate={p.persone_aziende.filter((x) => x.aziende)} ricarica={ricarica} />
           <div className="modulo">
             <div className="due">
               <label>Nome<input {...campo('nome')} /></label>

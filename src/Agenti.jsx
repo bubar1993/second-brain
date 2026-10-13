@@ -163,7 +163,8 @@ export function Agente({ codice }) {
                   {dati.richieste.map((r) => (
                     <section key={r.id} className={'richiesta' + (IN_ATTESA.includes(r.stato) ? ' in-attesa' : '')}>
                       <p className="riga-meta">{quando(r.creata_il, true)} · {r.da === 'smistatore' ? 'passata dallo smistatore · ' : ''}{STATI[r.stato]}</p>
-                      <p className="richiesta-testo">{r.testo}</p>
+                      {/* Risposte dal Riordino: si vedono solo le parole di Giovanni (la prima riga), non le istruzioni per l'agente. */}
+                      <p className="richiesta-testo">{r.riordino_id ? `Riordino: ${r.testo.split('\n')[0]}` : r.testo}</p>
                       {r.risposta && <p className="richiesta-risposta">{r.risposta}</p>}
                       {r.errore && IN_ATTESA.includes(r.stato) && <p className="nota-piccola rosso">{r.errore}</p>}
                       {r.sessione_url && <a className="nota-piccola" href={r.sessione_url} target="_blank" rel="noreferrer">Vedi il giro su claude.ai</a>}

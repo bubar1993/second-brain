@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { sb, quando } from './supabase'
 import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, useModifiche } from './componenti'
 
@@ -7,11 +7,31 @@ import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, useMo
 // propone l'etichetta per le conversazioni in Posta in arrivo). Qui Giovanni spunta quelle che vanno bene (o cambia la
 // cartella) e preme "Sposta": la funzione riordino-mail le sposta subito. Niente si sposta senza questo tocco.
 // "Tieni in vista" = l'agente non la ripropone più. Si vedono le caselle dell'area scelta (C, G o tutte e due).
+// "Rispondi all'agente" (13.10.2026, solo info@): Giovanni scrive cosa vuole ("mettila in AMARARE/ROMBACH", "crea la
+// cartella DENIS sotto G&C"); parte una richiesta all'agente Archiviazione (richieste_agenti.riordino_id) con le istruzioni
+// dentro, l'agente la fa partire subito e cambia solo la proposta. Le mail le sposta sempre Giovanni con "Sposta".
 
 const CASELLE = [['gc', 'INBOX', 'Posta in arrivo info@'], ['gc', 'Sent', 'Posta inviata info@'], ['ceramex', 'INBOX', 'Gmail Ceramex']]
 const corta = (c) => (c ? c.replace(/^Archive\//, '').replace(/^INBOX\/\d{4}\//, '') : '')
 const caselleDi = (area) => (area === 'C' ? ['ceramex'] : area === 'G' ? ['gc'] : ['gc', 'ceramex'])
 const nomeBreve = (da) => (da || '').replace(/\s*<[^>]+>\s*/, '').replace(/^"|"$/g, '') || da || ''
+const IN_CORSO = ['nuova', 'avviata', 'in_corso']
+// La prima riga della richiesta sono le parole di Giovanni: «…»
+const paroleDi = (q) => (q.testo.split('\n')[0].match(/«(.*)»/) || [])[1] || q.testo
+
+function testoRichiesta(r, parole) {
+  const oggi = new Date().toLocaleDateString('it-CH', { day: '2-digit', month: '2-digit' })
+  return [
+    `«${parole}»`,
+    `Riordino casella: questa è la risposta di Giovanni (dall'app, ${oggi}) sulla mail «${r.oggetto || '(senza oggetto)'}» di ${r.da || '?'} del ${(r.data_email || '').slice(0, 10)}, ora in ${r.cartella_da}.`,
+    `Riga: riordino_mail id = '${r.id}'. Proposta attuale: ${r.cartella_proposta || 'nessuna'}${r.nuova ? ' (nuova)' : ''}${r.dubbio ? `. Il tuo dubbio era: ${r.dubbio}` : ''}.`,
+    'Cosa fare: capisci quale cartella vuole Giovanni. Guarda l\'elenco delle cartelle (email-casella {"azione":"cartelle"}) e scrivi il percorso completo con il nome esatto, come le altre proposte (es. Archive/CLIENTI /AMINI/RÜSCHLIKON).',
+    `Poi: update riordino_mail set cartella_proposta = '<percorso>', nuova = <true se la cartella non esiste ancora, altrimenti false>, dubbio = null, motivo = 'Cartella chiesta da Giovanni il ${oggi}: <riassunto in poche parole>', aggiornata_il = now() where id = '${r.id}' and stato = 'proposta';`,
+    'Fai lo stesso con le altre mail in proposta dello stesso cliente e dello stesso riferimento, se ci sono, e dillo nella risposta. È una regola nuova: vale anche per le mail che arriveranno (passo R0).',
+    'Non spostare mail e non creare cartelle: le sposta Giovanni con "Sposta" (una cartella nuova si crea in quel momento). Se non capisci cosa vuole, non cambiare niente e nella risposta fagli una domanda precisa.',
+    'Risposta: una frase con la cartella scelta (scrivi "nuova" se non esiste ancora).',
+  ].join('\n')
+}
 
 export function Riordino() {
   const { avvisa, area } = useApp()
@@ -21,17 +41,52 @@ export function Riordino() {
   const [cartelle, setCartelle] = useState({}) // casella → elenco
   const [conferma, setConferma] = useState(false)
   const [lavoro, setLavoro] = useState(false)
+  const [risponde, setRisponde] = useState(null) // riga con il campo "Rispondi all'agente" aperto
+  const [parole, setParole] = useState('')
   const quante = Object.values(scelte).filter(Boolean).length
-  useModifiche(quante > 0 || Object.keys(cambi).length > 0)
+  useModifiche(quante > 0 || Object.keys(cambi).length > 0 || !!parole.trim())
 
   const { dati, errore, carica, ricarica } = useCarica(async () => {
-    const [righe, spostate] = await Promise.all([
+    const [righe, spostate, risposte] = await Promise.all([
       sb.from('riordino_mail').select('*').in('casella', caselleDi(area)).in('stato', ['proposta', 'tenere']).order('data_email', { ascending: false }).then(chk),
       sb.from('riordino_mail').select('id,oggetto,da,cartella_finale,spostata_il').in('casella', caselleDi(area)).eq('stato', 'spostata')
         .gte('spostata_il', new Date(Date.now() - 86400e3).toISOString()).order('spostata_il', { ascending: false }).then(chk),
+      sb.from('richieste_agenti').select('id,riordino_id,testo,stato,risposta,creata_il').not('riordino_id', 'is', null)
+        .gte('creata_il', new Date(Date.now() - 7 * 86400e3).toISOString()).order('creata_il', { ascending: false }).then(chk),
     ])
-    return { righe, spostate }
+    // L'ultima risposta di Giovanni per ogni mail.
+    const ultima = {}
+    for (const q of risposte) ultima[q.riordino_id] ||= q
+    return { righe, spostate, ultima }
   }, [area])
+
+  // Mentre l'agente lavora su una risposta, la schermata si rilegge ogni 20 secondi (per 15 minuti al massimo).
+  const inAttesa = Object.values(dati?.ultima || {}).some((q) => IN_CORSO.includes(q.stato) && Date.now() - new Date(q.creata_il) < 15 * 60e3)
+  useEffect(() => {
+    if (!inAttesa) return
+    const t = setInterval(() => { if (document.visibilityState === 'visible') ricarica() }, 20000)
+    return () => clearInterval(t)
+  }, [inAttesa, ricarica])
+
+  async function rispondi(r) {
+    const t = parole.trim().replace(/\s+/g, ' ')
+    if (!t) return avvisa('Scrivi cosa deve fare l\'agente')
+    setLavoro(true)
+    try {
+      const q = chk(await sb.from('richieste_agenti').insert({ agente: 'archiviazione', testo: testoRichiesta(r, t), riordino_id: r.id }).select('id').single())
+      setParole('')
+      setRisponde(null)
+      setCambi((c) => { const n = { ...c }; delete n[r.id]; return n })
+      segna([r.id], false)
+      const esito = await chiama('agente-subito', { id: q.id }).catch(() => ({ ok: false }))
+      avvisa(esito.ok ? 'Mandata: l\'agente cambia la proposta tra qualche minuto' : 'Mandata: la fa al prossimo giro dell\'agente (ogni 2 ore, 8–18)')
+      ricarica()
+    } catch (e) {
+      avvisa(messaggioErrore(e))
+    } finally {
+      setLavoro(false)
+    }
+  }
 
   const cartellaDi = (r) => cambi[r.id] || r.cartella_proposta || ''
   const segna = (ids, si) => { setConferma(false); setScelte((s) => { const n = { ...s }; ids.forEach((id) => { n[id] = si }); return n }) }
@@ -89,6 +144,9 @@ export function Riordino() {
   function riga(r) {
     const cartella = cartellaDi(r)
     const scelta = !!scelte[r.id]
+    const q = dati.ultima[r.id]
+    const lavora = q && IN_CORSO.includes(q.stato)
+    const puoRispondere = (r.casella || 'gc') === 'gc' && r.stato === 'proposta' && !lavora
     return (
       <div key={r.id} className="voce-riordino">
         <div className={'riga riga-riordino' + (scelta ? ' scelta' : '')}>
@@ -104,14 +162,38 @@ export function Riordino() {
             </span>
             {r.dubbio && <span className="riga-meta dubbio">❓ {r.dubbio}</span>}
             {r.esito?.startsWith('Non spostata') && <span className="riga-meta rosso">{r.esito}</span>}
-            <button type="button" className="tasto-link cambia-cartella" onClick={() => apriScelta(r)}>
-              {cambi[r.id] ? `Cambiata: ${corta(cambi[r.id])}` : cartella ? (r.casella === 'ceramex' ? 'Altra etichetta' : 'Altra cartella') : (r.casella === 'ceramex' ? "Scegli l'etichetta" : 'Scegli la cartella')}
-            </button>
+            {q && (
+              <span className={'riga-meta risposta-agente' + (lavora ? ' attesa' : '')}>
+                Tu: «{paroleDi(q)}»
+                {lavora ? <> · l'agente ci sta lavorando…</> : q.risposta ? <><br />Agente: {q.risposta}</> : null}
+              </span>
+            )}
+            <span className="tasti-riga">
+              <button type="button" className="tasto-link cambia-cartella" onClick={() => apriScelta(r)}>
+                {cambi[r.id] ? `Cambiata: ${corta(cambi[r.id])}` : cartella ? (r.casella === 'ceramex' ? 'Altra etichetta' : 'Altra cartella') : (r.casella === 'ceramex' ? "Scegli l'etichetta" : 'Scegli la cartella')}
+              </button>
+              {puoRispondere && (
+                <button type="button" className="tasto-link cambia-cartella"
+                  onClick={() => { setRisponde(risponde === r.id ? null : r.id); setParole(''); setAperta(null) }}>
+                  {r.dubbio ? 'Rispondi all\'agente' : 'Scrivi all\'agente'}
+                </button>
+              )}
+            </span>
           </span>
         </div>
         {aperta === r.id && (
           <SceltaCartella cartelle={cartelle[r.casella || 'gc']} attuale={cartella}
             onScegli={(c) => { setCambi((x) => ({ ...x, [r.id]: c })); segna([r.id], true); setAperta(null) }} />
+        )}
+        {risponde === r.id && (
+          <div className="scelta-cartella rispondi-agente">
+            <textarea rows={3} value={parole} onChange={(e) => setParole(e.target.value)} autoFocus
+              placeholder="Es. no, mettila in AMARARE/ROMBACH · crea la cartella DENIS sotto G&C" />
+            <div className="azioni">
+              <button type="button" className="tasto-piccolo" onClick={() => rispondi(r)} disabled={lavoro || !parole.trim()}>Manda all'agente</button>
+              <button type="button" className="tasto-link" onClick={() => { setRisponde(null); setParole('') }}>Annulla</button>
+            </div>
+          </div>
         )}
       </div>
     )

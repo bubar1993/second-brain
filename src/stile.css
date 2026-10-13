@@ -569,6 +569,11 @@ a.riga:active, button.riga:active { background: rgba(255, 255, 255, 0.04); }
 .spunta-mail[aria-pressed='true'] svg { opacity: 1; }
 .riga-riordino .dubbio { color: var(--giallo); }
 .cambia-cartella { align-self: flex-start; padding: 4px 0 0; font-size: 13px; }
+.tasti-riga { display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.risposta-agente { white-space: normal; color: var(--testo, inherit); }
+.risposta-agente.attesa { color: var(--tenue); font-style: italic; }
+.rispondi-agente textarea { width: 100%; font: inherit; }
+.rispondi-agente .azioni { display: flex; align-items: center; gap: 12px; }
 .scelta-cartella { display: flex; flex-direction: column; gap: 8px; padding: 0 16px 14px 56px; }
 .scelta-cartella .tendina { max-height: 280px; overflow-y: auto; }
 .scelta-cartella .tendina .attuale { font-weight: 700; color: var(--verde-gc, #34d58a); }

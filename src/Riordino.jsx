@@ -57,6 +57,7 @@ export function Riordino() {
   const [conferma, setConferma] = useState(false)
   const [lavoro, setLavoro] = useState(false)
   const [risponde, setRisponde] = useState(null) // riga con il campo "Rispondi all'agente" aperto
+  const [letta, setLetta] = useState(null)       // { id, dati | errore } della mail aperta con "Leggi email"
   const [parole, setParole] = useState('')
   const quante = Object.values(scelte).filter(Boolean).length
   useModifiche(quante > 0 || Object.keys(cambi).length > 0 || !!parole.trim())
@@ -88,6 +89,38 @@ export function Riordino() {
     const t = setInterval(() => { if (document.visibilityState === 'visible') ricarica() }, 20000)
     return () => clearInterval(t)
   }, [inAttesa, ricarica])
+
+  // "Leggi email" (13.10.2026): il testo della mail (o degli ultimi messaggi della conversazione Gmail) e gli allegati.
+  async function leggiMail(r) {
+    if (letta?.id === r.id) { setLetta(null); return }
+    setLetta({ id: r.id })
+    try {
+      setLetta({ id: r.id, dati: await chiama('riordino-mail', { azione: 'leggi', id: r.id }) })
+    } catch (e) {
+      setLetta({ id: r.id, errore: messaggioErrore(e) })
+    }
+  }
+  async function apriAllegato(r, a) {
+    // La finestra si apre subito (dopo l'attesa il telefono la bloccherebbe), poi riceve il file.
+    const finestra = window.open('', '_blank')
+    try {
+      avvisa(`Apro ${a.nome}…`)
+      const f = await chiama('riordino-mail', { azione: 'allegato', id: r.id, rif: a.rif })
+      const bytes = Uint8Array.from(atob(f.dati), (c) => c.charCodeAt(0))
+      const url = URL.createObjectURL(new Blob([bytes], { type: f.tipo }))
+      if (finestra) finestra.location.href = url
+      else {
+        const link = document.createElement('a')
+        link.href = url
+        link.download = f.nome
+        link.click()
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 120000)
+    } catch (e) {
+      finestra?.close()
+      avvisa(messaggioErrore(e))
+    }
+  }
 
   async function rispondi(r) {
     const t = parole.trim().replace(/\s+/g, ' ')
@@ -197,6 +230,9 @@ export function Riordino() {
               <button type="button" className="tasto-link cambia-cartella" onClick={() => apriScelta(r)}>
                 {cambi[r.id] ? `Cambiata: ${corta(cambi[r.id])}` : cartella ? (r.casella === 'ceramex' ? 'Altra etichetta' : 'Altra cartella') : (r.casella === 'ceramex' ? "Scegli l'etichetta" : 'Scegli la cartella')}
               </button>
+              <button type="button" className="tasto-link cambia-cartella" onClick={() => leggiMail(r)}>
+                {letta?.id === r.id ? 'Chiudi email' : 'Leggi email'}
+              </button>
               {puoRispondere && (
                 <button type="button" className="tasto-link cambia-cartella"
                   onClick={() => { setRisponde(risponde === r.id ? null : r.id); setParole(''); setAperta(null) }}>
@@ -209,6 +245,26 @@ export function Riordino() {
         {aperta === r.id && (
           <SceltaCartella cartelle={cartelle[r.casella || 'gc']} attuale={cartella}
             onScegli={(c) => { setCambi((x) => ({ ...x, [r.id]: c })); segna([r.id], true); setAperta(null) }} />
+        )}
+        {letta?.id === r.id && (
+          <div className="scelta-cartella mail-letta">
+            {letta.errore ? <p className="msg errore">{letta.errore}</p>
+              : !letta.dati ? <p className="msg">Leggo la mail…</p>
+                : letta.dati.avviso && !letta.dati.messaggi.length ? <p className="msg">{letta.dati.avviso}</p>
+                  : letta.dati.messaggi.map((m, i) => (
+                    <article key={i} className="messaggio-letto">
+                      <p className="riga-meta"><b>{nomeBreve(m.da)}</b>{m.data && !isNaN(new Date(m.data)) ? ` · ${quando(new Date(m.data).toISOString(), true)}` : ''}{m.a ? ` · a ${nomeBreve(m.a)}` : ''}</p>
+                      <p className="testo-mail">{m.testo || '(senza testo)'}</p>
+                      {m.allegati?.length > 0 && (
+                        <div className="chips">
+                          {m.allegati.map((a) => (
+                            <button key={a.rif} type="button" className="chip piccolo" onClick={() => apriAllegato(r, a)}>📎 {a.nome} · {a.kb} KB</button>
+                          ))}
+                        </div>
+                      )}
+                    </article>
+                  ))}
+          </div>
         )}
         {risponde === r.id && (
           <div className="scelta-cartella rispondi-agente">

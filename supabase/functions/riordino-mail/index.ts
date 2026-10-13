@@ -5,7 +5,10 @@
 // Crea una cartella solo se è la cartella nuova proposta dall'agente (✚) e Giovanni l'ha approvata.
 // Azioni: { azione: 'cartelle', casella? } → cartelle di info@ (dall'ultima lettura di posta-gc) o etichette Gmail;
 //         { azione: 'sposta', voci: [{ id, cartella? }] } → sposta (cartella = correzione di Giovanni).
+//         { azione: 'leggi', id } → testo della mail (info@) o degli ultimi messaggi della conversazione (Gmail), con gli allegati;
+//         { azione: 'allegato', id, rif } → un allegato in base64 (13.10.2026, richiesta di Giovanni). Solo lettura: non segna come letta.
 import { ImapFlow } from 'npm:imapflow@1.0.171'
+import PostalMime from 'npm:postal-mime@2.4.3'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -64,6 +67,99 @@ async function gmail(token: string, percorso: string, init: RequestInit = {}) {
 }
 const etichetteUtente = async (token: string) =>
   ((await gmail(token, 'labels'))?.labels || []).filter((l: any) => l.type === 'user') as { id: string, name: string }[]
+
+// --- Leggere una mail (testo e allegati) ---
+const MAX_TESTO = 20000
+const MAX_ALLEGATO = 12 * 1024 * 1024
+function daHtml(html: string) {
+  return html.replace(/<(style|script)[\s\S]*?<\/\1>/gi, '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|tr|li|h\d)>/gi, '\n')
+    .replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\n{3,}/g, '\n\n').trim()
+}
+const pulito = (t: string) => t.replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim().slice(0, MAX_TESTO)
+const kb = (n: number) => Math.max(1, Math.round(n / 1024))
+function base64(bytes: Uint8Array) {
+  let s = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  return btoa(s)
+}
+const daBase64url = (s: string) => s.replace(/-/g, '+').replace(/_/g, '/')
+
+// info@: la mail grezza dalla sua cartella (IMAP, senza segnarla come letta).
+async function sorgenteGC(r: Record<string, any>) {
+  const password = Deno.env.get('GC_MAIL_PASSWORD')
+  if (!password) throw new Error('manca la password della casella (GC_MAIL_PASSWORD)')
+  const imap = new ImapFlow({ host: 'imap.mail.hostpoint.ch', port: 993, secure: true, auth: { user: IO, pass: password }, logger: false })
+  await imap.connect()
+  try {
+    const lock = await imap.getMailboxLock(String(r.cartella_da || 'INBOX'), { readOnly: true })
+    try {
+      const mid = senzaParentesi(r.message_id)
+      for (const uid of (await imap.search({ header: { 'message-id': mid } }, { uid: true })) || []) {
+        const m = await imap.fetchOne(String(uid), { envelope: true, source: true }, { uid: true })
+        if (m && senzaParentesi(m.envelope?.messageId || '') === mid && m.source) return m.source as Uint8Array
+      }
+      return null
+    } finally {
+      lock.release()
+    }
+  } finally {
+    await imap.logout().catch(() => {})
+  }
+}
+const indirizzi = (x: any) => (Array.isArray(x) ? x : x ? [x] : []).map((a: any) => a.name ? `${a.name} <${a.address}>` : a.address).join(', ')
+
+async function leggiGC(r: Record<string, any>) {
+  const sorgente = await sorgenteGC(r)
+  if (!sorgente) return { messaggi: [], avviso: 'La mail non è più in questa cartella.' }
+  const m = await PostalMime.parse(sorgente)
+  return { messaggi: [{
+    da: indirizzi(m.from), a: indirizzi(m.to), data: m.date, oggetto: m.subject,
+    testo: pulito(m.text || daHtml(m.html || '')),
+    allegati: (m.attachments || []).map((x: any, i: number) => ({ rif: String(i), nome: x.filename || `allegato ${i + 1}`, tipo: x.mimeType, kb: kb(x.content?.byteLength || 0) })),
+  }] }
+}
+async function allegatoGC(r: Record<string, any>, rif: string) {
+  const sorgente = await sorgenteGC(r)
+  if (!sorgente) throw new Error('La mail non è più in questa cartella')
+  const x = (await PostalMime.parse(sorgente)).attachments?.[Number(rif)]
+  if (!x) throw new Error('Allegato non trovato')
+  const bytes = new Uint8Array(x.content as ArrayBuffer)
+  if (bytes.length > MAX_ALLEGATO) throw new Error('Allegato troppo grande: aprilo dalla casella')
+  return { nome: x.filename || 'allegato', tipo: x.mimeType || 'application/octet-stream', dati: base64(bytes) }
+}
+
+// Gmail: gli ultimi 5 messaggi della conversazione, dal più vecchio al più nuovo.
+function parti(p: any): any[] { return [p, ...(p?.parts || []).flatMap(parti)] }
+const decodifica = (d: string) => new TextDecoder().decode(Uint8Array.from(atob(daBase64url(d)), (c) => c.charCodeAt(0)))
+async function leggiCeramex(r: Record<string, any>) {
+  const token = await accessoGmail()
+  const thread = r.gmail_thread_id && await gmail(token, `threads/${r.gmail_thread_id}?format=full`)
+  if (!thread) return { messaggi: [], avviso: 'La conversazione non c\'è più in Gmail.' }
+  const messaggi = (thread.messages || []).slice(-5).map((m: any) => {
+    const h = (n: string) => (m.payload?.headers || []).find((x: any) => x.name.toLowerCase() === n)?.value || ''
+    const tutte = parti(m.payload)
+    const piano = tutte.find((p) => p.mimeType === 'text/plain' && p.body?.data && !p.filename)
+    const html = tutte.find((p) => p.mimeType === 'text/html' && p.body?.data && !p.filename)
+    return {
+      da: h('from'), a: h('to'), data: h('date'), oggetto: h('subject'),
+      testo: pulito(piano ? decodifica(piano.body.data) : html ? daHtml(decodifica(html.body.data)) : m.snippet || ''),
+      allegati: tutte.filter((p) => p.filename && p.body?.attachmentId)
+        .map((p) => ({ rif: `${m.id}/${p.body.attachmentId}`, nome: p.filename, tipo: p.mimeType, kb: kb(p.body.size || 0) })),
+    }
+  })
+  return { messaggi }
+}
+async function allegatoCeramex(r: Record<string, any>, rif: string) {
+  const [mid, aid] = rif.split('/')
+  const token = await accessoGmail()
+  const thread = await gmail(token, `threads/${r.gmail_thread_id}?format=full`)
+  const p = (thread?.messages || []).filter((m: any) => m.id === mid).flatMap((m: any) => parti(m.payload)).find((x: any) => x.body?.attachmentId === aid)
+  if (!p) throw new Error('Allegato non trovato')
+  if ((p.body.size || 0) > MAX_ALLEGATO) throw new Error('Allegato troppo grande: aprilo da Gmail')
+  const a = await gmail(token, `messages/${mid}/attachments/${encodeURIComponent(aid)}`)
+  return { nome: p.filename, tipo: p.mimeType || 'application/octet-stream', dati: daBase64url(a.data) }
+}
 
 type Esito = { spostate: number, sparite: number, errori: string[] }
 
@@ -170,7 +266,20 @@ Deno.serve(async (req: Request) => {
   const utente = u.ok ? await u.json() : null
   if (utente?.id !== UTENTE) return risposta({ errore: 'Non autorizzato' }, 401)
 
-  const { azione, voci, casella } = await req.json().catch(() => ({}))
+  const { azione, voci, casella, id, rif } = await req.json().catch(() => ({}))
+
+  if (azione === 'leggi' || azione === 'allegato') {
+    if (!/^[0-9a-f-]{36}$/.test(String(id))) return risposta({ errore: 'Mail sconosciuta' }, 400)
+    const [r] = await rest(`riordino_mail?id=eq.${id}&select=*`) as Record<string, any>[]
+    if (!r) return risposta({ errore: 'Mail sconosciuta' }, 404)
+    const ceramex = (r.casella || 'gc') === 'ceramex'
+    try {
+      if (azione === 'leggi') return risposta(ceramex ? await leggiCeramex(r) : await leggiGC(r))
+      return risposta(ceramex ? await allegatoCeramex(r, String(rif)) : await allegatoGC(r, String(rif)))
+    } catch (e) {
+      return risposta({ errore: String((e as Error)?.message || e).slice(0, 200) }, 502)
+    }
+  }
 
   if (azione === 'cartelle') {
     if (casella === 'ceramex') {

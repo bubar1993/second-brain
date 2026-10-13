@@ -78,12 +78,23 @@ export function Quaderno({ parti, query }) {
   const [area, a, b] = parti
   const notaAperta = query.get('nota')
   const contenuto = !area ? <Copertina />
+    : area === 'persona' ? <NotePersona key={a} id={a} />
     : area === 'P' && (a === 'persona' || a === 'tema') ? <CapitoloPrivato key={b} tipo={a} id={b} />
       : a === 'senza' ? <SenzaCapitolo key={area} area={area} />
         : a ? <Cliente key={a} area={area} id={a} query={query} />
           : <Capitoli key={area} area={area} />
 
   if (!largo || !area) return contenuto
+  if (area === 'persona') {
+    return (
+      <div className="quaderno-pc due">
+        <div className="quaderno-pc-col">{contenuto}</div>
+        <div className="quaderno-pc-col quaderno-pc-nota">
+          {notaAperta ? <Nota key={notaAperta} id={notaAperta} /> : <p className="msg vuoto-diviso">Tocca una nota per aprirla qui.</p>}
+        </div>
+      </div>
+    )
+  }
   // Sul PC: a sinistra i capitoli del quaderno, al centro il capitolo, a destra la nota aperta.
   return (
     <div className="quaderno-pc">
@@ -180,14 +191,20 @@ function Ricerca({ q, area: soloArea }) {
         qp = qp.or(`nome.ilike.%${p}%,cognome.ilike.%${p}%`)
         qa = qa.or(`nome.ilike.%${p}%,ragione_sociale.ilike.%${p}%`)
       }
-      const [{ data: persone }, { data: ditte }] = await Promise.all([qp, qa])
+      let qc = sb.from('cantieri').select('id,nome,azienda_id,aziende(nome)').is('eliminata_il', null).in('area', aree).order('nome').limit(15)
+      for (const p of parole) qc = qc.or(`nome.ilike.%${p}%,descrizione.ilike.%${p}%`)
+      const [{ data: persone }, { data: ditte }, { data: cantieri }, { data: capitoli }] = await Promise.all([qp, qa, qc,
+        sb.from('quaderno_capitoli').select('id,persona_id').eq('tipo', 'persona').is('eliminata_il', null)])
+      const capitolo = Object.fromEntries((capitoli || []).map((c) => [c.persona_id, c.id]))
       // Persone: solo quelle che stanno in una delle aree scelte; le ditte mostrate sono quelle di queste aree.
       const tenute = (persone || []).map((p) => ({
         ...p, ditte: (p.persone_aziende || []).map((x) => x.aziende).filter((d) => d && aree.includes(d.area)),
       })).filter((p) => (p.persone_aree || []).some((x) => aree.includes(x.area)) || p.ditte.length)
       const tutte = new Map((ditte || []).map((d) => [d.id, d]))
       tenute.forEach((p) => p.ditte.forEach((d) => { if (!tutte.has(d.id)) tutte.set(d.id, d) }))
-      setTrovati({ persone: tenute, ditte: [...tutte.values()] })
+      // Persona con un capitolo nel Privato (es. Leonardo): si apre quel capitolo; le altre: le loro note nel quaderno.
+      tenute.forEach((p) => { p.link = capitolo[p.id] && aree.includes('P') ? `#/quaderno/P/persona/${capitolo[p.id]}` : `#/quaderno/persona/${p.id}` })
+      setTrovati({ persone: tenute, ditte: [...tutte.values()].filter((d) => d.area === 'C' || d.area === 'G'), cantieri: cantieri || [] })
     }, 300)
     return () => clearTimeout(t)
   }, [q, aree.join()])  // eslint-disable-line react-hooks/exhaustive-deps
@@ -199,7 +216,7 @@ function Ricerca({ q, area: soloArea }) {
           <h3>Persone</h3>
           <div className="elenco">
             {trovati.persone.map((p) => (
-              <a key={p.id} href={`#/persona/${p.id}`} className="riga capitolo">
+              <a key={p.id} href={p.link} className="riga capitolo">
                 <span className="riga-corpo">
                   <span className="riga-testo">{nomePersona(p)}</span>
                   {p.ditte.length > 0 && <span className="riga-meta">{p.ditte.map((d) => d.nome).join(', ')}</span>}
@@ -215,7 +232,7 @@ function Ricerca({ q, area: soloArea }) {
           <h3>Ditte</h3>
           <div className="elenco">
             {trovati.ditte.map((d) => (
-              <a key={d.id} href={`#/azienda/${d.id}`} className="riga capitolo">
+              <a key={d.id} href={`#/quaderno/${d.area}/${d.id}`} className="riga capitolo">
                 <span className="pallino" style={{ background: areaDa(d.area)?.colore }} aria-hidden="true" />
                 <span className="riga-corpo"><span className="riga-testo">{d.nome}</span></span>
                 <Icona nome="freccia" size={18} />
@@ -224,9 +241,23 @@ function Ricerca({ q, area: soloArea }) {
           </div>
         </section>
       )}
+      {trovati?.cantieri.length > 0 && (
+        <section className="blocco">
+          <h3>Cantieri</h3>
+          <div className="elenco">
+            {trovati.cantieri.map((c) => (
+              <a key={c.id} href={`#/quaderno/G/${c.azienda_id}?cantiere=${c.id}`} className="riga capitolo">
+                <span className="pallino" style={{ background: areaDa('G').colore }} aria-hidden="true" />
+                <span className="riga-corpo"><span className="riga-testo">{c.nome}</span>{c.aziende?.nome && <span className="riga-meta">{c.aziende.nome}</span>}</span>
+                <Icona nome="freccia" size={18} />
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
       {q.trim().length >= 3 && (
         <section className="blocco">
-          {(trovati?.persone.length > 0 || trovati?.ditte.length > 0) && <h3>Note</h3>}
+          {(trovati?.persone.length > 0 || trovati?.ditte.length > 0 || trovati?.cantieri.length > 0) && <h3>Note</h3>}
           <Trovate q={q} area={soloArea} />
         </section>
       )}
@@ -580,6 +611,58 @@ function SenzaCapitolo({ area }) {
       <TestaQuaderno area={area} titolo={area === 'P' ? 'Senza capitolo' : 'Senza cliente'} indietro={`#/quaderno/${area}`} />
       <Stato carica={carica} errore={errore} vuoto={dati && !mostrate.length ? 'Niente qui: sono tutte al loro posto.' : null}>
         {dati && <PagineNote note={mostrate} risolvi={risolvi} mandante temi={dati.temi} cambiaTema={cambiaTema} />}
+      </Stato>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Le note di una persona (dalla ricerca): collegate a lei o con lei come contatto nella sua ditta (scelta A di Giovanni) */
+/* ------------------------------------------------------------------ */
+function NotePersona({ id }) {
+  const { area } = useApp()
+  const aree = area === 'T' ? ['C', 'G', 'P'] : [area]
+  const [agenti, setAgenti] = useAgenti()
+  const campi = `${CAMPI_NOTA},aziende(nome)`
+  const { dati, errore, carica, ricarica } = useCarica(async () => {
+    const p = chk(await sb.from('persone').select('id,nome,cognome,persone_aziende(azienda_id)').eq('id', id).single())
+    const ditte = p.persone_aziende.map((x) => x.azienda_id)
+    const nome = (p.nome || '').trim().split(/\s+/)[0].replace(/[%_,()*]/g, '')
+    const [collegate, comeContatto] = await Promise.all([
+      sb.from('note_persone').select(`note!inner(${campi})`).eq('persona_id', id).in('note.area', aree).is('note.eliminata_il', null).is('note.scartata_il', null).then(chk),
+      ditte.length && nome ? sb.from('note').select(campi).in('azienda_id', ditte).in('area', aree).ilike('contatto', `${nome}%`)
+        .is('eliminata_il', null).is('scartata_il', null).limit(1000).then(chk) : [],
+    ])
+    const tutte = new Map([...collegate.map((r) => r.note), ...comeContatto].map((n) => [n.id, n]))
+    return { p, note: ordinaNote([...tutte.values()]) }
+  }, [id, area])
+  const risolvi = useRisolvi(ricarica)
+
+  const mostrate = (dati?.note || []).filter((n) => agenti || mia(n))
+  const nascoste = (dati?.note.length || 0) - mostrate.length
+  return (
+    <div className="schermata quaderno">
+      <div className="testa-quaderno">
+        <a href="#/quaderno" className="tasto-link torna"><Icona nome="indietro" size={18} />Note</a>
+        <a href={`#/persona/${id}`} className="tasto-piccolo">Scheda</a>
+      </div>
+      <h1 className="titolo-quaderno">{dati ? nomePersona(dati.p) : ' '}</h1>
+      <label className="interruttore-agenti">
+        <input type="checkbox" checked={agenti} onChange={(e) => setAgenti(e.target.checked)} />
+        Anche le note degli agenti
+      </label>
+      <Stato carica={carica} errore={errore} vuoto={dati && !dati.note.length ? 'Nessuna nota con questa persona.' : null}>
+        {dati && (!mostrate.length ? (
+          <div className="scheda vuota-mie">
+            <p className="msg">Qui non hai ancora scritto niente tu.</p>
+            <button type="button" className="tasto-piccolo" onClick={() => setAgenti(true)}>Mostra le {nascoste} note degli agenti</button>
+          </div>
+        ) : (
+          <>
+            <PagineNote note={mostrate} risolvi={risolvi} mandante sede={(n) => n.aziende?.nome || areaDa(n.area)?.nome} />
+            {nascoste > 0 && <button type="button" className="tasto-link" onClick={() => setAgenti(true)}>Ci sono anche {nascoste} note degli agenti: mostrale</button>}
+          </>
+        ))}
       </Stato>
     </div>
   )

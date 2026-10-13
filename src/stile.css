@@ -571,6 +571,10 @@ a.riga:active, button.riga:active { background: rgba(255, 255, 255, 0.04); }
 .cambia-cartella { align-self: flex-start; padding: 4px 0 0; font-size: 13px; }
 .tasti-riga { display: flex; flex-wrap: wrap; gap: 4px 18px; }
 .motivo-riordino { white-space: normal; color: var(--testo); opacity: 0.85; }
+.mail-letta { gap: 12px; }
+.messaggio-letto { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--bordo); }
+.messaggio-letto p { margin: 0; }
+.testo-mail { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; line-height: 1.5; max-height: 420px; overflow-y: auto; }
 .risposta-agente { white-space: normal; color: var(--testo, inherit); }
 .risposta-agente.attesa { color: var(--tenue); font-style: italic; }
 .rispondi-agente textarea { width: 100%; font: inherit; }
@@ -880,6 +884,7 @@ mark { background: rgba(255, 214, 102, 0.22); color: var(--testo); border-radius
     overflow-y: auto; padding-right: 6px; scrollbar-width: thin; scrollbar-color: var(--bordo) transparent; min-width: 0;
   }
   .quaderno-pc .titolo-quaderno { font-size: 32px; }
+  .quaderno-pc.due { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .quaderno-pc-nota .tasto-indietro { display: none; }
   .quaderno-pc-nota .testata { margin-left: 0; }
 }

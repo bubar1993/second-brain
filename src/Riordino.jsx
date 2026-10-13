@@ -22,6 +22,13 @@ const paroleDi = (q) => (q.testo.split('\n')[0].match(/«(.*)»/) || [])[1] || q
 // Chi riceve la risposta: info@ → agente Archiviazione, Gmail Ceramex → agente Ceramex (giro delle ore piene).
 const AGENTE_DI = { gc: 'archiviazione', ceramex: 'ceramex' }
 
+// "Rispondi" e "Inoltra" (13.10.2026 sera, la "via di mezzo" scelta da Giovanni): la firma come la scrive lui.
+const FIRMA = {
+  gc: 'Saluti\nGiovanni',
+  ceramex: 'Saluti\nGiovanni\n_________________________\nGiovanni Fabris\nSales Agent\nVia Cantonale 4 Centro galleria 3\n6928 Manno',
+}
+const mailValide = (s) => (s.match(/[^\s<>",;]+@[^\s<>",;]+\.[^\s<>",;]+/g) || [])
+
 function testoRichiesta(r, parole) {
   const oggi = new Date().toLocaleDateString('it-CH', { day: '2-digit', month: '2-digit' })
   if (r.casella === 'ceramex') {
@@ -59,8 +66,9 @@ export function Riordino() {
   const [risponde, setRisponde] = useState(null) // riga con il campo "Rispondi all'agente" aperto
   const [letta, setLetta] = useState(null)       // { id, dati | errore } della mail aperta con "Leggi email"
   const [parole, setParole] = useState('')
+  const [scrive, setScrive] = useState(null)     // { id, tipo: 'rispondi'|'inoltra', testo, a, tutti, prima: {a, cc}, conferma }
   const quante = Object.values(scelte).filter(Boolean).length
-  useModifiche(quante > 0 || Object.keys(cambi).length > 0 || !!parole.trim())
+  useModifiche(quante > 0 || Object.keys(cambi).length > 0 || !!parole.trim() || !!scrive?.cambiato)
 
   const { dati, errore, carica, ricarica } = useCarica(async () => {
     const [righe, spostate, risposte] = await Promise.all([
@@ -119,6 +127,43 @@ export function Riordino() {
     } catch (e) {
       finestra?.close()
       avvisa(messaggioErrore(e))
+    }
+  }
+
+  // Apre il riquadro per rispondere o inoltrare. Per la risposta chiede subito a chi andrebbe (prova: non manda niente).
+  async function apriScrivi(r, tipo) {
+    if (scrive?.id === r.id && scrive.tipo === tipo) { setScrive(null); return }
+    const casella = r.casella || 'gc'
+    const testo = `\n\n${FIRMA[casella]}`
+    setScrive({ id: r.id, tipo, testo, a: '', tutti: false, prima: null })
+    setRisponde(null)
+    setAperta(null)
+    if (tipo !== 'rispondi') return
+    try {
+      const p = await chiama('riordino-mail', { azione: 'rispondi', id: r.id, testo: FIRMA[casella], tutti: true, prova: true })
+      setScrive((s) => (s?.id === r.id && s.tipo === tipo ? { ...s, prima: { a: p.a, cc: p.cc } } : s))
+    } catch (e) {
+      setScrive((s) => (s?.id === r.id ? { ...s, prima: { errore: messaggioErrore(e) } } : s))
+    }
+  }
+
+  async function manda(r) {
+    const s = scrive
+    if (!s.testo.trim() || s.testo.trim() === FIRMA[r.casella || 'gc']) return avvisa('Scrivi il testo')
+    const a = mailValide(s.a)
+    if (s.tipo === 'inoltra' && !a.length) return avvisa('Scrivi a chi inoltrarla (indirizzo mail)')
+    if (!s.conferma) { setScrive({ ...s, conferma: true }); return }
+    setLavoro(true)
+    try {
+      const esito = await chiama('riordino-mail', { azione: s.tipo, id: r.id, testo: s.testo, tutti: s.tutti, a })
+      setScrive(null)
+      avvisa(esito.esito || (s.tipo === 'rispondi' ? 'Risposta mandata' : 'Inoltrata'))
+      ricarica()
+    } catch (e) {
+      setScrive({ ...s, conferma: false })
+      avvisa(messaggioErrore(e))
+    } finally {
+      setLavoro(false)
     }
   }
 
@@ -220,6 +265,7 @@ export function Riordino() {
             {r.motivo && !r.dubbio && <span className="riga-meta motivo-riordino">{r.motivo}</span>}
             {r.dubbio && <span className="riga-meta dubbio">❓ {r.dubbio}</span>}
             {r.esito?.startsWith('Non spostata') && <span className="riga-meta rosso">{r.esito}</span>}
+            {/^(Risposta|Inoltrata)/.test(r.esito || '') && <span className="riga-meta">✓ {r.esito}</span>}
             {q && (
               <span className={'riga-meta risposta-agente' + (lavora ? ' attesa' : '')}>
                 Tu: «{paroleDi(q)}»
@@ -233,9 +279,15 @@ export function Riordino() {
               <button type="button" className="tasto-link cambia-cartella" onClick={() => leggiMail(r)}>
                 {letta?.id === r.id ? 'Chiudi email' : 'Leggi email'}
               </button>
+              <button type="button" className="tasto-link cambia-cartella" onClick={() => apriScrivi(r, 'rispondi')}>
+                {scrive?.id === r.id && scrive.tipo === 'rispondi' ? 'Chiudi risposta' : 'Rispondi'}
+              </button>
+              <button type="button" className="tasto-link cambia-cartella" onClick={() => apriScrivi(r, 'inoltra')}>
+                {scrive?.id === r.id && scrive.tipo === 'inoltra' ? 'Chiudi inoltro' : 'Inoltra'}
+              </button>
               {puoRispondere && (
                 <button type="button" className="tasto-link cambia-cartella"
-                  onClick={() => { setRisponde(risponde === r.id ? null : r.id); setParole(''); setAperta(null) }}>
+                  onClick={() => { setRisponde(risponde === r.id ? null : r.id); setParole(''); setAperta(null); setScrive(null) }}>
                   {r.dubbio ? 'Rispondi all\'agente' : 'Scrivi all\'agente'}
                 </button>
               )}
@@ -251,7 +303,8 @@ export function Riordino() {
             {letta.errore ? <p className="msg errore">{letta.errore}</p>
               : !letta.dati ? <p className="msg">Leggo la mail…</p>
                 : letta.dati.avviso && !letta.dati.messaggi.length ? <p className="msg">{letta.dati.avviso}</p>
-                  : letta.dati.messaggi.map((m, i) => (
+                  // Il messaggio più recente in cima (richiesta di Giovanni, 13.10.2026).
+                  : [...letta.dati.messaggi].reverse().map((m, i) => (
                     <article key={i} className="messaggio-letto">
                       <p className="riga-meta"><b>{nomeBreve(m.da)}</b>{m.data && !isNaN(new Date(m.data)) ? ` · ${quando(new Date(m.data).toISOString(), true)}` : ''}{m.a ? ` · a ${nomeBreve(m.a)}` : ''}</p>
                       <p className="testo-mail">{m.testo || '(senza testo)'}</p>
@@ -264,6 +317,46 @@ export function Riordino() {
                       )}
                     </article>
                   ))}
+          </div>
+        )}
+        {scrive?.id === r.id && (
+          <div className="scelta-cartella rispondi-agente scrivi-mail">
+            {scrive.tipo === 'rispondi' ? (
+              !scrive.prima ? <p className="riga-meta">Cerco a chi rispondere…</p>
+                : scrive.prima.errore ? <p className="msg errore">{scrive.prima.errore}</p>
+                  : (
+                    <>
+                      <p className="riga-meta">A: {scrive.prima.a.join(', ')}</p>
+                      {scrive.prima.cc.length > 0 && (
+                        <label className="riga-meta scelta-tutti">
+                          <input type="checkbox" checked={scrive.tutti}
+                            onChange={(e) => setScrive({ ...scrive, tutti: e.target.checked, conferma: false })} />
+                          {' '}Rispondi a tutti (anche {scrive.prima.cc.join(', ')})
+                        </label>
+                      )}
+                    </>
+                  )
+            ) : (
+              <input type="email" inputMode="email" multiple value={scrive.a} placeholder="A chi (indirizzo mail)"
+                onChange={(e) => setScrive({ ...scrive, a: e.target.value, conferma: false, cambiato: true })} />
+            )}
+            <textarea rows={6} value={scrive.testo} autoFocus
+              onFocus={(e) => { if (!scrive.cambiato) e.target.setSelectionRange(0, 0) }}
+              onChange={(e) => setScrive({ ...scrive, testo: e.target.value, conferma: false, cambiato: true })}
+              placeholder={scrive.tipo === 'rispondi' ? 'Scrivi la risposta' : 'Scrivi due righe (facoltativo) sopra la mail inoltrata'} />
+            <p className="nota-piccola">
+              {scrive.tipo === 'rispondi' ? 'Sotto aggiungo la mail a cui rispondi.' : 'Sotto aggiungo la mail con i suoi allegati.'}
+              {' '}Parte da {r.casella === 'ceramex' ? 'giovannifabris@ceramex.ch' : 'info@homeconcepts.ch'}.
+            </p>
+            <div className="azioni">
+              <button type="button" className={'tasto-piccolo' + (scrive.conferma ? ' pericolo' : '')} onClick={() => manda(r)}
+                disabled={lavoro || (scrive.tipo === 'rispondi' && !scrive.prima?.a?.length)}>
+                {lavoro ? 'Mando…' : scrive.conferma
+                  ? `Tocca ancora: manda a ${scrive.tipo === 'rispondi' ? scrive.prima.a.join(', ') + (scrive.tutti ? ' e altri' : '') : mailValide(scrive.a).join(', ')}`
+                  : scrive.tipo === 'rispondi' ? 'Manda la risposta' : 'Inoltra'}
+              </button>
+              <button type="button" className="tasto-link" onClick={() => setScrive(null)}>Annulla</button>
+            </div>
           </div>
         )}
         {risponde === r.id && (

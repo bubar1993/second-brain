@@ -7,8 +7,14 @@
 //         { azione: 'sposta', voci: [{ id, cartella? }] } → sposta (cartella = correzione di Giovanni).
 //         { azione: 'leggi', id } → testo della mail (info@) o degli ultimi messaggi della conversazione (Gmail), con gli allegati;
 //         { azione: 'allegato', id, rif } → un allegato in base64 (13.10.2026, richiesta di Giovanni). Solo lettura: non segna come letta.
+//         { azione: 'rispondi', id, testo, tutti? }  → risposta nella stessa conversazione (13.10.2026 sera, "via di mezzo" scelta da Giovanni);
+//         { azione: 'inoltra', id, testo, a: [mail] } → inoltro con gli allegati.
+//         info@ parte da SMTP Hostpoint con la copia in "Sent"; Ceramex dalla Gmail (stessa conversazione). L'app chiede due tocchi.
+//         Con prova: true (anche col token della copia, per i controlli) prepara la mail e dice cosa manderebbe, senza mandarla.
 import { ImapFlow } from 'npm:imapflow@1.0.171'
 import PostalMime from 'npm:postal-mime@2.4.3'
+import nodemailer from 'npm:nodemailer@6.9.16'
+import MailComposer from 'npm:nodemailer@6.9.16/lib/mail-composer/index.js'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -129,7 +135,7 @@ async function allegatoGC(r: Record<string, any>, rif: string) {
   return { nome: x.filename || 'allegato', tipo: x.mimeType || 'application/octet-stream', dati: base64(bytes) }
 }
 
-// Gmail: gli ultimi 5 messaggi della conversazione, dal più vecchio al più nuovo.
+// Gmail: gli ultimi 5 messaggi della conversazione, dal più vecchio al più nuovo (l'app li mostra col più nuovo in cima).
 function parti(p: any): any[] { return [p, ...(p?.parts || []).flatMap(parti)] }
 const decodifica = (d: string) => new TextDecoder().decode(Uint8Array.from(atob(daBase64url(d)), (c) => c.charCodeAt(0)))
 async function leggiCeramex(r: Record<string, any>) {
@@ -159,6 +165,167 @@ async function allegatoCeramex(r: Record<string, any>, rif: string) {
   if ((p.body.size || 0) > MAX_ALLEGATO) throw new Error('Allegato troppo grande: aprilo da Gmail')
   const a = await gmail(token, `messages/${mid}/attachments/${encodeURIComponent(aid)}`)
   return { nome: p.filename, tipo: p.mimeType || 'application/octet-stream', dati: daBase64url(a.data) }
+}
+
+// --- Rispondere e inoltrare (13.10.2026 sera) ---
+const IO_CERAMEX = 'giovannifabris@ceramex.ch'
+const MAX_ALLEGATI = 20 * 1024 * 1024
+const pulisciIndirizzi = (l: unknown[]) => [...new Set(l.map((x) => String(x || '').trim().toLowerCase())
+  .filter((x) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x)))]
+const soloIndirizzi = (s: string) => (s.match(/[^\s<>",;]+@[^\s<>",;]+/g) || [])
+const conParentesi = (id: string) => `<${senzaParentesi(id)}>`
+const conPrefisso = (ogg: string, tipo: 'rispondi' | 'inoltra') => {
+  const o = (ogg || '').trim()
+  if (tipo === 'rispondi') return /^(re|aw|r|sv|antw)\s*:/i.test(o) ? o : `Re: ${o}`
+  return /^(fwd?|wg|i|tr|rv)\s*:/i.test(o) ? o : `Fwd: ${o}`
+}
+const quandoMail = (d: unknown) => {
+  const x = new Date(String(d || ''))
+  return isNaN(x.getTime()) ? String(d || '') : x.toLocaleString('it-CH', { timeZone: 'Europe/Zurich', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+// La mail di partenza, uguale per le due caselle.
+type Originale = {
+  messageId: string, references: string[], da: string, daIndirizzo: string, rispondiA: string[], a: string[], cc: string[],
+  oggetto: string, data: unknown, testo: string, allegati: { filename: string, contentType: string, content: Uint8Array }[], threadId?: string,
+}
+
+async function originaleGC(r: Record<string, any>, conAllegati: boolean): Promise<Originale | null> {
+  const sorgente = await sorgenteGC(r)
+  if (!sorgente) return null
+  const m = await PostalMime.parse(sorgente)
+  const lista = (x: any) => (Array.isArray(x) ? x : x ? [x] : []).map((a: any) => a.address).filter(Boolean)
+  return {
+    messageId: m.messageId || r.message_id, references: String(m.references || '').match(/<[^>]+>/g) || [],
+    da: indirizzi(m.from), daIndirizzo: m.from?.address || '', rispondiA: lista(m.replyTo), a: lista(m.to), cc: lista(m.cc),
+    oggetto: m.subject || r.oggetto || '', data: m.date, testo: pulito(m.text || daHtml(m.html || '')),
+    allegati: conAllegati ? (m.attachments || []).map((x: any, i: number) => ({ filename: x.filename || `allegato ${i + 1}`,
+      contentType: x.mimeType || 'application/octet-stream', content: new Uint8Array(x.content as ArrayBuffer) })) : [],
+  }
+}
+
+async function originaleCeramex(token: string, r: Record<string, any>, conAllegati: boolean): Promise<Originale | null> {
+  const thread = r.gmail_thread_id && await gmail(token, `threads/${r.gmail_thread_id}?format=full`)
+  const vere = (thread?.messages || []).filter((m: any) => !(m.labelIds || []).includes('DRAFT'))
+  if (!vere.length) return null
+  const h = (m: any, n: string) => (m.payload?.headers || []).find((x: any) => x.name.toLowerCase() === n)?.value || ''
+  const mio = (m: any) => soloIndirizzi(h(m, 'from')).some((x) => x.toLowerCase() === IO_CERAMEX)
+  // Si risponde all'ultimo messaggio arrivato (se sono tutti suoi, all'ultimo).
+  const m = [...vere].reverse().find((x: any) => !mio(x)) || vere[vere.length - 1]
+  const tutte = parti(m.payload)
+  const piano = tutte.find((p) => p.mimeType === 'text/plain' && p.body?.data && !p.filename)
+  const html = tutte.find((p) => p.mimeType === 'text/html' && p.body?.data && !p.filename)
+  let allegati: Originale['allegati'] = []
+  if (conAllegati) {
+    // Gli allegati del messaggio; se non ne ha, quelli del messaggio più recente che li ha.
+    const conFile = [m, ...[...vere].reverse()].find((x: any) => parti(x.payload).some((p) => p.filename && p.body?.attachmentId))
+    for (const p of conFile ? parti(conFile.payload).filter((p) => p.filename && p.body?.attachmentId) : []) {
+      const a = await gmail(token, `messages/${conFile.id}/attachments/${encodeURIComponent(p.body.attachmentId)}`)
+      allegati.push({ filename: p.filename, contentType: p.mimeType || 'application/octet-stream',
+        content: Uint8Array.from(atob(daBase64url(a.data)), (c) => c.charCodeAt(0)) })
+    }
+  }
+  return {
+    messageId: h(m, 'message-id'), references: h(m, 'references').match(/<[^>]+>/g) || [],
+    da: h(m, 'from'), daIndirizzo: soloIndirizzi(h(m, 'from'))[0] || '', rispondiA: soloIndirizzi(h(m, 'reply-to')),
+    a: soloIndirizzi(h(m, 'to')), cc: soloIndirizzi(h(m, 'cc')), oggetto: h(m, 'subject') || r.oggetto || '', data: h(m, 'date'),
+    testo: pulito(piano ? decodifica(piano.body.data) : html ? daHtml(decodifica(html.body.data)) : m.snippet || ''),
+    allegati, threadId: thread.id,
+  }
+}
+
+function prepara(o: Originale, io: string, tipo: 'rispondi' | 'inoltra', corpo: { testo?: string, tutti?: boolean, a?: unknown[] }) {
+  const testo = String(corpo.testo || '').trim()
+  if (!testo) throw new Error('Scrivi il testo')
+  let a: string[], cc: string[] = []
+  if (tipo === 'rispondi') {
+    const daLui = o.daIndirizzo.toLowerCase() === io
+    a = pulisciIndirizzi(daLui ? o.a : (o.rispondiA.length ? o.rispondiA : [o.daIndirizzo])).filter((x) => x !== io)
+    if (corpo.tutti) cc = pulisciIndirizzi([...o.a, ...o.cc]).filter((x) => x !== io && !a.includes(x))
+  } else {
+    a = pulisciIndirizzi(Array.isArray(corpo.a) ? corpo.a : [])
+    if (!a.length) throw new Error('Scrivi a chi inoltrarla')
+  }
+  if (!a.length) throw new Error('Non trovo a chi rispondere')
+  const sotto = tipo === 'rispondi'
+    ? `Il ${quandoMail(o.data)}, ${o.da} ha scritto:\n${o.testo.split('\n').map((l) => `> ${l}`).join('\n')}`
+    : ['---------- Messaggio inoltrato ----------', `Da: ${o.da}`, `Data: ${quandoMail(o.data)}`, `Oggetto: ${o.oggetto}`,
+      `A: ${o.a.join(', ')}`, ...(o.cc.length ? [`Cc: ${o.cc.join(', ')}`] : []), '', o.testo].join('\n')
+  const allegati = tipo === 'inoltra' ? o.allegati : []
+  if (allegati.reduce((s, x) => s + x.content.byteLength, 0) > MAX_ALLEGATI) throw new Error('Allegati troppo grandi (oltre 20 MB): inoltrala dalla casella')
+  const riferimenti = o.messageId ? [...o.references, conParentesi(o.messageId)] : o.references
+  return {
+    a, cc, oggetto: conPrefisso(o.oggetto, tipo), testo: `${testo}\n\n${sotto}`, allegati,
+    ...(tipo === 'rispondi' && o.messageId ? { inReplyTo: conParentesi(o.messageId), references: riferimenti.join(' ') } : {}),
+  }
+}
+
+async function mandaGC(m: ReturnType<typeof prepara>) {
+  const password = Deno.env.get('GC_MAIL_PASSWORD')
+  if (!password) throw new Error('manca la password della casella (GC_MAIL_PASSWORD)')
+  const grezza: Uint8Array = await new MailComposer({
+    from: { name: 'G&C Home concepts', address: IO }, to: m.a, cc: m.cc.length ? m.cc : undefined, subject: m.oggetto, text: m.testo,
+    messageId: `<${crypto.randomUUID()}@homeconcepts.ch>`, date: new Date(), inReplyTo: m.inReplyTo, references: m.references,
+    attachments: m.allegati.map((x) => ({ filename: x.filename, contentType: x.contentType, content: x.content })),
+  }).compile().build()
+  const smtp = nodemailer.createTransport({ host: 'asmtp.mail.hostpoint.ch', port: 465, secure: true,
+    auth: { user: IO, pass: password }, connectionTimeout: 20000, socketTimeout: 60000 })
+  await smtp.sendMail({ envelope: { from: IO, to: [...m.a, ...m.cc] }, raw: grezza })
+  // Copia in "Sent" (se non riesce, la mail è comunque partita): la legge poi posta-gc.
+  try {
+    const imap = new ImapFlow({ host: 'imap.mail.hostpoint.ch', port: 993, secure: true, auth: { user: IO, pass: password }, logger: false })
+    await imap.connect()
+    await imap.append('Sent', grezza, ['\\Seen'])
+    await imap.logout()
+    return true
+  } catch (_) { return false }
+}
+
+async function mandaCeramex(token: string, m: ReturnType<typeof prepara>, threadId?: string) {
+  const grezza: Uint8Array = await new MailComposer({
+    from: { name: 'Giovanni Fabris', address: IO_CERAMEX }, to: m.a, cc: m.cc.length ? m.cc : undefined, subject: m.oggetto, text: m.testo,
+    date: new Date(), inReplyTo: m.inReplyTo, references: m.references,
+    attachments: m.allegati.map((x) => ({ filename: x.filename, contentType: x.contentType, content: x.content })),
+  }).compile().build()
+  // Caricamento "multipart": regge anche gli allegati grandi e tiene la risposta nella stessa conversazione.
+  const confine = `sb${crypto.randomUUID()}`
+  const enc = new TextEncoder()
+  const testa = enc.encode(`--${confine}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(m.inReplyTo && threadId ? { threadId } : {})}\r\n--${confine}\r\nContent-Type: message/rfc822\r\n\r\n`)
+  const coda = enc.encode(`\r\n--${confine}--`)
+  const corpo = new Uint8Array(testa.length + grezza.length + coda.length)
+  corpo.set(testa); corpo.set(grezza, testa.length); corpo.set(coda, testa.length + grezza.length)
+  const r = await fetch('https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=multipart', {
+    method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${confine}` }, body: corpo,
+  })
+  if (r.status === 403) throw new Error('Gmail non dà il permesso di mandare: va rifatto il collegamento dal PC')
+  if (!r.ok) throw new Error(`Gmail ${r.status}: ${(await r.text()).slice(0, 200)}`)
+}
+
+async function rispondiOInoltra(r: Record<string, any>, tipo: 'rispondi' | 'inoltra', corpo: Record<string, any>) {
+  const ceramex = (r.casella || 'gc') === 'ceramex'
+  const token = ceramex ? await accessoGmail() : ''
+  const conAllegati = tipo === 'inoltra'
+  const o = ceramex ? await originaleCeramex(token, r, conAllegati) : await originaleGC(r, conAllegati)
+  if (!o) throw new Error(ceramex ? 'La conversazione non c\'è più in Gmail' : 'La mail non è più in questa cartella')
+  const m = prepara(o, ceramex ? IO_CERAMEX : IO, tipo, corpo)
+  const riassunto = { a: m.a, cc: m.cc, oggetto: m.oggetto, allegati: m.allegati.map((x) => x.filename) }
+  if (corpo.prova) return { prova: true, ...riassunto, testo: m.testo.slice(0, 1500) }
+
+  // Blocco: niente doppio invio se si tocca due volte (2 minuti).
+  const prima = new Date(Date.now() - 120e3).toISOString()
+  const presa = await rest(`riordino_mail?id=eq.${r.id}&or=(esito.is.null,esito.not.like.Invio in corso*,aggiornata_il.lt.${prima})`, {
+    method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ esito: 'Invio in corso', aggiornata_il: new Date().toISOString() }) }) as unknown[]
+  if (!presa?.length) throw new Error('Sto già mandando questa mail: aspetta un momento')
+  try {
+    const copia = ceramex ? (await mandaCeramex(token, m, o.threadId), true) : await mandaGC(m)
+    const ora = new Date().toLocaleString('it-CH', { timeZone: 'Europe/Zurich', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+    const esito = tipo === 'rispondi' ? `Risposta mandata il ${ora}` : `Inoltrata a ${m.a.join(', ')} il ${ora}`
+    await aggiorna(r.id, { esito: copia ? esito : `${esito} (copia in "Inviata" non riuscita)` })
+    return { ok: true, esito, ...riassunto }
+  } catch (e) {
+    await aggiorna(r.id, { esito: r.esito ?? null })
+    throw e
+  }
 }
 
 type Esito = { spostate: number, sparite: number, errori: string[] }
@@ -260,13 +427,29 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   if (req.method !== 'POST') return risposta({ errore: 'Usa POST' }, 405)
 
-  // Solo Giovanni.
-  const jwt = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
-  const u = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${jwt}` } })
-  const utente = u.ok ? await u.json() : null
-  if (utente?.id !== UTENTE) return risposta({ errore: 'Non autorizzato' }, 401)
+  const corpo = await req.json().catch(() => ({}))
+  const { azione, voci, casella, id, rif } = corpo
 
-  const { azione, voci, casella, id, rif } = await req.json().catch(() => ({}))
+  // Solo Giovanni. Col token della copia solo le prove di "rispondi"/"inoltra" (non manda niente).
+  const copia = Deno.env.get('COPIA_TOKEN')
+  const prova = !!copia && req.headers.get('x-copia-token') === copia && corpo.prova === true && ['rispondi', 'inoltra'].includes(azione)
+  if (!prova) {
+    const jwt = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
+    const u = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${jwt}` } })
+    const utente = u.ok ? await u.json() : null
+    if (utente?.id !== UTENTE) return risposta({ errore: 'Non autorizzato' }, 401)
+  }
+
+  if (azione === 'rispondi' || azione === 'inoltra') {
+    if (!/^[0-9a-f-]{36}$/.test(String(id))) return risposta({ errore: 'Mail sconosciuta' }, 400)
+    const [r] = await rest(`riordino_mail?id=eq.${id}&select=*`) as Record<string, any>[]
+    if (!r) return risposta({ errore: 'Mail sconosciuta' }, 404)
+    try {
+      return risposta(await rispondiOInoltra(r, azione, corpo))
+    } catch (e) {
+      return risposta({ errore: String((e as Error)?.message || e).slice(0, 300) }, 502)
+    }
+  }
 
   if (azione === 'leggi' || azione === 'allegato') {
     if (!/^[0-9a-f-]{36}$/.test(String(id))) return risposta({ errore: 'Mail sconosciuta' }, 400)

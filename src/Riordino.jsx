@@ -7,7 +7,7 @@ import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, useMo
 // propone l'etichetta per le conversazioni in Posta in arrivo). Qui Giovanni spunta quelle che vanno bene (o cambia la
 // cartella) e preme "Sposta": la funzione riordino-mail le sposta subito. Niente si sposta senza questo tocco.
 // "Tieni in vista" = l'agente non la ripropone più. Si vedono le caselle dell'area scelta (C, G o tutte e due).
-// "Rispondi all'agente" (13.10.2026, solo info@): Giovanni scrive cosa vuole ("mettila in AMARARE/ROMBACH", "crea la
+// "Rispondi all'agente" (13.10.2026, info@ e dal pomeriggio anche Gmail Ceramex → agente 'ceramex'): Giovanni scrive cosa vuole ("mettila in AMARARE/ROMBACH", "crea la
 // cartella DENIS sotto G&C"); parte una richiesta all'agente Archiviazione (richieste_agenti.riordino_id) con le istruzioni
 // dentro, l'agente la fa partire subito e cambia solo la proposta. Le mail le sposta sempre Giovanni con "Sposta".
 
@@ -19,8 +19,23 @@ const IN_CORSO = ['nuova', 'avviata', 'in_corso']
 // La prima riga della richiesta sono le parole di Giovanni: «…»
 const paroleDi = (q) => (q.testo.split('\n')[0].match(/«(.*)»/) || [])[1] || q.testo
 
+// Chi riceve la risposta: info@ → agente Archiviazione, Gmail Ceramex → agente Ceramex (giro delle ore piene).
+const AGENTE_DI = { gc: 'archiviazione', ceramex: 'ceramex' }
+
 function testoRichiesta(r, parole) {
   const oggi = new Date().toLocaleDateString('it-CH', { day: '2-digit', month: '2-digit' })
+  if (r.casella === 'ceramex') {
+    return [
+      `«${parole}»`,
+      `Riordino della Gmail Ceramex (PASSO 6): questa è la risposta di Giovanni (dall'app, ${oggi}) sulla conversazione «${r.oggetto || '(senza oggetto)'}» di ${r.da || '?'} del ${(r.data_email || '').slice(0, 10)}, in Posta in arrivo.`,
+      `Riga: riordino_mail id = '${r.id}' (casella 'ceramex'). Etichetta proposta adesso: ${r.cartella_proposta || 'nessuna'}${r.nuova ? ' (nuova)' : ''}${r.dubbio ? `. Il tuo dubbio era: ${r.dubbio}` : ''}.`,
+      'Cosa fare: capisci quale etichetta vuole Giovanni. Guarda le etichette esistenti (list_labels, solo quelle utente) e usa il nome esatto (es. INBOX/2025/Marazzi group). Un\'etichetta nuova va sotto INBOX/2025/… come le altre.',
+      `Poi: update riordino_mail set cartella_proposta = '<etichetta>', nuova = <true se l'etichetta non esiste ancora, altrimenti false>, dubbio = null, motivo = 'Etichetta chiesta da Giovanni il ${oggi}: <riassunto in poche parole>', aggiornata_il = now() where id = '${r.id}' and casella = 'ceramex' and stato = 'proposta';`,
+      'Fai lo stesso con le altre conversazioni in proposta dello stesso tipo, se ci sono, e dillo nella risposta. Nei giri dopo non cambiare più l\'etichetta delle righe con motivo "Etichetta chiesta da Giovanni…".',
+      'Non cambiare etichette in Gmail e non archiviare niente: le sposta Giovanni con "Sposta" (un\'etichetta nuova si crea in quel momento). Se non capisci cosa vuole, non cambiare niente e nella risposta fagli una domanda precisa.',
+      'Risposta: una frase con l\'etichetta scelta (scrivi "nuova" se non esiste ancora).',
+    ].join('\n')
+  }
   return [
     `«${parole}»`,
     `Riordino casella: questa è la risposta di Giovanni (dall'app, ${oggi}) sulla mail «${r.oggetto || '(senza oggetto)'}» di ${r.da || '?'} del ${(r.data_email || '').slice(0, 10)}, ora in ${r.cartella_da}.`,
@@ -73,13 +88,15 @@ export function Riordino() {
     if (!t) return avvisa('Scrivi cosa deve fare l\'agente')
     setLavoro(true)
     try {
-      const q = chk(await sb.from('richieste_agenti').insert({ agente: 'archiviazione', testo: testoRichiesta(r, t), riordino_id: r.id }).select('id').single())
+      const casella = r.casella || 'gc'
+      const q = chk(await sb.from('richieste_agenti').insert({ agente: AGENTE_DI[casella], testo: testoRichiesta({ ...r, casella }, t), riordino_id: r.id }).select('id').single())
       setParole('')
       setRisponde(null)
       setCambi((c) => { const n = { ...c }; delete n[r.id]; return n })
       segna([r.id], false)
       const esito = await chiama('agente-subito', { id: q.id }).catch(() => ({ ok: false }))
-      avvisa(esito.ok ? 'Mandata: l\'agente cambia la proposta tra qualche minuto' : 'Mandata: la fa al prossimo giro dell\'agente (ogni 2 ore, 8–18)')
+      avvisa(esito.ok ? 'Mandata: l\'agente cambia la proposta tra qualche minuto'
+        : `Mandata: la fa al prossimo giro dell'agente (${casella === 'ceramex' ? 'ogni ora piena, 7–22' : 'ogni 2 ore, 8–18'})`)
       ricarica()
     } catch (e) {
       avvisa(messaggioErrore(e))
@@ -146,7 +163,7 @@ export function Riordino() {
     const scelta = !!scelte[r.id]
     const q = dati.ultima[r.id]
     const lavora = q && IN_CORSO.includes(q.stato)
-    const puoRispondere = (r.casella || 'gc') === 'gc' && r.stato === 'proposta' && !lavora
+    const puoRispondere = r.stato === 'proposta' && !lavora
     return (
       <div key={r.id} className="voce-riordino">
         <div className={'riga riga-riordino' + (scelta ? ' scelta' : '')}>
@@ -160,6 +177,8 @@ export function Riordino() {
               {r.non_letta && <span title="Non letta">🔵 </span>}{r.stellina && <span title="Con la stellina">⭐ </span>}
               {r.cartella_da === 'Sent' ? 'a ' : ''}{nomeBreve(r.da)} · {quando(r.data_email, true)}{r.n_messaggi > 1 ? ` · ${r.n_messaggi} messaggi` : ''}
             </span>
+            {/* Di cosa parla: il motivo scritto dall'agente (13.10.2026, uguale per info@ e Gmail Ceramex). */}
+            {r.motivo && !r.dubbio && <span className="riga-meta motivo-riordino">{r.motivo}</span>}
             {r.dubbio && <span className="riga-meta dubbio">❓ {r.dubbio}</span>}
             {r.esito?.startsWith('Non spostata') && <span className="riga-meta rosso">{r.esito}</span>}
             {q && (

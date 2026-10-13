@@ -107,9 +107,7 @@ export default function Nota({ id }) {
     }
   }
 
-  // Le note copiate dal gestionale Ceramex si correggono là: qui il testo verrebbe riscritto dalla copia.
-  const daCeramex = dati.da_ceramex && dati.area === 'C'
-
+  // Dal 13.10.2026 anche le note copiate dal gestionale Ceramex si correggono qui (la copia delle note è spenta).
   return (
     <div className="schermata">
       <Indietro titolo="Nota" />
@@ -125,11 +123,8 @@ export default function Nota({ id }) {
         </p>
       )}
 
-      <textarea value={testo} onChange={(e) => setTesto(e.target.value)} rows={6} readOnly={daCeramex} />
-      {daCeramex && (
-        <p className="nota-piccola">Questa nota arriva dal gestionale Ceramex: testo e area si correggono lì. Qui puoi collegare persone, promemoria e foto.</p>
-      )}
-      {!daCeramex && testo.trim() !== dati.testo && (
+      <textarea value={testo} onChange={(e) => setTesto(e.target.value)} rows={6} />
+      {testo.trim() !== dati.testo && (
         <button type="button" className="tasto-grande" onClick={salvaTesto} disabled={lavoro}>Salva</button>
       )}
 
@@ -143,12 +138,10 @@ export default function Nota({ id }) {
         </div>
       )}
 
-      {!daCeramex && (
-        <div className="campo">
-          <span>Area</span>
-          <SceltaArea valore={dati.area} onChange={cambiaArea} />
-        </div>
-      )}
+      <div className="campo">
+        <span>Area</span>
+        <SceltaArea valore={dati.area} onChange={cambiaArea} />
+      </div>
 
       <div className="campo">
         <span>Persone</span>
@@ -176,7 +169,7 @@ export default function Nota({ id }) {
         <input ref={fotoRif} type="file" accept="image/*" multiple hidden onChange={aggiungiFoto} />
       </div>
 
-      {!daCeramex && <button type="button" className="tasto-link pericolo" onClick={elimina}>Metti nel cestino</button>}
+      <button type="button" className="tasto-link pericolo" onClick={elimina}>Metti nel cestino</button>
     </div>
   )
 }

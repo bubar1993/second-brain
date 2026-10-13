@@ -137,7 +137,7 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 ### Schede persona e agenti delle note (12.10.2026 notte, ok di Giovanni)
 - **Schede persona** (`#/persona/<id>`): chi è, ditte, contatti (Chiama/WhatsApp/mail), riassunto per area scritto dagli agenti (`persone_riassunti`: da chiedere, cose aperte, ultimo contatto, chi è, come parlarle), promemoria, note, mail G&C, WhatsApp. I nomi nelle schede aziende e nelle note si toccano per aprirla. Nella ricerca persone c'è area e ditta: "David (Ceramex, Gaffuri)". Una persona è UNA riga anche se sta in più aree; le note restano nella loro area.
 - Le persone nascono dai contatti delle schede aziende: `sincronizza_persone()` (pg_cron ogni 15 min) le crea/aggiorna (solo campi vuoti), le lega alle ditte (`persone_aziende`) e collega le note con "contatto" se il nome porta a UNA persona. Collega anche i contatti WhatsApp per numero.
-- `copia-ceramex` mette nel cestino solo le note con `da_ceramex = true` (le note scritte nell'app restano anche nelle schede Ceramex).
+- `copia-ceramex` dal 13.10.2026 non copia più note, regole e mail viste e non mette più niente nel cestino (vedi "Trasloco note Ceramex").
 - **Agenti delle note** (routine claude.ai, gratis col piano Max, ambiente "Second Brain", solo connettore Claude Docs):
   - "Agente note lavoro" `trig_012xsQNDrzFNnpAszr9gsGBh` (:15, 7–22), utente DB `agente_lavoro` (C+G, più smistamento Inbox: le note private le sposta in P e basta). Regole: `agenti/agente-note.md`.
   - "Agente privato" `trig_014BzqnSAWeuSq97vzQdwG15` (:45, 7–22), utente DB `agente_privato` (solo P). Regole: `agenti/agente-privato.md`.
@@ -185,7 +185,7 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 - Appuntamenti dei 7 giorni scorsi non spuntati: gruppo "Da chiudere" in Oggi con "Appunti" (restano finché non li spunti o salvi gli appunti). Appuntamenti di lavoro finiti → tocco = appunti (`#/visita/<id>`). Nella scheda persona gli appuntamenti si toccano (appunti).
 - Modifiche non salvate (bozza, nota, persona, WhatsApp, Domande, promemoria aperto): tornando nell'app la schermata non si ricarica (`useModifiche` in `componenti.jsx`). Aggiungi salva il testo sul telefono mentre scrivi (`aggiungi:<persona>:<azienda>`); se una foto non parte, "Salva" riprova solo le foto (niente note doppie, anche in Visita).
 - Tornando indietro si ritrova il punto della lista e la ricerca (Chiedi, Aziende): ogni pagina della cronologia ha un segno (`history.state.k`, App.jsx). Elenco aziende tenuto 3 minuti.
-- Scheda azienda: "+ Nota" (`#/aggiungi?azienda=<id>`, la nota va nella scheda solo se resta nella sua area) e note che si aprono col tocco. Note copiate da Ceramex: testo, area e cestino bloccati nell'app (si correggono nel gestionale).
+- Scheda azienda: "+ Nota" (`#/aggiungi?azienda=<id>`, la nota va nella scheda solo se resta nella sua area) e note che si aprono col tocco. Dal 13.10.2026 anche le note copiate da Ceramex si correggono nell'app (prima erano bloccate).
 - Dentro: numeri di Inbox, Bozze e Domande. Contatore domande uguale all'elenco (area scelta). "Scarta" bozza con due tocchi; le scartate si vedono negli ultimi 7 giorni.
 - "Ricordamelo" detto: solo "alle N" è un'ora ("al 15" no); "ricordami domani/lunedì" senza ora → alle 8.
 - Con la tastiera aperta (telefono) i 3 tasti spariscono.
@@ -226,6 +226,12 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 - Niente "clienti silenziosi", niente riassunto settimanale per mandante, niente vista per cantiere in Ceramex (decisioni di Giovanni).
 - Barra in basso (13.10.2026): Oggi, Dentro, +, Chiedi, Capo. Il tasto Dentro in alto non c'è più. Lo scorrimento col dito arriva anche a "Tutte".
 - Circolari aumenti prezzi in info@ (13.10.2026 notte, richiesta di Giovanni): messe a mano Marazzi/Ragno (Silvia Leoni, dal 1.12), Savoia (dal 2.11), ABK contributo energetico (dal 1.11), Gambini energy surcharge. Polis: nessuna mail di aumenti trovata in info@. L'agente ora riconosce il fornitore anche dal dominio del mittente (`fornitori.domini`), non solo da `posta.fornitore_id`: regola cambiata in `agenti/agente-seguire.md`, **la routine "Agente da seguire" è ancora da aggiornare** (vedi Agente capo, nota sui sottoagenti).
+
+### Trasloco note Ceramex: chiusura (13.10.2026, ok di Giovanni passo per passo)
+Piano in 5 passi: 1 controllo, 2 stacco, 3 backup su Drive, 4 link al brain nell'app Ceramex al posto delle note, 5 cancellazione nel gestionale (dopo ~1 settimana, due conferme di Giovanni). Nessun altro usa le note nell'app Ceramex.
+- **Passo 1 FATTO (13.10):** gestionale 1'450 note = brain (1'302 area C `da_ceramex` identiche per id/testo/sezione/mandante/data/risolto/scartata + 148 della scheda "G&C", tutte in area G). Regole (10) e mail viste (65) tutte nel brain. Ultima nota scritta nel gestionale: 12.10 16:06.
+- **Passo 2 FATTO (13.10):** `copia-ceramex` copia solo schede clienti e bozze; niente più note/regole/mail viste e niente cestino delle note sparite (così cancellarle nel gestionale non tocca il brain). Note `da_ceramex` sbloccate nell'app (`Nota.jsx`); `da_ceramex` resta solo come segno d'origine (gli agenti continuano a non riscriverle). Regola del Capo aggiornata (md + routine).
+- Prossimi: passo 3 (backup), 4 (app Ceramex, codice in `Documenti\ceramex-app`, serve ok), 5. Poi il quaderno "Note" (icona in alto, tre quaderni; scelte di Giovanni: Privato per persona e per tema modificabili; solo le sue note con tasto "anche quelle degli agenti"; nel cliente divise per mandante e per data; G&C cliente → cantiere).
 
 ### Agente capo e bacheca (13.10.2026 notte, ok di Giovanni)
 - Tasto **Capo** in basso (`#/capo`, `src/Capo.jsx`): Giovanni scrive o detta, il Capo risponde nella chat (richieste_agenti con agente = 'capo'). Sotto ogni risposta: le cose da confermare e i lavori passati agli altri agenti (richieste con `da = 'capo'` e `origine_id`). Badge = conferme da fare + risposte non lette.

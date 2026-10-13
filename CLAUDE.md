@@ -1,6 +1,6 @@
 # Second Brain GF
 
-Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo aggiornamento: 13.10.2026 notte (Oggi a lista unica, liste, garanzie, notifiche, vacanze scolastiche).
+Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo aggiornamento: 14.10.2026 (migliorie dal controllo dell'app, agenti fino alle 3 di notte).
 
 ## Chi è Giovanni e come rispondergli
 - Giovanni Fabris, Manno (Ticino). Ha due società: **Ceramex SAGL** (agente di commercio: Marazzi/Ragno, Flaviker/ABK, Garbelotto, Profilitec) e **G&C Home Concepts Sagl** (forniture per interni).
@@ -179,6 +179,20 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 - **Oggi senza rete**: ogni caricamento riuscito di Oggi si salva sul telefono (`oggi-copia:<area>`); senza rete si vede quella copia con "Senza rete: vedi l'agenda delle HH:MM" e si rilegge da sola all'evento `online`.
 - **App più veloce**: React e Supabase in pezzi a parte (`vite.config.js`, `codeSplitting.groups`), le schermate usate meno con `lazy` in `App.jsx` (`pigra`) e scaricate in sottofondo 4 s dopo l'avvio (così ci sono anche senza rete). Per le schermate nuove poco usate: `pigra(() => import('./X'), 'X')`.
 - Funzione `notifiche` con `{ "prova": true }`: dice cosa manderebbe adesso, senza mandare né segnare niente (per i controlli).
+
+### Migliorie dal controllo dell'app (14.10.2026, scelte di Giovanni: tutto tranne la rete più piccola e la Spesa fuori dal Privato)
+- **Promemoria che suonano:** la funzione `notifiche` avvisa all'ora TUTTI i promemoria con una data (ultimi 30 minuti, niente raffica di vecchi), non più solo gli urgenti. Ricordamelo in Aggiungi: tasti "Tra 1 ora / Stasera 18 (o 21) / Domani 8 / Lunedì 8 / Altro…" (`QuandoRicordare`).
+- **Aggiungi:** Salva sempre in vista (sticky, anche con la tastiera: `interactive-widget=resizes-content` nel viewport); la dettatura (`useDettatura`) riparte da sola dopo ogni frase e si ferma dopo 8 s di silenzio o col tasto.
+- **Senza rete** (`src/coda.js`): note senza foto, voci della spesa e spunte della spesa restano sul telefono (`coda-senza-rete`) e partono da sole (avvio, `online`, ritorno nell'app); ogni cosa ha già il suo id (niente doppioni). Liste: copia `liste-copia` da guardare senza rete.
+- **Due tocchi** (`useDueTocchi` in `componenti.jsx`): il secondo tocco conta solo dopo 600 ms, dopo 5 s il tasto torna normale; il tasto pronto è rosso. Usato in Bozze, Riordino (Sposta, Manda), Capo (Conferma e anche No), WhatsApp, Rubrica.
+- **Riordino:** tasti come chip da 40 px: Leggi, Altra cartella, "Rispondi alla mail" (mail vera), Inoltra, "Istruzioni all'agente". Nelle istruzioni: se Giovanni chiede una bozza (`vuoleBozza`) la richiesta va SUBITO all'agente che scrive le bozze (info@ → 'gc', Gmail → 'ceramex', `testoBozza`); la cartella resta all'archiviazione/ceramex; tutte e due se chiede entrambe. Nuovo "Manda al Capo" (`testoCapo`, richiesta 'capo' con `riordino_id`; nel Capo si vede solo la prima riga).
+- **Oggi:** "Adesso" (prossimo appuntamento di oggi: Naviga = Google Maps sul luogo, Chiama la persona, Appunti, Scheda); una sola scheda "Cose per te" (bozze, conferme del Capo, domande, risposte agenti, mail da riordinare, da seguire, Inbox); le proposte di appuntamento si vedono anche oltre 7 giorni. La rete resta com'è (scelta di Giovanni).
+- **Capo:** Domande, Agenti e Mappa (Bacheca) stanno sotto il tasto Capo con le linguette (`LinguetteCapo` in `componenti.jsx`, `location.replace`); tolti da Dentro e dal menu del PC. Numero sul tasto Capo = conferme + risposte da leggere + domande (`numeri` nel contesto dell'app).
+- **Bozze:** "Da rispondere tu · G&C" = `posta` area G, arrivata, `esito = 'da_imparare'`, ultimi 7 giorni, senza risposta da info@ nella conversazione e senza bozza aperta (link alla conversazione).
+- **Scheda persona:** con un'area scelta, "ci sono N cose in altre aree: Mostrale" (solo in quella scheda).
+- **Chiedi:** i risultati per parole arrivano subito, "per significato" dopo ("Cerco anche per significato…"); microfono accanto alla ricerca (cerca da solo quando finisci di parlare).
+- **Grafica:** spunte e cerchi 34 px con area di tocco 46 px, chip e tasti ≥ 40 px, stelle 24 px, scritte piccole portate a 13–15 px, `--grigio` #8a90ad, Salva pieno, parole semplici (niente "giro", "Tieni in vista" → "Lascia in casella", "Modifiche per Claude Code" → "Cambi alle app").
+- **Agenti (14.10.2026):** orari dalle 6 alle 3 di notte (Giovanni scrive mail anche la sera): ore piene/mezz'ora `0-2,6-23`, ogni 2 ore `0,2,6,…,22`, Da seguire `1,7,…,23` alle :40; Ceramex ore piene/mezz'ora solo nei feriali, weekend ogni 2 ore. Registro: gli agenti ora possono rileggere le proprie righe di `lavori_registro` (migrazione `registro_agenti`: prima l'insert con "returning" dava "permission denied" e ~7 giri Ceramex su 21 restavano senza traccia). Nel database (migrazione `notte_e_richiedimelo`): il punto del MATTINO non si scrive tra mezzanotte e le 6 (trigger che lo ignora); quando Giovanni risponde "chiedimelo di nuovo…" a una domanda, la stessa domanda torna da sola (`mostra_dal`: fine settimana = sabato 9, domani, lunedì, tra una settimana/mese, altrimenti 14 giorni). Smistatore: regola "QUALE CASELLA" (info@ mai a 'ceramex'). Agente G&C: il parcheggio "G&C" si riguarda solo per note nuove/cambiate e una sola domanda "Parcheggio G&C:" (permesso `domande_agente_gc`); la routine della mezz'ora scrive la sua riga ('agente-gc', `giro` 'mezz''ora').
 
 ### Comodità e correzioni (12.10.2026 pomeriggio, ok di Giovanni)
 - "In ritardo" solo dal giorno dopo (prima bastava passare l'ora).

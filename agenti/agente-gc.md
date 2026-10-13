@@ -48,6 +48,7 @@ Una scheda per azienda; dentro, le note sono separate per FORNITORE (al posto de
    Esempio (prende thread e message_id dalla riga di posta, così non si sbagliano): `insert into note (area, azienda_id, cantiere_id, mandante, sezione, testo, data, contatto, fonte, thread_id, message_id, testo_agente, sezione_agente) select 'G', p.azienda_id, p.cantiere_id, 'Marazzi', 'ordini', 'Conferma d’ordine Marazzi 20260457125 per O0098: consegna sett. 44', p.data::date, null, 'mail', p.thread_key, p.message_id, 'Conferma d’ordine Marazzi 20260457125 per O0098: consegna sett. 44', 'ordini' from posta p where p.id = '<id della mail>'`
 
 8. NOTE DA SMISTARE (a ogni giro, prima delle mail): la scheda "G&C" dell'area G (id 823be55a-9f6b-4a48-b518-5f7d4f4c2081) è un parcheggio. Ci arrivano le note sulle vendite G&C scritte dall'agente Ceramex (il campo `contatto` o il testo dicono la ditta). Per ognuna: `update note set azienda_id = '<scheda del cliente>', mandante = '<nome_breve del fornitore o Altro>', cantiere_id = <se c'è O0…> where id = ...` (non cambiare testo e sezione). Se il cliente non ha una scheda e la nota è importante, crea la scheda. Se non si capisce di chi è, lasciala lì.
+   Regola di Giovanni (14.10.2026), per non riguardare ogni ora le stesse note: guarda SOLO le note del parcheggio con `creata_il` o `modificata_il` dopo l'ultimo giro registrato (`select max(iniziata_il) from lavori_registro where lavoro = 'agente-gc'`). Se restano note che non sai dove mettere e non c'è ancora una domanda dell'agente 'gc' che comincia con 'Parcheggio G&C:' (aperta o già risposta), fanne UNA: `insert into domande (area, agente, testo, scelte) values ('G', 'gc', 'Parcheggio G&C: ci sono <n> note che non so a quale cliente mettere (es. «…»). Le guardi tu nella scheda «G&C» o mi dici a chi vanno?', array['Le guardo io', 'Lasciale lì'])`. Se Giovanni risponde con dei nomi, spostale. (Permesso: migrazione `domande_agente_gc`.)
 9. Casi decisi da Giovanni: PlättliMaxx è sia fornitore sia cliente (le sue richieste come cliente vanno nella sua scheda). La villa a Davos con Redsun è del cliente Bianchi Platten AG. Alfapro (Girard-Perregaux) non è un cliente: niente scheda.
 
 ## BOZZE DI RISPOSTA (solo agente in servizio, non per lo storico)
@@ -65,6 +66,7 @@ Le bozze le vede Giovanni nell'app (Oggi → Bozze da approvare) e le approva o 
 
 ## FINE
 Rispondi con un riepilogo di 3–5 righe: mail lette, note scritte, bozze create, cose imparate. Se una chiamata fallisce riprova una volta, poi vai avanti.
+Dal 14.10.2026 anche la routine della mezz'ora scrive la sua riga: `insert into lavori_registro (lavoro, ok, dettagli) values ('agente-gc', true, jsonb_build_object('giro', 'mezz''ora', 'mail', n, 'note', n, 'bozze', n, 'riepilogo', '…'))`, anche quando non c'era niente. Orari (14.10.2026, scelta di Giovanni): ore piene e mezz'ora dalle 6 alle 3 di notte.
 
 ## RICHIESTE DI GIOVANNI
 (nella routine in cloud questo blocco sta in fondo al prompt della routine delle ore piene)

@@ -85,7 +85,11 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
     let qr = sb.from('riassunti_giorno').select('parte,momento,testo,creata_il').eq('giorno', oggiIso)
     if (area === 'P') qr = qr.eq('parte', 'privato')
     else if (area !== 'T') qr = qr.eq('parte', 'lavoro')
-    const [promemoria, note, recenti, nati, ev, ria, vecchi] = await Promise.all([qp, qn, qa, qc, qe, qr, qv])
+    // Compleanni anche dai contatti del telefono senza scheda (Rubrica, quasi tutti privati).
+    const qrub = sb.from('rubrica').select('id,nome,cognome,compleanno,area')
+      .not('compleanno', 'is', null).is('eliminata_il', null).is('persona_id', null)
+    const [promemoria, note, recenti, nati0, ev, ria, vecchi, rub] = await Promise.all([qp, qn, qa, qc, qe, qr, qv, qrub])
+    const nati = { data: [...chk(nati0), ...chk(rub).map((c) => ({ ...c, persone_aree: [{ area: c.area || 'P' }], link: `#/rubrica/${c.id}` }))] }
     const aziende = []
     for (const r of chk(recenti)) {
       if (r.aziende && !aziende.some((a) => a.id === r.aziende.id)) aziende.push(r.aziende)
@@ -375,7 +379,7 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
             <h2>Compleanni</h2>
             <div className="elenco">
               {dati.compleanni.map((p) => (
-                <a key={p.id} className="riga" href={`#/persona/${p.id}`}>
+                <a key={p.id} className="riga" href={p.link || `#/persona/${p.id}`}>
                   <span className="pallino" style={{ background: areaDa(p.persone_aree[0]?.area)?.colore || 'var(--grigio)' }} />
                   <span className="riga-corpo">
                     <span className="riga-testo">{[p.nome, p.cognome].filter(Boolean).join(' ')}</span>

@@ -15,6 +15,7 @@ export const VOCI_DENTRO = [
   { chiave: 'ordini', titolo: 'Ordini Marazzi', dettaglio: 'Conferme d\'ordine degli ultimi 2 giorni lavorativi: cosa, quanto, se è disponibile', aree: ['C'] },
   { chiave: 'circolari', titolo: 'Circolari', aree: ['C', 'G'] },
   { chiave: 'persone', titolo: 'Persone', dettaglio: 'Schede persona: chi è, cosa chiedere, note e contatti', aree: ['P'] },
+  { chiave: 'rubrica', titolo: 'Rubrica', dettaglio: 'I contatti del telefono: aggiungi, correggi, condividi' },
   { chiave: 'gemelli', titolo: 'Gemelli', dettaglio: 'Leo e Jolie: settimana, vacanze, feste dei compagni, diario', aree: ['P'] },
   { chiave: 'liste', titolo: 'Liste', dettaglio: 'Spesa, ristoranti e posti', aree: ['P'] },
   { chiave: 'garanzie', titolo: 'Garanzie', dettaglio: 'Scontrini e fino a quando vale la garanzia', aree: ['P'] },

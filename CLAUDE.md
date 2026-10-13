@@ -243,8 +243,16 @@ Piano in 5 passi: 1 controllo, 2 stacco, 3 backup su Drive, 4 link al brain nell
 - Nella pagina di un cliente i **problemi aperti** stanno sempre in cima (tutti i mandanti/cantieri, anche quelli degli agenti) con "✓ Risolto"; in G&C l'elenco "Problemi aperti" è per cliente. Al 13.10: 18 aperti in G&C (tutti dalle mail, maggio–ottobre 2026), 1 in Ceramex.
 - Tabelle nuove: `quaderno_capitoli`, `note_temi` (migrazione `quaderno`: connettori solo lettura, agente_privato select/insert, capo vede tutto). Le regole dell'agente privato non ne parlano ancora.
 
+### Rubrica (13.10.2026, ok di Giovanni)
+- I contatti del telefono sono nell'account Google **giovannifabris@ceramex.ch**. Sincronizzazione nei due sensi: brain ↔ Google Contatti (People API, gratis) ↔ telefono.
+- Tabelle `rubrica` (una riga per contatto Google, `risorsa` = people/c…; compleanno senza anno = anno 1904; `copia` per ripristinare) e `rubrica_stato` (sync_token, esito, `aggiungi_lavoro`). Migrazione `rubrica`.
+- Funzione `rubrica`: `sincronizza` (pg_cron ogni 15 min con copia_token, o "Aggiorna adesso"), `salva` (contatto, o `persona_id` dopo una modifica nella scheda persona), `elimina` (da Google; qui resta la copia), `ripristina`. Abbinamento in SQL `rubrica_abbina()`: stesso numero, stessa mail + stesso nome di battesimo, o stesso nome e cognome → collega la persona e riempie solo i campi vuoti; "(Ditta)"/organizzazione/dominio mail di una ditta C/G → persona nuova di quella ditta; tutti gli altri → area P **senza scheda** (scelta di Giovanni: le schede dei privati le apre lui con "Apri una scheda"). Con `aggiungi_lavoro = true` aggiunge in Google le persone di Ceramex/G&C con mail o telefono che mancano, come "Nome Cognome (Ditta)" (mai chi è stato eliminato). Eliminare una persona nel brain (cestino, doppioni) NON tocca il telefono: si elimina solo dalla Rubrica (due tocchi).
+- Collegamento: stesso client "Second Brain Gmail", permesso a parte solo contatti → segreto `CONTATTI_REFRESH_TOKEN` con `node scripts/collega-contatti.mjs <client_secret.json>` (clic di Giovanni al PC). La Gmail non cambia. Se l'API People non è attiva nel progetto Google, lo script dà il link.
+- App: Dentro → Rubrica (`#/rubrica`, `src/Rubrica.jsx`): cerca, chiama, WhatsApp, modifica, "Condividi" (vCard), elimina con due tocchi + "Eliminati di recente". Scheda persona: "Condividi", "Nella rubrica"; salvando, le modifiche vanno anche sul telefono. Oggi mostra anche i compleanni dei contatti senza scheda.
+- Eccezione decisa da Giovanni: Alessia Rizzo (la sua ragazza, "Lady di Blackwood" su WhatsApp) ha scheda P e capitolo nel quaderno.
+- Stato 13.10.2026: tutto pubblicato; manca il consenso di Giovanni (primo tentativo scaduto, non era al PC). Dopo: prima lettura, controllo di Claude dei contatti non abbinati, poi `aggiungi_lavoro` acceso (336 persone di lavoro con mail).
+
 ### Idee parcheggiate
-- (13.10.2026, Giovanni: "ricordarci più tardi") Collegare la rubrica del telefono: numeri alle persone di Ceramex e G&C e base per la parte Privato. Da valutare come (esportazione dei contatti da Google o dal telefono, gratis) prima di toccare niente.
 
 ### Agente capo e bacheca (13.10.2026 notte, ok di Giovanni)
 - Tasto **Capo** in basso (`#/capo`, `src/Capo.jsx`): Giovanni scrive o detta, il Capo risponde nella chat (richieste_agenti con agente = 'capo'). Sotto ogni risposta: le cose da confermare e i lavori passati agli altri agenti (richieste con `da = 'capo'` e `origine_id`). Badge = conferme da fare + risposte non lette.

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { sb, AREE, areaDa, nomePersona, quando, CAMPI_PERSONA, etichettePersona, numeroWhatsApp, scrivi } from './supabase'
-import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, EtichettePersona, Icona, useModifiche } from './componenti'
+import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, EtichettePersona, Icona, useModifiche } from './componenti'
 import { nomeSezione } from './Aziende'
+import { condividi } from './Rubrica'
 
 // Diagramma a cerchi: chi sta in più aree sta nell'intersezione.
 const CERCHI = { C: [115, 105], G: [185, 105], P: [150, 165] }
@@ -158,7 +159,7 @@ export function Persona({ id }) {
     const indirizzi = [p.email, ...(p.email_altre || [])].filter(Boolean).map((e) => e.toLowerCase())
     const ditte = p.persone_aziende.map((x) => x.aziende?.id).filter(Boolean)
     const ieri = new Date(Date.now() - 86400000).toISOString()
-    const [np, riassunti, wa, posta, ev] = await Promise.all([
+    const [np, riassunti, wa, posta, ev, rub] = await Promise.all([
       sb.from('note_persone').select('note(id,area,testo,fonte,data,creata_il,eliminata_il,scartata_il,sezione,mandante,risolto_il,azienda_id,aziende(id,nome),promemoria(id,testo,scade_il,fatto_il,eliminata_il))').eq('persona_id', id),
       sb.from('persone_riassunti').select('*').eq('persona_id', id),
       sb.from('wa_contatti').select('wa_id,area,wa_messaggi(id,direzione,testo,tipo,data)').eq('persona_id', id)
@@ -171,6 +172,8 @@ export function Persona({ id }) {
       sb.from('eventi').select('id,titolo,inizio,tutto_il_giorno,luogo,area,stato,cambio')
         .or([`persona_id.eq.${id}`, ...(ditte.length ? [`azienda_id.in.(${ditte.join(',')})`] : [])].join(','))
         .in('stato', ['confermato', 'da_creare', 'proposto']).gte('inizio', ieri).order('inizio').limit(5),
+      // Il contatto del telefono collegato (Rubrica, 13.10.2026): le modifiche qui vanno anche lì.
+      sb.from('rubrica').select('id,nome,cognome,ditta,ruolo,telefoni,email,compleanno').eq('persona_id', id).is('eliminata_il', null).limit(1),
     ])
     const note = chk(np).map((x) => x.note).filter((n) => n && !n.eliminata_il && !n.scartata_il)
       .sort((a, b) => (b.data || b.creata_il).localeCompare(a.data || a.creata_il))
@@ -178,7 +181,7 @@ export function Persona({ id }) {
       .sort((a, b) => b.data.localeCompare(a.data))
     // Appuntamenti spostati dall'app: con la data nuova (in Google arriva entro un'ora).
     const eventi = chk(ev).map((e) => ({ ...e, ...(e.cambio || {}) })).sort((a, b) => a.inizio.localeCompare(b.inizio))
-    return { p, note, riassunti: chk(riassunti), messaggi, posta: chk(posta), chat: chk(wa).map((c) => c.wa_id), eventi }
+    return { p, note, riassunti: chk(riassunti), messaggi, posta: chk(posta), chat: chk(wa).map((c) => c.wa_id), eventi, contatto: chk(rub)[0] || null }
   }, [id])
 
   useEffect(() => {
@@ -204,7 +207,16 @@ export function Persona({ id }) {
         ruolo: modulo.ruolo.trim() || null,
       }).eq('id', id))
       setModificato(false)
-      avvisa('Salvato')
+      let msg = 'Salvato'
+      if (dati.contatto) {
+        try {
+          await chiama('rubrica', { azione: 'salva', persona_id: id })
+          msg = 'Salvato, anche sul telefono'
+        } catch (e) {
+          msg = `Salvato qui, ma non sul telefono: ${messaggioErrore(e)}`
+        }
+      }
+      avvisa(msg)
       ricarica()
     } catch (e) {
       avvisa(messaggioErrore(e))
@@ -273,6 +285,11 @@ export function Persona({ id }) {
           : wa && <a className="tasto-piccolo" href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer">WhatsApp</a>}
         {p.email && <a className="tasto-piccolo" href={`mailto:${p.email}`}>Scrivi mail</a>}
         <button type="button" className="tasto-piccolo" onClick={() => vai(`/aggiungi?persona=${id}`)}>+ Nota</button>
+        <button type="button" className="tasto-piccolo" onClick={() => condividi(dati.contatto || {
+          nome: p.nome, cognome: p.cognome, ditta: ditte[0]?.aziende.nome, ruolo: p.ruolo, compleanno: p.compleanno,
+          telefoni: p.telefono ? [{ valore: p.telefono }] : [], email: p.email ? [{ valore: p.email }] : [],
+        }, avvisa)}>Condividi</button>
+        {dati.contatto && <a className="tasto-piccolo" href={`#/rubrica/${dati.contatto.id}`}>Nella rubrica</a>}
       </div>
       {(p.telefono || p.email) && (
         <p className="nota-piccola selezionabile">

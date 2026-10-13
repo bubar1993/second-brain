@@ -6,7 +6,7 @@ import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, Icona, useDet
 // Resta lo STESSO appuntamento: appunti, note e collegamenti non si perdono.
 // Quelli di Google Calendar: il cambio va in eventi.cambio, l'app lo mostra subito
 // e l'agente calendario lo porta in Google entro un'ora. Gli altri (proposti, da creare) si cambiano e basta.
-export const CAMPI_EVENTO = 'id,google_id,titolo,inizio,fine,tutto_il_giorno,luogo,area,stato,motivo,errore,cambio,cambio_il,nota_id,aziende(id,nome),persone(id,nome,cognome)'
+export const CAMPI_EVENTO = 'id,google_id,titolo,inizio,fine,tutto_il_giorno,luogo,area,stato,motivo,errore,cambio,cambio_il,nota_id,aziende(id,nome),persone(id,nome,cognome,telefono)'
 
 // L'appuntamento come lo vede Giovanni: con il cambio già applicato. "originale" serve per annullare.
 export const valoriEvento = (e) => ({ ...e, ...(e.cambio || {}), originale: e })

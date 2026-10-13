@@ -18,7 +18,7 @@ function giorniAlCompleanno(iso) {
   return Math.round((d - oggi) / 86400000)
 }
 
-export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguire }) {
+export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguire, conferme }) {
   const { area, avvisa, vai } = useApp()
   const scorri = useScorriAree()
   const rete = useRef(null)
@@ -72,9 +72,12 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
     const da = new Date(); da.setHours(0, 0, 0, 0)
     const a7 = new Date(da.getTime() + 8 * 86400000)
     let qe = sb.from('eventi').select(CAMPI_EVENTO)
-      .in('stato', ['confermato', 'proposto', 'da_creare']).is('fatto_il', null).gte('inizio', da.toISOString()).lt('inizio', a7.toISOString())
+      .in('stato', ['confermato', 'da_creare']).is('fatto_il', null).gte('inizio', da.toISOString()).lt('inizio', a7.toISOString())
       .order('inizio').limit(60)
     if (area !== 'T') qe = qe.or(`area.eq.${area},area.is.null`)
+    // Le proposte degli agenti anche più in là di una settimana (14.10.2026): prima una data tra 3 settimane compariva solo all'ultimo.
+    let qprop = sb.from('eventi').select(CAMPI_EVENTO).eq('stato', 'proposto').gte('inizio', da.toISOString()).order('inizio').limit(30)
+    if (area !== 'T') qprop = qprop.or(`area.eq.${area},area.is.null`)
     // Appuntamenti dei 7 giorni scorsi non ancora spuntati: restano finché non li chiudi (o annoti).
     let qv = sb.from('eventi').select(CAMPI_EVENTO)
       .in('stato', ['confermato', 'da_creare']).is('fatto_il', null)
@@ -88,7 +91,8 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
     // Compleanni anche dai contatti del telefono senza scheda (Rubrica, quasi tutti privati).
     const qrub = sb.from('rubrica').select('id,nome,cognome,compleanno,area')
       .not('compleanno', 'is', null).is('eliminata_il', null).is('persona_id', null)
-    const [promemoria, note, recenti, nati0, ev, ria, vecchi, rub] = await Promise.all([qp, qn, qa, qc, qe, qr, qv, qrub])
+    const [promemoria, note, recenti, nati0, ev0, ria, vecchi, rub, prop] = await Promise.all([qp, qn, qa, qc, qe, qr, qv, qrub, qprop])
+    const ev = { data: [...chk(ev0), ...chk(prop)] }
     const nati = { data: [...chk(nati0), ...chk(rub).map((c) => ({ ...c, persone_aree: [{ area: c.area || 'P' }], link: `#/rubrica/${c.id}` }))] }
     const aziende = []
     for (const r of chk(recenti)) {
@@ -211,6 +215,12 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
   const elencoGiorni = [...giorni.entries()].sort((a, b) => a[0] - b[0])
   const vacanzaDel = (g) => vacanze.find((e) => giorniDaOggi(e.inizio) === g)?.titolo.replace(/^Scuola chiusa:\s*/i, '')
 
+  // Il prossimo appuntamento di oggi, o quello in corso (finisce dopo adesso; senza fine: un'ora).
+  const adesso = Date.now()
+  const prossimo = veri.filter((e) => e.stato !== 'proposto' && !e.tutto_il_giorno && !ev.fatti.has(e.id) && giorniDaOggi(e.inizio) === 0
+    && new Date(e.fine || new Date(e.inizio).getTime() + 3600e3).getTime() > adesso)
+    .sort((a, b) => a.inizio.localeCompare(b.inizio))[0]
+
   const nessunaCosa = dati && !dati.promemoria.length && !veri.some((e) => e.stato !== 'proposto' && giorniDaOggi(e.inizio) >= 0)
   const daFareOggi = promemoria.filter((p) => p.scade_il && giorniDaOggi(p.scade_il) <= 0).length
     + (giorni.get(0) || []).filter((v) => v.tipo === 'e' && !ev.fatti.has(v.x.id)).length
@@ -268,6 +278,8 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
             <span>Senza rete: vedi l'agenda delle {new Date(dati.senzaRete).toLocaleTimeString('it-CH', { hour: '2-digit', minute: '2-digit' })}{giorniDaOggi(new Date(dati.senzaRete).toISOString()) < 0 ? ` del ${new Date(dati.senzaRete).toLocaleDateString('it-CH')}` : ''}. Si aggiorna da sola quando torna la rete.</span>
           </div>
         )}
+
+        <Adesso e={prossimo} />
 
         {dati?.riassunti.map((r) => (
           <section key={r.parte} className="riassunto-giorno">
@@ -332,47 +344,16 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
         <AvvisoCopia />
         <AvvisoLavoriGC />
 
-        {bozze > 0 && area !== 'P' && (
-          <a className="scheda scheda-bozze" href="#/bozze">
-            <span><strong>{bozze}</strong> {bozze === 1 ? 'bozza di risposta da approvare' : 'bozze di risposta da approvare'}</span>
-            <Icona nome="freccia" size={18} />
-          </a>
-        )}
-
-        {seguire > 0 && area !== 'P' && (
-          <a className="scheda scheda-domande" href="#/seguire">
-            <span><strong>{seguire}</strong> {seguire === 1 ? 'cosa da seguire' : 'cose da seguire'}: promesse scadute e problemi fermi</span>
-            <Icona nome="freccia" size={18} />
-          </a>
-        )}
-
-        {riordino > 0 && area !== 'P' && (
-          <a className="scheda scheda-bozze" href="#/riordino">
-            <span><strong>{riordino}</strong> {area === 'C' ? 'mail della Gmail' : area === 'G' ? 'mail di info@' : 'mail'} da riordinare</span>
-            <Icona nome="freccia" size={18} />
-          </a>
-        )}
-
-        {risposte > 0 && (
-          <a className="scheda scheda-domande" href="#/agenti">
-            <span><strong>{risposte}</strong> {risposte === 1 ? 'risposta degli agenti da leggere' : 'risposte degli agenti da leggere'}</span>
-            <Icona nome="freccia" size={18} />
-          </a>
-        )}
-
-        {domande > 0 && (
-          <a className="scheda scheda-domande" href="#/domande">
-            <span><strong>{domande}</strong> {domande === 1 ? 'domanda degli agenti per te' : 'domande degli agenti per te'}</span>
-            <Icona nome="freccia" size={18} />
-          </a>
-        )}
-
-        {inbox > 0 && (
-          <a className="scheda scheda-inbox" href="#/inbox">
-            <span><strong>{inbox}</strong> {inbox === 1 ? 'cosa' : 'cose'} nell'Inbox da smistare</span>
-            <Icona nome="freccia" size={18} />
-          </a>
-        )}
+        {/* Una scheda sola con tutto quello che aspetta te (14.10.2026, prima erano fino a 7 schede una sotto l'altra). */}
+        <CosePerTe voci={[
+          area !== 'P' && [bozze, 'bozza di risposta da approvare', 'bozze di risposta da approvare', '#/bozze'],
+          conferme > 0 && [conferme, 'cosa da confermare al Capo', 'cose da confermare al Capo', '#/capo'],
+          [domande, 'domanda degli agenti', 'domande degli agenti', '#/domande'],
+          [risposte, 'risposta degli agenti da leggere', 'risposte degli agenti da leggere', '#/agenti'],
+          area !== 'P' && [riordino, `${area === 'C' ? 'mail della Gmail' : area === 'G' ? 'mail di info@' : 'mail'} da riordinare`, `${area === 'C' ? 'mail della Gmail' : area === 'G' ? 'mail di info@' : 'mail'} da riordinare`, '#/riordino'],
+          area !== 'P' && [seguire, 'cosa da seguire (promesse e problemi fermi)', 'cose da seguire (promesse e problemi fermi)', '#/seguire'],
+          [inbox, 'cosa nell\'Inbox da smistare', 'cose nell\'Inbox da smistare', '#/inbox'],
+        ]} />
 
         {dati?.compleanni.length > 0 && (
           <>
@@ -397,6 +378,50 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
         </Stato>
       </div>
     </div>
+  )
+}
+
+// "Cose per te": una riga per tipo, solo quelle che ci sono. Tocco = la schermata giusta.
+function CosePerTe({ voci }) {
+  const ci = voci.filter((v) => v && v[0] > 0)
+  if (!ci.length) return null
+  const tot = ci.reduce((n, v) => n + v[0], 0)
+  return (
+    <section className="cose-per-te" aria-label="Cose per te">
+      <h3>{tot === 1 ? '1 cosa per te' : `${tot} cose per te`}</h3>
+      <div className="elenco">
+        {ci.map(([n, uno, tanti, href]) => (
+          <a key={href} className="riga" href={href}>
+            <span className="numero-voce">{n}</span>
+            <span className="riga-corpo"><span className="riga-testo">{n === 1 ? uno : tanti}</span></span>
+            <Icona nome="freccia" size={18} />
+          </a>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+// "Adesso" (14.10.2026): il prossimo appuntamento di oggi (o quello in corso) con Naviga, Chiama e Appunti.
+const mappa = (luogo) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(luogo)}`
+function Adesso({ e }) {
+  if (!e) return null
+  const inCorso = new Date(e.inizio) <= new Date()
+  const tel = e.persone?.telefono
+  const chi = e.persone ? [e.persone.nome, e.persone.cognome].filter(Boolean).join(' ') : ''
+  return (
+    <section className="adesso" style={{ '--col': areaDa(e.area)?.colore || 'var(--grigio)' }} aria-label="Prossimo appuntamento">
+      <p className="adesso-quando">{inCorso ? 'Adesso' : `Alle ${ora(e)}`}{inCorso && e.fine ? ` · fino alle ${new Date(e.fine).toLocaleTimeString('it-CH', { hour: '2-digit', minute: '2-digit' })}` : ''}</p>
+      <p className="adesso-titolo">{e.titolo}</p>
+      {(e.luogo || e.aziende || chi) && <p className="riga-meta">{[e.luogo, e.aziende?.nome, chi].filter(Boolean).join(' · ')}</p>}
+      <div className="adesso-tasti">
+        {e.luogo && <a className="tasto-piccolo" href={mappa(e.luogo)} target="_blank" rel="noreferrer">Naviga</a>}
+        {tel && <a className="tasto-piccolo" href={`tel:${tel}`}
+          onClick={() => scrivi('chiamata', JSON.stringify({ id: e.persone.id, ora: Date.now() }))}>Chiama {e.persone.nome}</a>}
+        <a className="tasto-piccolo" href={`#/visita/${e.id}`}>Appunti</a>
+        {e.aziende && <a className="tasto-piccolo" href={`#/azienda/${e.aziende.id}`}>Scheda</a>}
+      </div>
+    </section>
   )
 }
 

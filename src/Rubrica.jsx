@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { sb, areaDa, AREE, quando, numeroWhatsApp, giorniDaOggi } from './supabase'
-import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, Icona, useModifiche } from './componenti'
+import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, Icona, useModifiche, useDueTocchi } from './componenti'
 
 // Rubrica (13.10.2026, ok di Giovanni): i contatti Google di giovannifabris@ceramex.ch, cioè quelli del telefono.
 // Aggiungere, correggere ed eliminare qui cambia anche il telefono (funzione `rubrica`, Google li porta sul telefono
@@ -180,15 +180,17 @@ function Eliminato({ c, dopo }) {
 function Contatto({ id }) {
   const { avvisa, vai } = useApp()
   const [modifica, setModifica] = useState(false)
-  const [sicuro, setSicuro] = useState(false)
+  // Due tocchi (useDueTocchi): il secondo dopo mezzo secondo, dopo 5 secondi torna com'era.
+  const due = useDueTocchi()
+  const sicuro = due.armato === 'elimina'
   const [lavora, setLavora] = useState(false)
   const { dati: c, errore, carica, ricarica } = useCarica(async () => chk(await sb.from('rubrica').select(CAMPI + ',copia').eq('id', id).single()), [id])
 
   if (!c) return <div className="schermata"><Indietro titolo="Contatto" /><Stato carica={carica} errore={errore} /></div>
   if (modifica) return <Modifica c={c} fatto={() => { setModifica(false); ricarica() }} />
 
-  async function elimina() {
-    if (!sicuro) return setSicuro(true)
+  const elimina = () => due.tocca('elimina', eliminaDavvero)
+  async function eliminaDavvero() {
     setLavora(true)
     try {
       await chiama('rubrica', { azione: 'elimina', id })
@@ -199,7 +201,6 @@ function Contatto({ id }) {
     } catch (e) {
       avvisa(messaggioErrore(e))
       setLavora(false)
-      setSicuro(false)
     }
   }
 

@@ -10,8 +10,9 @@ import { Visita } from './Visita'
 import { Agenti, Agente, AGENTI } from './Agenti'
 import { Seguire, contaDaSeguire } from './Seguire'
 import { Circolari, contaCircolari } from './Circolari'
-import { Capo, contaCapo } from './Capo'
+import { Capo, contaConferme } from './Capo'
 import { Notifiche } from './Notifiche'
+import { svuotaCoda } from './coda'
 
 // Le schermate usate meno si scaricano a parte (13.10.2026): l'app si apre prima. Dopo l'avvio si scaricano
 // comunque in sottofondo (precarica), così ci sono anche senza rete.
@@ -185,10 +186,10 @@ function Guscio({ utente, condiviso }) {
   const [riordino, setRiordino] = useState(0)
   const [seguire, setSeguire] = useState(0)
   const [circolari, setCircolari] = useState(0)
-  const [capo, setCapo] = useState(0)
+  const [conferme, setConferme] = useState(0)
   useEffect(() => {
-    // Capo: cose da confermare + risposte non lette.
-    contaCapo().then(setCapo).catch(() => {})
+    // Capo: cose da confermare (le risposte e le domande si contano sotto).
+    contaConferme().then(setConferme).catch(() => {})
     // Da seguire (promesse scadute + problemi fermi) e circolari non lette, solo Ceramex e G&C.
     contaDaSeguire(area).then(setSeguire).catch(() => {})
     contaCircolari(area).then(setCircolari).catch(() => {})
@@ -216,6 +217,23 @@ function Guscio({ utente, condiviso }) {
     if (area !== 'T') qd = qd.or(`area.eq.${area},area.is.null`)
     qd.then(({ count }) => setDomande(count || 0))
   }, [rotta, giro, area])
+
+  // Note e spesa scritte senza rete (coda.js): partono all'avvio, quando torna la rete e quando riapri l'app.
+  useEffect(() => {
+    const manda = () => svuotaCoda().then((n) => {
+      if (n) avvisa(n === 1 ? 'Tornata la rete: ho mandato la cosa scritta senza rete' : `Tornata la rete: ho mandato le ${n} cose scritte senza rete`)
+    }).catch(() => {})
+    const t = setTimeout(manda, 3000)
+    const visibile = () => { if (!document.hidden) manda() }
+    window.addEventListener('online', manda)
+    document.addEventListener('visibilitychange', visibile)
+    return () => { clearTimeout(t); window.removeEventListener('online', manda); document.removeEventListener('visibilitychange', visibile) }
+  }, [avvisa])
+
+  // Sotto il tasto Capo (14.10.2026, scelta di Giovanni): chat col Capo, Domande per te, Agenti e la mappa.
+  // Il numero sul tasto somma conferme da dare, risposte degli agenti da leggere e domande.
+  const capo = conferme + risposte + domande
+  const numeri = { conferme, risposte, domande }
 
   const largo = useLargo()
   const [primo, secondo] = rotta.parti
@@ -245,7 +263,7 @@ function Guscio({ utente, condiviso }) {
       aziendaId={rotta.query.get('azienda')} chiamata={rotta.query.has('chiamata')} detta={rotta.query.has('detta')}
       cantiereId={rotta.query.get('cantiere')} temaId={rotta.query.get('tema')} areaQuaderno={rotta.query.get('area')} />; break
     case 'chiedi': schermata = <Chiedi />; break
-    case 'dentro': schermata = <Dentro inbox={inbox} bozze={bozze} domande={domande} risposte={risposte} riordino={riordino} seguire={seguire} circolari={circolari} />; break
+    case 'dentro': schermata = <Dentro inbox={inbox} bozze={bozze} riordino={riordino} seguire={seguire} circolari={circolari} />; break
     case 'riordino': schermata = <Riordino />; break
     case 'seguire': schermata = <Seguire />; break
     case 'circolari': schermata = <Circolari />; break
@@ -274,11 +292,12 @@ function Guscio({ utente, condiviso }) {
     case 'notifiche': schermata = <Notifiche />; break
     case 'visita': schermata = <Visita key={secondo} id={secondo} />; break
     case 'whatsapp': schermata = secondo === 'modelli' ? <ModelliWhatsApp /> : secondo ? <ChatContatto key={secondo} waId={secondo} /> : <ChatWhatsApp />; break
-    default: schermata = <Oggi inbox={inbox} bozze={bozze} domande={domande} risposte={risposte} riordino={riordino} seguire={seguire} />
+    default: schermata = <Oggi inbox={inbox} bozze={bozze} domande={domande} risposte={risposte} riordino={riordino} seguire={seguire} conferme={conferme} />
   }
-  const tasto = ['oggi', 'aggiungi', 'chiedi', 'capo'].includes(primo) ? primo : primo ? null : 'oggi'
+  const sottoCapo = ['capo', 'domande', 'agenti', 'agente', 'bacheca'].includes(primo)
+  const tasto = sottoCapo ? 'capo' : ['oggi', 'aggiungi', 'chiedi'].includes(primo) ? primo : primo ? null : 'oggi'
   const sezioneLato = primo === 'azienda' ? 'aziende' : primo === 'persona' ? 'persone' : primo === 'bozza' ? 'bozze'
-    : primo === 'agente' ? 'agenti' : primo || 'oggi'
+    : sottoCapo ? 'capo' : primo || 'oggi'
 
   // Ritoccando Oggi quando ci sei già: torna in cima alla pagina.
   const inCima = (e) => {
@@ -293,7 +312,7 @@ function Guscio({ utente, condiviso }) {
   }
 
   return (
-    <AppCtx.Provider value={{ area, setArea, avvisa, vai, utente }}>
+    <AppCtx.Provider value={{ area, setArea, avvisa, vai, utente, numeri }}>
       {/* Menu a sinistra: si vede solo sul PC (stile.css). */}
       <nav className="lato" aria-label="Menu">
         <a href="#/oggi" className="marchio">Second Brain</a>
@@ -301,15 +320,13 @@ function Guscio({ utente, condiviso }) {
           <Icona nome="piu" size={20} /><span>Aggiungi</span>
         </a>
         {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], ['capo', 'Capo'], ['quaderno', 'Note'], null, ['aziende', 'Aziende'], ['seguire', 'Da seguire'], ['bozze', 'Bozze'], ['riordino', 'Riordino casella'], ['ordini', 'Ordini Marazzi'], ['circolari', 'Circolari'], ['persone', 'Persone'], ['rubrica', 'Rubrica'], ['gemelli', 'Gemelli'], ['liste', 'Liste'], ['garanzie', 'Garanzie'], ['whatsapp', 'WhatsApp'],
-          ['domande', 'Domande per te'], ['agenti', 'Agenti'], ['inbox', 'Inbox'], ['note', 'Tutte le note'], ['notifiche', 'Notifiche'], ['cestino', 'Cestino']]
+          ['inbox', 'Inbox'], ['note', 'Tutte le note'], ['notifiche', 'Notifiche'], ['cestino', 'Cestino']]
           .filter((v) => !v || voceVisibile(VOCI_DENTRO.find((x) => x.chiave === v[0]) || {}, area)).map((v, i) => v ? (
           <a key={v[0]} href={`#/${v[0]}`} className={'lato-voce' + (sezioneLato === v[0] ? ' attivo' : '')}
             onClick={v[0] === 'oggi' ? inCima : undefined}>
             <Icona nome={v[0] === 'chiedi' ? 'cerca' : v[0]} size={20} /><span>{v[1]}</span>
             {v[0] === 'inbox' && inbox > 0 && <span className="lato-badge">{inbox}</span>}
             {v[0] === 'bozze' && bozze > 0 && <span className="lato-badge">{bozze}</span>}
-            {v[0] === 'domande' && domande > 0 && <span className="lato-badge">{domande}</span>}
-            {v[0] === 'agenti' && risposte > 0 && <span className="lato-badge">{risposte}</span>}
             {v[0] === 'riordino' && riordino > 0 && <span className="lato-badge">{riordino}</span>}
             {v[0] === 'seguire' && seguire > 0 && <span className="lato-badge">{seguire}</span>}
             {v[0] === 'circolari' && circolari > 0 && <span className="lato-badge">{circolari}</span>}

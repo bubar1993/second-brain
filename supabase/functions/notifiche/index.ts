@@ -1,7 +1,7 @@
 // Notifiche sul telefono (13.10.2026, scelte di Giovanni): ogni 5 minuti (pg_cron) guarda cosa c'è da avvisare
 // e lo manda ai telefoni iscritti (Web Push, gratis, niente servizi esterni a pagamento):
 // - appuntamenti di lavoro e privati 1 ora prima (non i giorni di scuola chiusa, non quelli "tutto il giorno");
-// - promemoria urgenti (!) quando arriva l'ora;
+// - promemoria quando arriva l'ora (dal 14.10.2026 tutti, non solo gli urgenti);
 // - risposte del Capo e cose che il Capo chiede di confermare.
 // Ogni cosa si manda una volta sola (notifiche_inviate); se un appuntamento o promemoria viene spostato, si riavvisa.
 // Niente notifiche di prova verso Giovanni.
@@ -111,10 +111,15 @@ async function daAvvisare(): Promise<Avviso[]> {
     })
   }
 
-  const promemoria = await rest(`promemoria?select=id,testo,scade_il&urgente=is.true&fatto_il=is.null&eliminata_il=is.null`
-    + `&scade_il=lte.${iso(adesso)}&scade_il=gte.${iso(adesso - 6 * 3600e3)}`)
+  // Dal 14.10.2026 (scelta di Giovanni) tutti i promemoria con un'ora suonano, non solo gli urgenti.
+  // Solo quelli arrivati all'ora negli ultimi 30 minuti: niente raffica di promemoria vecchi.
+  const promemoria = await rest(`promemoria?select=id,testo,scade_il,urgente,area&fatto_il=is.null&eliminata_il=is.null`
+    + `&scade_il=lte.${iso(adesso)}&scade_il=gte.${iso(adesso - 30 * 60e3)}`)
   for (const p of promemoria) {
-    avvisi.push({ tipo: 'promemoria', rif_id: p.id, chiave: new Date(p.scade_il).toISOString(), titolo: `! ${corto(p.testo || 'Promemoria', 80)}`, corpo: 'Promemoria urgente', url: '/#/oggi' })
+    avvisi.push({
+      tipo: 'promemoria', rif_id: p.id, chiave: new Date(p.scade_il).toISOString(),
+      titolo: `${p.urgente ? '! ' : ''}${corto(p.testo || 'Promemoria', 80)}`, corpo: `Promemoria delle ${oraZurigo(p.scade_il)}`, url: '/#/oggi',
+    })
   }
 
   const risposte = await rest(`richieste_agenti?select=id,testo,risposta&agente=eq.capo&da=is.null&vista_il=is.null`

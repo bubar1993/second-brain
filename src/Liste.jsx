@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { sb, areaDa, leggi, scrivi } from './supabase'
 import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, useModifiche } from './componenti'
 import { capisciLista, pulisci, maiuscola, durata } from './capisci'
+import { mettiInCoda, senzaRete } from './coda'
 
 // Liste e garanzie (Privato, 13.10.2026, scelte di Giovanni): solo Spesa e Ristoranti e posti; garanzie dalla foto
 // dello scontrino, senza avvisi di scadenza. Si riempiono dettando dal + (capisciLista, capisciGaranzia) oppure qui.
@@ -17,7 +18,25 @@ export function Liste({ scelta }) {
   // Dalla scorciatoia "Spesa" si apre sempre la spesa; altrimenti l'ultima lista guardata.
   const [scheda, setScheda] = useState(() => scelta || leggi('lista-scelta') || 'spesa')
   const cambia = (s) => { setScheda(s); scrivi('lista-scelta', s) }
+  // Senza rete (supermercato): l'ultima lista caricata, e quello che spunti o aggiungi parte quando torna la rete.
   const { dati, errore, carica, ricarica } = useCarica(async () => {
+    try {
+      const d = await leggiListe()
+      scrivi('liste-copia', JSON.stringify(d))
+      return d
+    } catch (e) {
+      let c = null
+      try { c = JSON.parse(leggi('liste-copia') || 'null') } catch { /* copia rovinata */ }
+      if (c && senzaRete(e)) return { ...c, senzaRete: true }
+      throw e
+    }
+  }, [])
+  useEffect(() => {
+    window.addEventListener('online', ricarica)
+    return () => window.removeEventListener('online', ricarica)
+  }, [ricarica])
+
+  async function leggiListe() {
     const [aperte, comprate] = await Promise.all([
       sb.from('liste_voci').select('*').is('eliminata_il', null).is('fatta_il', null).order('creata_il'),
       sb.from('liste_voci').select('id,testo,fatta_il').eq('lista', 'spesa').is('eliminata_il', null).not('fatta_il', 'is', null)
@@ -34,7 +53,7 @@ export function Liste({ scelta }) {
       return true
     }).slice(0, 16)
     return { spesa: a.filter((v) => v.lista === 'spesa'), ristoranti: a.filter((v) => v.lista === 'ristoranti'), recenti }
-  }, [])
+  }
 
   return (
     <div className="schermata liste">
@@ -47,6 +66,7 @@ export function Liste({ scelta }) {
           Ristoranti e posti{dati?.ristoranti.length ? ` · ${dati.ristoranti.length}` : ''}
         </button>
       </div>
+      {dati?.senzaRete && <p className="scheda scheda-allarme">Senza rete: vedi l'ultima lista. Quello che spunti o aggiungi parte quando torna la rete.</p>}
       <Stato carica={carica} errore={errore}>
         {dati && (scheda === 'spesa'
           ? <Spesa voci={dati.spesa} recenti={dati.recenti} ricarica={ricarica} />
@@ -67,12 +87,16 @@ function Aggiungi({ lista, segnaposto, ricarica }) {
     const voci = lista === 'spesa'
       ? t.split(/,|;|\n/).map(pulisci).filter(Boolean).map((v) => ({ lista, testo: v }))
       : (() => { const c = capisciLista(`nei ristoranti ${t}`); return c ? c.voci.map((v) => ({ lista, ...v })) : [{ lista, testo: maiuscola(t) }] })()
+    const conId = voci.map((v) => ({ id: crypto.randomUUID(), ...v }))
     try {
-      chk(await sb.from('liste_voci').insert(voci))
+      chk(await sb.from('liste_voci').insert(conId))
       setTesto('')
       ricarica()
     } catch (err) {
-      avvisa(messaggioErrore(err))
+      if (!senzaRete(err)) return avvisa(messaggioErrore(err))
+      mettiInCoda('lista_voci', conId)
+      setTesto('')
+      avvisa(`Senza rete: ${conId.map((v) => v.testo).join(', ')} lo aggiungo appena torna la rete`)
     }
   }
   return (
@@ -90,8 +114,15 @@ function Spesa({ voci, recenti, ricarica }) {
 
   async function comprato(v) {
     setVia((s) => new Set(s).add(v.id))
+    const fatta = new Date().toISOString()
     try {
-      chk(await sb.from('liste_voci').update({ fatta_il: new Date().toISOString() }).eq('id', v.id))
+      const r = await sb.from('liste_voci').update({ fatta_il: fatta }).eq('id', v.id)
+      if (r.error && senzaRete(r.error)) {
+        mettiInCoda('spesa_presa', { id: v.id, fatta_il: fatta })
+        avvisa(`${v.testo}: preso (lo segno quando torna la rete)`)
+        return
+      }
+      chk(r)
       avvisa(`${v.testo}: preso`, {
         etichetta: 'Annulla',
         fai: async () => {
@@ -112,6 +143,7 @@ function Spesa({ voci, recenti, ricarica }) {
   async function rimetti(r) {
     try {
       chk(await sb.from('liste_voci').insert({ lista: 'spesa', testo: r.testo }))
+      avvisa(`${r.testo}: di nuovo nella spesa`)
       ricarica()
     } catch (e) {
       avvisa(messaggioErrore(e))

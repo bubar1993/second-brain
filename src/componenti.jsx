@@ -180,6 +180,24 @@ export function Indietro({ titolo }) {
   )
 }
 
+// Sotto il tasto Capo (14.10.2026, scelta di Giovanni) tutto quello che riguarda gli agenti: la chat col Capo,
+// le Domande per te, gli Agenti (cosa fanno, scrivigli) e la mappa di chi parla con chi. Linguette in cima a ognuna.
+// Si passa da una all'altra senza riempire la cronologia: "indietro" torna dov'eri prima del Capo.
+export function LinguetteCapo({ attiva }) {
+  const { numeri } = useApp()
+  const voci = [['capo', 'Capo', numeri?.conferme], ['domande', 'Domande', numeri?.domande], ['agenti', 'Agenti', numeri?.risposte], ['bacheca', 'Mappa', 0]]
+  return (
+    <nav className="linguette linguette-capo" aria-label="Capo e agenti">
+      {voci.map(([k, nome, n]) => (
+        <a key={k} href={`#/${k}`} className={'chip' + (attiva === k ? ' attivo' : '')} aria-current={attiva === k ? 'page' : undefined}
+          onClick={(e) => { e.preventDefault(); if (attiva !== k) location.replace(`#/${k}`) }}>
+          {nome}{n > 0 && <span className="numero-voce">{n}</span>}
+        </a>
+      ))}
+    </nav>
+  )
+}
+
 export function Stato({ carica, errore, vuoto, children }) {
   if (errore) return <p className="msg errore">{errore}</p>
   if (carica && !children) return <p className="msg">Carico…</p>
@@ -307,35 +325,80 @@ export function NotaRiga({ nota }) {
 }
 
 // Dettatura con il riconoscimento vocale del telefono.
+// Non si ferma alla prima pausa (14.10.2026): il telefono chiude l'ascolto dopo ogni frase, qui riparte da solo
+// finché non tocchi di nuovo il tasto o stai zitto per 8 secondi. (Il modo "continuo" di Android ripete le frasi.)
+const SILENZIO = 8000
 export function useDettatura(onTesto) {
   const SR = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)
   const [attiva, setAttiva] = useState(false)
   const rif = useRef(null)
+  const vuole = useRef(false)
+  const ultimo = useRef(0)
   const cb = useRef(onTesto)
   cb.current = onTesto
 
-  function avvia() {
-    if (!SR) return
+  function ascolta() {
     const r = new SR()
     r.lang = 'it-IT'
     r.interimResults = false
     r.continuous = false
     r.onresult = (e) => {
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) cb.current(e.results[i][0].transcript.trim())
+        if (e.results[i].isFinal) {
+          ultimo.current = Date.now()
+          cb.current(e.results[i][0].transcript.trim())
+        }
       }
     }
-    r.onend = () => setAttiva(false)
-    r.onerror = () => setAttiva(false)
-    // Partita da sola (scorciatoia "Detta una nota") il telefono può rifiutarla: resta il tasto Parla.
-    try { r.start() } catch { return }
+    r.onend = () => {
+      if (vuole.current && Date.now() - ultimo.current < SILENZIO) {
+        try { ascolta(); return } catch { /* il telefono non la fa ripartire */ }
+      }
+      vuole.current = false
+      setAttiva(false)
+    }
+    // Microfono negato o tolto: si ferma. "Niente parlato" invece lascia decidere a onend (silenzio).
+    r.onerror = (e) => { if (e.error !== 'no-speech') vuole.current = false }
+    r.start()
     rif.current = r
+  }
+
+  function avvia() {
+    if (!SR) return
+    vuole.current = true
+    ultimo.current = Date.now()
+    // Partita da sola (scorciatoia "Detta una nota") il telefono può rifiutarla: resta il tasto Parla.
+    try { ascolta() } catch { vuole.current = false; return }
     setAttiva(true)
   }
-  const ferma = () => rif.current?.stop()
+  const ferma = () => { vuole.current = false; rif.current?.stop() }
 
-  useEffect(() => () => rif.current?.abort(), [])
+  useEffect(() => () => { vuole.current = false; rif.current?.abort() }, [])
   return { supportata: !!SR, attiva, avvia, ferma }
+}
+
+// Due tocchi per le cose che non si annullano (mandare, spostare, eliminare): il primo prepara, il secondo fa.
+// Il secondo conta solo dopo mezzo secondo (un doppio tocco per sbaglio non manda niente) e dopo 5 secondi
+// il tasto torna com'era (14.10.2026). Con una chiave sola per più tasti: { armato: 'invia' | 'scarta' | null }.
+export function useDueTocchi(durata = 5000) {
+  const [armato, setArmato] = useState(null)
+  const quando = useRef(0)
+  const timer = useRef(null)
+  useEffect(() => () => clearTimeout(timer.current), [])
+  const disarma = useCallback(() => { clearTimeout(timer.current); setArmato(null) }, [])
+  function tocca(chiave, fai) {
+    if (armato !== chiave) {
+      setArmato(chiave)
+      quando.current = Date.now()
+      clearTimeout(timer.current)
+      timer.current = setTimeout(() => setArmato(null), durata)
+      return
+    }
+    if (Date.now() - quando.current < 600) return
+    disarma()
+    fai()
+  }
+  return { armato, tocca, disarma }
 }
 
 // Rimpicciolisce le foto del telefono prima di caricarle (max 1600 px).

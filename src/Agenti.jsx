@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { sb, quando } from './supabase'
-import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, Icona, useModifiche } from './componenti'
+import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, Icona, useModifiche, LinguetteCapo } from './componenti'
 
 // Schermata "Agenti" (12.10.2026): un posto solo per vedere cosa fanno gli agenti e scrivergli.
 // "Fallo adesso" fa partire subito la routine (funzione agente-subito); altrimenti la richiesta
@@ -23,7 +23,7 @@ export const AGENTI = [
 ]
 
 const IN_ATTESA = ['nuova', 'avviata', 'in_corso']
-const STATI = { nuova: 'in attesa del prossimo giro', avviata: 'partito, arriva tra poco', in_corso: 'ci sta lavorando', fatta: 'fatto', non_fatta: 'non fatto' }
+const STATI = { nuova: 'aspetta che l\'agente lavori', avviata: 'partito, arriva tra poco', in_corso: 'ci sta lavorando', fatta: 'fatto', non_fatta: 'non fatto' }
 
 // Il riepilogo di un giro: quello scritto dall'agente, altrimenti i numeri.
 function riepilogo(r) {
@@ -49,7 +49,8 @@ export function Agenti() {
   return (
     <div className="schermata">
       <Indietro titolo="Agenti" />
-      <p className="nota-piccola">Cosa fanno gli agenti e quando hanno girato. Tocca un agente per scrivergli. <a href="#/bacheca">Chi parla con chi</a></p>
+      <LinguetteCapo attiva="agenti" />
+      <p className="nota-piccola">Cosa fanno gli agenti e quando hanno lavorato l'ultima volta. Tocca un agente per scrivergli.</p>
       <Stato carica={carica} errore={errore}>
         {dati && (
           <div className="elenco">
@@ -62,7 +63,7 @@ export function Agenti() {
                   <span className="riga-corpo">
                     <span className="riga-testo">{a.nome}</span>
                     <span className="riga-meta">
-                      {g ? <>Ultimo giro {quando(g.iniziata_il, true)}{!g.ok && <span className="rosso"> · errore</span>}</> : 'Nessun giro registrato'}
+                      {g ? <>Ultimo lavoro {quando(g.iniziata_il, true)}{!g.ok && <span className="rosso"> · errore</span>}</> : 'Non ha ancora lavorato'}
                       {attesa && ' · sta lavorando a una tua richiesta'}
                     </span>
                     {g && <span className="riga-meta">{g.ok ? riepilogo(g) : g.errore}</span>}
@@ -120,12 +121,12 @@ export function Agente({ codice }) {
       const r = chk(await sb.from('richieste_agenti').insert({ agente: codice, testo: t }).select('id').single())
       setTesto('')
       if (!subito) {
-        avvisa('Lo fa al prossimo giro')
+        avvisa('La fa la prossima volta che lavora')
       } else {
         const esito = await chiama('agente-subito', { id: r.id }).catch((e) => ({ ok: false, errore: messaggioErrore(e) }))
         avvisa(esito.ok ? 'Partito: risponde tra qualche minuto'
-          : esito.motivo === 'senza_pulsante' ? 'Questo agente non si può ancora far partire subito: lo fa al prossimo giro'
-            : 'Non è partito subito: lo fa al prossimo giro')
+          : esito.motivo === 'senza_pulsante' ? 'Questo agente non si può far partire subito: la fa la prossima volta che lavora'
+            : 'Non è partito subito: la fa la prossima volta che lavora')
       }
       ricarica()
     } catch (e) {
@@ -138,7 +139,7 @@ export function Agente({ codice }) {
   return (
     <div className="schermata agente">
       <Indietro titolo={a.nome} />
-      <p className="nota-piccola">{a.cosa}. Gira {a.orari}.</p>
+      <p className="nota-piccola">{a.cosa}. Lavora {a.orari}.</p>
 
       {a.codice === 'archiviazione' && <p className="nota-piccola">Per dirgli cosa fare di una mail precisa usa "Scrivi all'agente" nella segnalazione del gestionale G&C (Anomalie → Da controllare).</p>}
       {a.senzaRichieste ? <p className="nota-piccola">Questo agente fa solo il suo lavoro: per chiedergli qualcosa scrivi all'agente {a.aree.includes('G') ? 'G&C' : 'Bozze mail Ceramex'}.</p> : <div className="scrivi-agente">
@@ -148,7 +149,7 @@ export function Agente({ codice }) {
           <button type="button" className="tasto-grande" onClick={() => invia(true)} disabled={lavoro}>
             {lavoro ? 'Invio…' : 'Fallo adesso'}
           </button>
-          <button type="button" className="tasto-link" onClick={() => invia(false)} disabled={lavoro}>Al prossimo giro</button>
+          <button type="button" className="tasto-link" onClick={() => invia(false)} disabled={lavoro}>Senza fretta (quando lavora)</button>
         </div>
         <p className="nota-piccola">Fa solo quello che le sue regole permettono: non manda mail e non cancella niente.</p>
       </div>}
@@ -162,19 +163,19 @@ export function Agente({ codice }) {
                 <div className="richieste">
                   {dati.richieste.map((r) => (
                     <section key={r.id} className={'richiesta' + (IN_ATTESA.includes(r.stato) ? ' in-attesa' : '')}>
-                      <p className="riga-meta">{quando(r.creata_il, true)} · {r.da === 'smistatore' ? 'passata dallo smistatore · ' : ''}{STATI[r.stato]}</p>
+                      <p className="riga-meta">{quando(r.creata_il, true)} · {r.da === 'smistatore' ? 'passata da un altro agente · ' : ''}{STATI[r.stato]}</p>
                       {/* Risposte dal Riordino: si vedono solo le parole di Giovanni (la prima riga), non le istruzioni per l'agente. */}
                       <p className="richiesta-testo">{r.riordino_id ? `Riordino: ${r.testo.split('\n')[0]}` : r.testo}</p>
                       {r.risposta && <p className="richiesta-risposta">{r.risposta}</p>}
                       {r.errore && IN_ATTESA.includes(r.stato) && <p className="nota-piccola rosso">{r.errore}</p>}
-                      {r.sessione_url && <a className="nota-piccola" href={r.sessione_url} target="_blank" rel="noreferrer">Vedi il giro su claude.ai</a>}
+                      {r.sessione_url && <a className="nota-piccola" href={r.sessione_url} target="_blank" rel="noreferrer">Vedi il lavoro su claude.ai</a>}
                     </section>
                   ))}
                 </div>
               </>
             )}
-            <h2>Ultimi giri</h2>
-            {dati.giri.length === 0 ? <p className="msg">Nessun giro registrato.</p> : (
+            <h2>Le ultime volte che ha lavorato</h2>
+            {dati.giri.length === 0 ? <p className="msg">Non ha ancora lavorato.</p> : (
               <div className="elenco">
                 {dati.giri.map((g) => (
                   <div key={g.id} className="riga">

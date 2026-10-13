@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { sb, areaDa, nomePersona, quando, CAMPI_PERSONA, etichettePersona } from './supabase'
-import { useApp, chk, chiama, messaggioErrore, Icona, EtichettePersona, tenutoQui, tieniQui } from './componenti'
+import { useApp, chk, chiama, messaggioErrore, Icona, EtichettePersona, tenutoQui, tieniQui, useDettatura } from './componenti'
 import { iniziali, battesimo } from './Aziende'
 
 const pulisci = (s) => s.replace(/[,()%*\\.:]/g, '')
@@ -28,6 +28,7 @@ export default function Chiedi() {
   const setDomanda = (d) => { setDomandaStato(d); tieniRicerca(d, risultati) }
   const [msg, setMsg] = useState('')
   const [lavoro, setLavoro] = useState(false)
+  const ricerca = useRef(0)
 
   // I clienti sono pochi: si leggono una volta e si filtrano mentre scrivi.
   const [aziende, setAziende] = useState([])
@@ -66,12 +67,12 @@ export default function Chiedi() {
           .or(parole.flatMap((p) => [`nome.ilike.${p}%`, `cognome.ilike.${p}%`]).join(','))
         : Promise.resolve({ data: [] })
       // Per significato (13.10.2026): le cose che parlano della stessa cosa anche con altre parole. Se non risponde, pazienza.
+      // Arriva dopo (14.10.2026): i risultati per parole si vedono subito, questi si aggiungono sotto quando ci sono.
       const qs = chiama('significato', { azione: 'cerca', q: domanda.trim(), area: area === 'T' ? null : area, quanti: 15 })
         .then((r) => r?.risultati || []).catch(() => [])
-      const [trovati, persone, simili] = await Promise.all([
+      const [trovati, persone] = await Promise.all([
         sb.rpc('cerca', { q: domanda.trim(), area_scelta: area === 'T' ? null : area, quanti: 40 }),
         qp,
-        qs,
       ])
       let pers = chk(persone)
       // Prima chi ha più parole della domanda nel nome.
@@ -86,9 +87,13 @@ export default function Chiedi() {
         visti.add(k)
         return true
       })
+      const mia = ++ricerca.current
+      setRisultati({ cose, persone: pers, significato: null })
+      setLavoro(false)
       // Solo quelle che la ricerca per parole non ha già trovato.
       const gia = new Set(cose.map((r) => r.tipo + r.id))
-      const significato = simili.filter((r) => !gia.has(r.tipo + r.id)).slice(0, 10)
+      const significato = (await qs).filter((r) => !gia.has(r.tipo + r.id)).slice(0, 10)
+      if (mia !== ricerca.current) return // nel frattempo hai cercato altro
       setRisultati({ cose, persone: pers, significato })
       tieniRicerca(domanda, { cose, persone: pers, significato })
     } catch (e) {
@@ -98,14 +103,29 @@ export default function Chiedi() {
     }
   }
 
-  const vuoto = risultati && !risultati.cose.length && !risultati.persone.length && !risultati.significato?.length
+  // Microfono (14.10.2026): detti la domanda, poi cerco da solo quando finisci.
+  const formRif = useRef(null)
+  const dettatura = useDettatura((t) => setDomanda((domanda.trim() ? domanda.trim() + ' ' : '') + t))
+  const eraAttiva = useRef(false)
+  useEffect(() => {
+    if (eraAttiva.current && !dettatura.attiva && domanda.trim()) formRif.current?.requestSubmit()
+    eraAttiva.current = dettatura.attiva
+  }, [dettatura.attiva]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const vuoto = risultati && risultati.significato !== null && !risultati.cose.length && !risultati.persone.length && !risultati.significato?.length
     && !clienti.length && !trovatiCantieri.length
 
   return (
     <div className="schermata">
-      <form className="cerca" onSubmit={cerca}>
+      <form className="cerca" onSubmit={cerca} ref={formRif}>
         <input type="search" value={domanda} onChange={(e) => setDomanda(e.target.value)}
-          placeholder="Cerca clienti, cantieri, note e persone" enterKeyHint="search" autoFocus={!tenuta?.domanda} />
+          placeholder={dettatura.attiva ? 'Ti ascolto…' : 'Cerca clienti, cantieri, note e persone'} enterKeyHint="search" autoFocus={!tenuta?.domanda} />
+        {dettatura.supportata && (
+          <button type="button" className={'tasto-mic' + (dettatura.attiva ? ' attivo' : '')}
+            onClick={dettatura.attiva ? dettatura.ferma : dettatura.avvia} aria-label={dettatura.attiva ? 'Ferma la dettatura' : 'Detta la domanda'}>
+            <Icona nome="mic" />
+          </button>
+        )}
         <button type="submit" className="tasto-pieno" disabled={lavoro} aria-label="Cerca">
           <Icona nome="cerca" />
         </button>
@@ -196,6 +216,7 @@ export default function Chiedi() {
         </>
       )}
 
+      {risultati && risultati.significato === null && <p className="nota-piccola">Cerco anche per significato…</p>}
       {risultati?.significato?.length > 0 && (
         <>
           <h2>Parlano della stessa cosa</h2>

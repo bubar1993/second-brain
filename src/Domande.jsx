@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { sb, areaDa, quando } from './supabase'
-import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, useModifiche } from './componenti'
+import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, useModifiche, LinguetteCapo } from './componenti'
 
 // Domande per Giovanni: i dubbi degli agenti. Un tocco su una risposta pronta, o due parole scritte.
 // L'agente legge la risposta al giro dopo (entro un'ora) e la usa. Per le domande di lavoro, appena rispondi parte anche lo
@@ -29,7 +29,7 @@ export function Domande() {
     try {
       chk(await sb.from('domande').update({ risposta: risposta.trim(), risposta_il: new Date().toISOString() }).eq('id', d.id))
       setScritte((s) => ({ ...s, [d.id]: '' }))
-      avvisa('Grazie: l\'agente la usa al prossimo giro')
+      avvisa('Grazie: l\'agente la usa la prossima volta che lavora (entro un\'ora)')
       // Lavoro (non Privato): sveglia lo smistatore, che passa subito agli altri agenti quello che serve.
       if (d.area !== 'P' && d.agente !== 'privato') chiama('agente-subito', { sveglia: 'smistatore' }).catch(() => {})
       ricarica()
@@ -41,6 +41,7 @@ export function Domande() {
   return (
     <div className="schermata">
       <Indietro titolo="Domande per te" />
+      <LinguetteCapo attiva="domande" />
       <Stato carica={carica} errore={errore} vuoto={dati && !dati.aperte.length && !dati.passate.length ? 'Nessuna domanda. Gli agenti hanno capito tutto.' : null}>
         {dati && (
           <>
@@ -76,8 +77,8 @@ export function Domande() {
           </div>
           {dati.passate.length > 0 && (
             <>
-              <h2>Passate dallo smistatore</h2>
-              <p className="nota-piccola">Domande e risposte che lo smistatore ha passato a un altro agente (ultimi 3 giorni). Vedi com'è andata in Agenti.</p>
+              <h2>Passate a un altro agente</h2>
+              <p className="nota-piccola">Risposte tue che riguardavano un altro agente: gliele ho passate io (ultimi 3 giorni). Vedi com'è andata in Agenti.</p>
               <div className="elenco">
                 {dati.passate.map((d) => (
                   <a key={d.id} className="riga" href="#/agenti">

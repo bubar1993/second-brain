@@ -234,6 +234,7 @@ export function Persona({ id }) {
   const [modulo, setModulo] = useState(null)
   const [modificato, setModificato] = useState(false)
   const [aperto, setAperto] = useState(false)
+  const [tutteAree, setTutteAree] = useState(false)
   useModifiche(modificato)
 
   const { dati, errore, carica, ricarica } = useCarica(async () => {
@@ -331,7 +332,11 @@ export function Persona({ id }) {
   }
 
   const { p } = dati
-  const nell = (x) => area === 'T' || x.area === area
+  // Con un'area scelta in alto si vede solo quella; "mostrale" fa vedere anche le altre, solo qui (14.10.2026).
+  const nell = (x) => area === 'T' || tutteAree || x.area === area
+  const fuori = area === 'T' || tutteAree ? 0
+    : dati.note.filter((x) => x.area !== area).length + dati.posta.filter((x) => x.area !== area).length
+      + dati.messaggi.filter((x) => x.area !== area).length
   const aree = p.persone_aree.map((x) => x.area)
   const ditte = p.persone_aziende.filter((x) => x.aziende && nell(x.aziende))
   const riassunti = dati.riassunti.filter(nell).sort((a, b) => 'CGP'.indexOf(a.area) - 'CGP'.indexOf(b.area))
@@ -339,7 +344,7 @@ export function Persona({ id }) {
   const promemoria = note.flatMap((n) => (n.promemoria || []).filter((x) => !x.fatto_il && !x.eliminata_il)
     .map((x) => ({ ...x, area: n.area, nota_id: n.id })))
   const posta = dati.posta.filter(nell)
-  const messaggi = dati.messaggi.filter((m) => area === 'T' || m.area === area)
+  const messaggi = dati.messaggi.filter(nell)
   const wa = numeroWhatsApp(p.telefono)
 
   return (
@@ -357,6 +362,15 @@ export function Persona({ id }) {
         </p>
       )}
       <p className="nota-piccola"><EtichettePersona p={p} /></p>
+      {fuori > 0 && (
+        <button type="button" className="scheda altre-aree" onClick={() => setTutteAree(true)}>
+          <span>Vedi solo {areaDa(area).nome}: {fuori === 1 ? 'c\'è un\'altra cosa' : `ci sono altre ${fuori} cose`} (note, mail, WhatsApp) in altre aree.</span>
+          <span className="tasto-piccolo">Mostrale</span>
+        </button>
+      )}
+      {tutteAree && area !== 'T' && (
+        <p className="nota-piccola">Vedi tutte le aree. <button type="button" className="tasto-link" onClick={() => setTutteAree(false)}>Solo {areaDa(area).nome}</button></p>
+      )}
 
       <div className="contatti-persona">
         {/* Dopo la chiamata, tornando nell'app si apre la nota già collegata a questa persona (App.jsx). */}
@@ -446,7 +460,7 @@ export function Persona({ id }) {
           ))}
         </div>
       ) : (
-        <p className="msg">Nessuna nota{area !== 'T' ? ' in quest\'area' : ''}.</p>
+        <p className="msg">Nessuna nota{area !== 'T' && !tutteAree ? ' in quest\'area' : ''}.</p>
       )}
 
       {posta.length > 0 && (

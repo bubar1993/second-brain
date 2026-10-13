@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { sb, quando, areaDa } from './supabase'
-import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, useModifiche } from './componenti'
+import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, useModifiche, useDueTocchi } from './componenti'
 
 // Bozze di risposta preparate dagli agenti:
 // - G&C: casella info@homeconcepts.ch, partono da info@ (funzione invia-bozza);
@@ -20,20 +20,36 @@ export function Bozze({ scelta }) {
       const x = sb.from('bozze').select(CAMPI)
       return area === 'T' ? x : x.eq('area', area)
     }
-    const [aperte, daRispondere, vecchie] = await Promise.all([
+    // G&C (14.10.2026): le mail di info@ a cui l'agente G&C non ha risposto ma che chiedono una risposta tua
+    // (posta.esito 'da_imparare'). Spariscono quando nella conversazione parte una mail da info@.
+    const daTeGC = async () => {
+      if (area === 'C' || area === 'P') return []
+      const mail = chk(await sb.from('posta').select('id,message_id,thread_key,da,da_nome,oggetto,data,motivo,aziende(id,nome)')
+        .eq('area', 'G').eq('cartella', 'arrivata').eq('esito', 'da_imparare').gte('data', settimana).order('data', { ascending: false }).limit(30))
+      if (!mail.length) return []
+      const fili = [...new Set(mail.map((m) => m.thread_key).filter(Boolean))]
+      const [mandate, conBozza] = await Promise.all([
+        fili.length ? sb.from('posta').select('thread_key,data').eq('cartella', 'inviata').in('thread_key', fili).then(chk) : [],
+        fili.length ? sb.from('bozze').select('thread_key').in('stato', ['proposta', 'in_invio']).in('thread_key', fili).then(chk) : [],
+      ])
+      return mail.filter((m) => !mandate.some((x) => x.thread_key === m.thread_key && x.data > m.data)
+        && !conBozza.some((b) => b.thread_key === m.thread_key))
+    }
+    const [aperte, daRispondere, vecchie, daRispondereGC] = await Promise.all([
       q().in('stato', ['proposta', 'in_invio']).order('creata_il', { ascending: false }).then(chk),
       q().eq('canale', 'gmail').eq('stato', 'da_imparare').gte('creata_il', settimana).order('creata_il', { ascending: false }).then(chk),
       q().in('stato', ['annullata', 'inviata', 'scartata', 'da_imparare']).gte('modificata_il', settimana)
         .order('modificata_il', { ascending: false }).limit(30).then(chk),
+      daTeGC(),
     ])
-    return { aperte, daRispondere, vecchie: vecchie.filter((b) => !(b.canale === 'gmail' && b.stato === 'da_imparare')) }
+    return { aperte, daRispondere, daRispondereGC, vecchie: vecchie.filter((b) => !(b.canale === 'gmail' && b.stato === 'da_imparare')) }
   }, [area])
 
   return (
     <div className="schermata">
       <Indietro titolo="Bozze" />
       <p className="nota-piccola">Risposte preparate dagli agenti: G&C parte da info@, Ceramex dalla tua Gmail. Tocca per leggerle, correggerle e inviarle.</p>
-      <Stato carica={carica} errore={errore} vuoto={dati && !dati.aperte.length && !dati.daRispondere.length && !dati.vecchie.length ? 'Nessuna bozza da approvare.' : null}>
+      <Stato carica={carica} errore={errore} vuoto={dati && !dati.aperte.length && !dati.daRispondere.length && !dati.daRispondereGC.length && !dati.vecchie.length ? 'Nessuna bozza da approvare.' : null}>
         {dati && (
           <>
             {dati.aperte.length > 0
@@ -44,6 +60,24 @@ export function Bozze({ scelta }) {
                 <h3>Da rispondere tu</h3>
                 <p className="nota-piccola">Mail Ceramex a cui l'agente non ha risposto: gli mancava un dato certo. Spariscono quando rispondi da Gmail.</p>
                 <div className="elenco">{dati.daRispondere.map((b) => <RigaBozza key={b.id} b={b} scelta={scelta} />)}</div>
+              </>
+            )}
+            {dati.daRispondereGC.length > 0 && (
+              <>
+                <h3>Da rispondere tu · G&C</h3>
+                <p className="nota-piccola">Mail di info@ che chiedono una tua risposta: l'agente non l'ha preparata. Spariscono quando rispondi (da Spark o dal Riordino). Per farti preparare la bozza: Riordino → Istruzioni all'agente.</p>
+                <div className="elenco">
+                  {dati.daRispondereGC.map((m) => (
+                    <a key={m.id} className="riga riga-bozza" href={`#/mail/${encodeURIComponent(m.message_id)}`}>
+                      <span className="pallino" style={{ background: areaDa('G').colore }} />
+                      <span className="riga-corpo">
+                        <span className="riga-testo"><b>{m.aziende?.nome || m.da_nome || m.da}</b> — {m.oggetto || '(senza oggetto)'}</span>
+                        <span className="riga-meta"><span className="etichetta-sezione">da rispondere tu</span> {m.motivo || ''}</span>
+                      </span>
+                      <span className="data-breve">{quando(m.data)}</span>
+                    </a>
+                  ))}
+                </div>
               </>
             )}
             {dati.vecchie.length > 0 && (
@@ -86,10 +120,11 @@ function RigaBozza({ b, scelta }) {
 export function Bozza({ id }) {
   const { avvisa } = useApp()
   const [campi, setCampi] = useState(null)
-  const [conferma, setConferma] = useState(false)
-  const [confermaScarta, setConfermaScarta] = useState(false)
+  // Due tocchi per inviare e per scartare (useDueTocchi: il secondo conta dopo mezzo secondo, dopo 5 secondi si torna com'era).
+  const due = useDueTocchi()
+  const conferma = due.armato === 'invia'
+  const confermaScarta = due.armato === 'scarta'
   const [lavoro, setLavoro] = useState(false)
-  const timer = useRef(null)
 
   const { dati, errore, carica, ricarica } = useCarica(async () => {
     const b = chk(await sb.from('bozze').select('*,aziende(id,nome),posta(id,message_id,da,da_nome,a,cc,oggetto,data,testo)').eq('id', id).single())
@@ -106,7 +141,6 @@ export function Bozza({ id }) {
   useEffect(() => {
     if (dati && !campi) setCampi({ a: (dati.a || []).join(', '), cc: (dati.cc || []).join(', '), oggetto: dati.oggetto || '', testo: dati.testo || '' })
   }, [dati, campi])
-  useEffect(() => () => clearTimeout(timer.current), [])
   const corretta = !!dati && !!campi && dati.stato === 'proposta' && (campi.testo !== (dati.testo || '') || campi.oggetto !== (dati.oggetto || '')
     || campi.a !== (dati.a || []).join(', ') || campi.cc !== (dati.cc || []).join(', '))
   useModifiche(corretta)
@@ -122,16 +156,8 @@ export function Bozza({ id }) {
   const cambia = (k) => (e) => setCampi({ ...campi, [k]: e.target.value })
 
   // Due tocchi per inviare: la mail parte davvero.
-  async function invia() {
-    if (!conferma) {
-      setConferma(true)
-      setConfermaScarta(false)
-      clearTimeout(timer.current)
-      timer.current = setTimeout(() => setConferma(false), 5000)
-      return
-    }
-    clearTimeout(timer.current)
-    setConferma(false)
+  const invia = () => due.tocca('invia', inviaDavvero)
+  async function inviaDavvero() {
     setLavoro(true)
     try {
       const campiMail = { id, testo: campi.testo, a: lista(campi.a), cc: lista(campi.cc), oggetto: campi.oggetto }
@@ -148,16 +174,8 @@ export function Bozza({ id }) {
   }
 
   // Anche scartare vuole due tocchi: non si torna indietro. Per Ceramex toglie anche la bozza da Gmail.
-  async function scarta() {
-    if (!confermaScarta) {
-      setConfermaScarta(true)
-      setConferma(false)
-      clearTimeout(timer.current)
-      timer.current = setTimeout(() => setConfermaScarta(false), 5000)
-      return
-    }
-    clearTimeout(timer.current)
-    setConfermaScarta(false)
+  const scarta = () => due.tocca('scarta', scartaDavvero)
+  async function scartaDavvero() {
     setLavoro(true)
     try {
       if (gmail && !b.gmail?.errore) await chiama('gmail-bozza', { azione: 'scarta', id, testo: campi.testo })

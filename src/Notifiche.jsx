@@ -3,7 +3,7 @@ import { sb, leggi, scrivi, quando } from './supabase'
 import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro } from './componenti'
 
 // Notifiche sul telefono (13.10.2026, scelte di Giovanni): appuntamenti di lavoro e privati 1 ora prima,
-// promemoria urgenti (!) all'ora, risposte e conferme del Capo. Le manda la funzione "notifiche" ogni 5 minuti.
+// promemoria all'ora (dal 14.10.2026 tutti), risposte e conferme del Capo. Le manda la funzione "notifiche" ogni 5 minuti.
 // Chiave pubblica VAPID (la privata sta solo nei segreti di Supabase).
 const VAPID = 'BPiU1Voq6q5lksjvnYPYwDeHPkciCS8quW6M7IF5HBJjw_MGjgJ5RY8XcwI4nY0bJ3mMRjGPBZZOvTGAUdIda-o'
 
@@ -70,7 +70,7 @@ export function AttivaNotifiche() {
   if (!mostra) return null
   return (
     <div className="scheda scheda-impronta">
-      <p>Attivo le notifiche su questo telefono? Ti avviso 1 ora prima degli appuntamenti, per i promemoria urgenti e quando risponde il Capo.</p>
+      <p>Attivo le notifiche su questo telefono? Ti avviso 1 ora prima degli appuntamenti, all'ora dei promemoria e quando risponde il Capo.</p>
       <div className="azioni">
         <button type="button" className="tasto-pieno" onClick={attiva} disabled={lavoro}>Attiva</button>
         <button type="button" className="tasto-link" onClick={() => { scrivi('notifiche-rimandate', '1'); setMostra(false) }}>Più tardi</button>
@@ -79,7 +79,7 @@ export function AttivaNotifiche() {
   )
 }
 
-const COSA = { appuntamento: 'Appuntamento', promemoria: 'Promemoria urgente', capo_risposta: 'Capo', capo_conferma: 'Capo' }
+const COSA = { appuntamento: 'Appuntamento', promemoria: 'Promemoria', capo_risposta: 'Capo', capo_conferma: 'Capo' }
 
 // Dentro → Notifiche: se sono attive qui, i telefoni iscritti e le ultime mandate.
 export function Notifiche() {
@@ -125,7 +125,7 @@ export function Notifiche() {
   return (
     <div className="schermata">
       <Indietro titolo="Notifiche" />
-      <p className="nota-piccola">Ti avviso 1 ora prima degli appuntamenti (lavoro e privati), per i promemoria urgenti (!) all'ora giusta, e quando il Capo risponde o chiede una conferma. Niente altro.</p>
+      <p className="nota-piccola">Ti avviso 1 ora prima degli appuntamenti (lavoro e privati), per i promemoria all'ora giusta, e quando il Capo risponde o chiede una conferma. Niente altro.</p>
       {!supportate() ? (
         <p className="msg">Questo browser non riceve notifiche. Apri l'app installata sul telefono.</p>
       ) : Notification.permission === 'denied' ? (

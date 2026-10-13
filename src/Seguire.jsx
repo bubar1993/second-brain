@@ -174,7 +174,7 @@ export function Seguire() {
         <div className="azioni-fermo">
           <button type="button" className="tasto-piccolo" onClick={() => cambia('note', ids, { risolto_il: new Date().toISOString() }, { risolto_il: null }, 'Risolto')}>Risolto</button>
           <button type="button" className="tasto-link" onClick={() => cambia('note', ids, { rivisto_il: new Date().toISOString() },
-            { rivisto_il: n.rivisto_il ?? null }, 'Ok: te lo ricordo tra 7 giorni')}>Ci sto lavorando</button>
+            { rivisto_il: n.rivisto_il ?? null }, 'Ok: te lo ricordo tra 7 giorni')}>Ci lavoro: ricordamelo tra 7 giorni</button>
         </div>
       </div>
     )

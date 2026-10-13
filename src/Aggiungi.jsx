@@ -2,9 +2,45 @@ import { useEffect, useRef, useState } from 'react'
 import { sb, areaDa, leggi, scrivi } from './supabase'
 import {
   useApp, chk, messaggioErrore, SceltaArea, SceltaPersone, Icona,
-  useDettatura, caricaFoto, collegaPersone,
+  useDettatura, caricaFoto, aggiungiAreaPersone, perCampo,
 } from './componenti'
 import { capisciLista, capisciGaranzia, durata } from './capisci'
+import { mettiInCoda, registraLavoro, senzaRete, giaFatto } from './coda'
+
+// "Già salvato" (stesso id) va bene: serve quando una nota fatta senza rete parte di nuovo.
+const fatto = ({ error }) => { if (error && !giaFatto(error)) throw error }
+const nuovoId = () => crypto.randomUUID()
+
+// Crea la nota con tutto quello che le va dietro. Con gli id già scelti, così rifarla non crea doppioni
+// (la usa anche la coda delle note scritte senza rete, coda.js).
+async function creaNota(d) {
+  fatto(await sb.from('note').insert({
+    id: d.id, testo: d.testo, area: d.area, azienda_id: d.azienda_id, fonte: d.fonte,
+    ...(d.cantiere_id ? { cantiere_id: d.cantiere_id } : {}),
+    ...(d.lavorata ? { lavorata_il: d.lavorata } : {}),
+  }))
+  if (d.persone.length) {
+    fatto(await sb.from('note_persone').upsert(d.persone.map((p) => ({ nota_id: d.id, persona_id: p })), { onConflict: 'nota_id,persona_id', ignoreDuplicates: true }))
+    await aggiungiAreaPersone(d.area, d.persone)
+  }
+  if (d.tema) fatto(await sb.from('note_temi').upsert({ nota_id: d.id, capitolo_id: d.tema }, { onConflict: 'nota_id,capitolo_id', ignoreDuplicates: true }))
+  if (d.garanzia) fatto(await sb.from('garanzie').insert({ ...d.garanzia, nota_id: d.id }))
+  if (d.voci) fatto(await sb.from('liste_voci').insert(d.voci.map((v) => ({ ...v, nota_id: d.id }))))
+  if (d.promemoria) fatto(await sb.from('promemoria').insert({ ...d.promemoria, nota_id: d.id }))
+}
+registraLavoro('nota', creaNota)
+
+// Ricordamelo con un tocco (14.10.2026): tra un'ora, stasera, domani o lunedì mattina. "Altro…" apre il calendario.
+function scelteRicorda(adesso = new Date()) {
+  const a = (fn) => { const d = new Date(adesso); d.setSeconds(0, 0); fn(d); return d }
+  const tardi = adesso.getHours() * 60 + adesso.getMinutes() >= 17 * 60 + 30
+  return [
+    ['ora', 'Tra 1 ora', a((d) => d.setMinutes(Math.ceil((d.getMinutes() + 60) / 5) * 5))],
+    ['sera', tardi ? 'Stasera 21' : 'Stasera 18', a((d) => d.setHours(tardi ? 21 : 18, 0))],
+    ['domani', 'Domani 8', a((d) => { d.setDate(d.getDate() + 1); d.setHours(8, 0) })],
+    ['lunedi', 'Lunedì 8', a((d) => { d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); d.setHours(8, 0) })],
+  ].filter(([k, , d]) => k !== 'sera' || d > adesso)
+}
 
 const GIORNI = ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato']
 
@@ -142,12 +178,16 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
     if (!pulito && !foto.length) return avvisa('Scrivi qualcosa o aggiungi una foto')
     if (conPromemoria && !ricorda) return avvisa('Scegli quando ricordartelo')
     setSalvo(true)
+    const avvisaDetto = (detto) => (detto ? `. Te lo ricordo ${detto.toLocaleDateString('it-CH', { weekday: 'long' })} alle ${detto.toLocaleTimeString('it-CH', { hour: '2-digit', minute: '2-digit' })}` : '')
+    let dopoCoda = null // se manca la rete: cosa mettere da parte sul telefono
     try {
       // Solo una lista (senza foto né promemoria): niente nota, va dritto nella lista.
       if (lista && !foto.length && !conPromemoria && !notaFatta.current) {
-        chk(await sb.from('liste_voci').insert(lista.voci.map((v) => ({ lista: lista.lista, ...v }))))
-        avvisa(lista.lista === 'spesa' ? `Nella spesa: ${lista.voci.map((v) => v.testo).join(', ')}` : `Nei ristoranti: ${lista.voci[0].testo}`,
-          { etichetta: 'Apri', fai: () => vai('/liste') })
+        const voci = lista.voci.map((v) => ({ id: nuovoId(), lista: lista.lista, ...v }))
+        const detta = lista.lista === 'spesa' ? `Nella spesa: ${voci.map((v) => v.testo).join(', ')}` : `Nei ristoranti: ${voci[0].testo}`
+        dopoCoda = { tipo: 'lista_voci', dati: voci, testo: detta }
+        chk(await sb.from('liste_voci').insert(voci))
+        avvisa(detta, { etichetta: 'Apri', fai: () => vai('/liste') })
         svuota()
         return
       }
@@ -157,28 +197,25 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
       const inScheda = ditta && ditta.area === areaNota ? ditta : null
       // Una garanzia è privata (se non hai scelto un'altra area) e la mette a posto l'app: gli agenti non la rileggono.
       const areaVera = garanzia && !areaNota ? 'P' : areaNota
+      const dove = inScheda ? `Salvata nella scheda ${inScheda.nome}` : areaVera ? `Salvata in ${areaDa(areaVera).nome}` : 'Salvata nell\'Inbox'
       if (!nota) {
-        nota = chk(await sb.from('note')
-          .insert({
-            testo: pulito, area: areaVera, azienda_id: inScheda?.id || null, fonte: !pulito && foto.length ? 'foto' : fonte,
-            ...(inScheda && cantiereId ? { cantiere_id: cantiereId } : {}),
-            ...(garanzia || lista ? { lavorata_il: new Date().toISOString() } : {}),
-          })
-          .select('id').single())
+        const d = {
+          id: nuovoId(), testo: pulito, area: areaVera, azienda_id: inScheda?.id || null, fonte: !pulito && foto.length ? 'foto' : fonte,
+          cantiere_id: inScheda && cantiereId ? cantiereId : null,
+          lavorata: garanzia || lista ? new Date().toISOString() : null,
+          persone: persone.map((p) => p.id),
+          tema: temaId && areaVera === 'P' ? temaId : null,
+          garanzia: garanzia ? { id: nuovoId(), cosa: garanzia.cosa, negozio: garanzia.negozio, mesi: garanzia.mesi, comprata_il: garanzia.comprata_il } : null,
+          voci: lista ? lista.voci.map((v) => ({ id: nuovoId(), lista: lista.lista, ...v })) : null,
+          // Promemoria scelto col tasto, oppure detto nella nota ("ricordami alle 19:30").
+          promemoria: conPromemoria || detto ? { id: nuovoId(), testo: pulito || 'Foto', area: areaNota, scade_il: (detto || new Date(ricorda)).toISOString() } : null,
+        }
+        // Senza foto si può tenere sul telefono e mandare dopo; con le foto no (sono troppo grandi).
+        if (!foto.length) dopoCoda = { tipo: 'nota', dati: d, testo: dove + avvisaDetto(detto) }
+        await creaNota(d)
+        nota = { id: d.id }
         notaFatta.current = nota
-        await collegaPersone(nota.id, areaVera, persone)
-        if (temaId && areaVera === 'P') chk(await sb.from('note_temi').insert({ nota_id: nota.id, capitolo_id: temaId }))
-        if (garanzia) {
-          chk(await sb.from('garanzie').insert({ cosa: garanzia.cosa, negozio: garanzia.negozio, mesi: garanzia.mesi, comprata_il: garanzia.comprata_il, nota_id: nota.id }))
-        }
-        if (lista) chk(await sb.from('liste_voci').insert(lista.voci.map((v) => ({ lista: lista.lista, ...v, nota_id: nota.id }))))
-        // Promemoria scelto col tasto, oppure detto nella nota ("ricordami alle 19:30").
-        if (conPromemoria || detto) {
-          chk(await sb.from('promemoria').insert({
-            testo: pulito || 'Foto', area: areaNota, nota_id: nota.id,
-            scade_il: (detto || new Date(ricorda)).toISOString(),
-          }))
-        }
+        dopoCoda = null
       }
       // Ogni foto caricata esce dall'elenco: se una non va, "Salva" riprova solo quelle rimaste.
       for (const f of foto) {
@@ -190,11 +227,19 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
         svuota()
         return
       }
-      const dove = inScheda ? `Salvata nella scheda ${inScheda.nome}` : areaVera ? `Salvata in ${areaDa(areaVera).nome}` : 'Salvata nell\'Inbox'
-      avvisa(detto ? `${dove}. Te lo ricordo ${detto.toLocaleDateString('it-CH', { weekday: 'long' })} alle ${detto.toLocaleTimeString('it-CH', { hour: '2-digit', minute: '2-digit' })}` : dove)
+      avvisa(dove + avvisaDetto(detto))
       svuota()
     } catch (e) {
-      avvisa(notaFatta.current ? `Nota salvata, ma una foto non è partita: tocca Salva per riprovare. (${messaggioErrore(e)})` : messaggioErrore(e))
+      if (dopoCoda && senzaRete(e)) {
+        // Senza rete: resta sul telefono e parte da sola quando torna la rete (coda.js).
+        mettiInCoda(dopoCoda.tipo, dopoCoda.dati)
+        avvisa(`Senza rete: la tengo sul telefono e la mando appena torna la rete. ${dopoCoda.testo}`)
+        svuota()
+      } else if (!notaFatta.current && foto.length && senzaRete(e)) {
+        avvisa('Senza rete: con le foto devo aspettare la rete. Il testo resta qui, tocca Salva più tardi.')
+      } else {
+        avvisa(notaFatta.current ? `Nota salvata, ma una foto non è partita: tocca Salva per riprovare. (${messaggioErrore(e)})` : messaggioErrore(e))
+      }
     } finally {
       setSalvo(false)
     }
@@ -245,12 +290,7 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
         </div>
       )}
 
-      {conPromemoria && (
-        <label className="campo">
-          Quando
-          <input type="datetime-local" value={ricorda} onChange={(e) => setRicorda(e.target.value)} />
-        </label>
-      )}
+      {conPromemoria && <QuandoRicordare valore={ricorda} onChange={setRicorda} />}
 
       {(lista || garanzia) && (
         <div className="capito" role="status">
@@ -288,9 +328,29 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
         <SceltaPersone valore={persone} onChange={setPersone} />
       </div>
 
-      <button type="button" className="tasto-grande" onClick={salva} disabled={salvo}>
+      {/* Salva resta in fondo allo schermo anche con la tastiera aperta (14.10.2026). */}
+      <button type="button" className="tasto-grande tasto-salva-fisso" onClick={salva} disabled={salvo}>
         {salvo ? 'Salvo…' : 'Salva'}
       </button>
+    </div>
+  )
+}
+
+// Quando ricordartelo: quattro tocchi pronti, oppure "Altro…" con giorno e ora a scelta.
+function QuandoRicordare({ valore, onChange }) {
+  const [scelte] = useState(() => scelteRicorda())
+  const [altro, setAltro] = useState(() => !!valore && !scelte.some(([, , d]) => perCampo(d) === valore))
+  return (
+    <div className="campo">
+      <span>Quando te lo ricordo</span>
+      <div className="chips">
+        {scelte.map(([k, nome, d]) => (
+          <button key={k} type="button" className={'chip' + (!altro && valore === perCampo(d) ? ' attivo' : '')}
+            onClick={() => { setAltro(false); onChange(perCampo(d)) }}>{nome}</button>
+        ))}
+        <button type="button" className={'chip' + (altro ? ' attivo' : '')} onClick={() => setAltro(true)}>Altro…</button>
+      </div>
+      {altro && <input type="datetime-local" value={valore} onChange={(e) => onChange(e.target.value)} aria-label="Giorno e ora" />}
     </div>
   )
 }

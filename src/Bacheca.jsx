@@ -1,5 +1,5 @@
 import { AREE } from './supabase'
-import { Indietro } from './componenti'
+import { Indietro, LinguetteCapo } from './componenti'
 
 // Bacheca (13.10.2026, second-brain…/bacheca o #/bacheca): chi parla con chi, in un disegno solo.
 // Il Capo può passare lavoro a tutti; lo Smistatore a tutti tranne il Privato; gli agenti con un dubbio scrivono
@@ -44,7 +44,8 @@ export function Bacheca() {
   return (
     <div className="schermata bacheca">
       <Indietro titolo="Chi parla con chi" />
-      <p className="nota-piccola">Tocca un agente per aprirlo. Tu puoi scrivere a ognuno dalla schermata Agenti.</p>
+      <LinguetteCapo attiva="bacheca" />
+      <p className="nota-piccola">Tocca un agente per aprirlo. Tu puoi scrivere a ognuno dalla linguetta Agenti.</p>
 
       <div className="bacheca-tela">
         <svg viewBox="0 0 360 440" role="img" aria-label="Il Capo passa lavoro a tutti gli agenti; lo Smistatore a tutti tranne il Privato; gli agenti con un dubbio ti scrivono in Domande per te.">

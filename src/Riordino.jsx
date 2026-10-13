@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { sb, quando } from './supabase'
-import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, useModifiche } from './componenti'
+import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, useModifiche, useDueTocchi } from './componenti'
 
 // Riordino delle caselle (ok di Giovanni): info@ G&C dal 12.10.2026 sera (l'agente "Archiviazione email G&C" propone la
 // cartella di Hostpoint per Posta in arrivo e Posta inviata) e Gmail Ceramex dal 12.10 notte (l'agente "Bozze mail Ceramex"
@@ -19,8 +19,41 @@ const IN_CORSO = ['nuova', 'avviata', 'in_corso']
 // La prima riga della richiesta sono le parole di Giovanni: «…»
 const paroleDi = (q) => (q.testo.split('\n')[0].match(/«(.*)»/) || [])[1] || q.testo
 
-// Chi riceve la risposta: info@ → agente Archiviazione, Gmail Ceramex → agente Ceramex (giro delle ore piene).
+// Chi riceve le istruzioni: info@ → agente Archiviazione, Gmail Ceramex → agente Ceramex (giro delle ore piene).
+// Se Giovanni chiede una bozza di risposta (14.10.2026) va subito all'agente che le scrive: info@ → agente G&C, Gmail → Ceramex.
+// Prima passava dall'Archiviazione (che le bozze non le fa) e poi dallo smistatore: troppi giri.
 const AGENTE_DI = { gc: 'archiviazione', ceramex: 'ceramex' }
+const AGENTE_BOZZA = { gc: 'gc', ceramex: 'ceramex' }
+const vuoleBozza = (t) => /\b(bozz[ae]|rispond\w*|rispost[ae]|scrivi(gli|le)?|preparal?[ae]?|replica)\b/i.test(t)
+const parlaDiCartella = (t) => /\b(cartell[ae]|etichett[ae]|mett\w*|spost\w*|archivi\w*|sotto)\b/i.test(t)
+
+// "Manda al Capo" (14.10.2026, idea di Giovanni): le stesse parole vanno al Capo, che fa lui o passa all'agente giusto.
+function testoCapo(r, parole) {
+  const oggi = new Date().toLocaleDateString('it-CH', { day: '2-digit', month: '2-digit' })
+  return [
+    `«${parole}»`,
+    `(Dal Riordino dell'app, ${oggi}: mail ${r.casella === 'ceramex' ? 'della Gmail Ceramex' : 'di info@homeconcepts.ch'} «${r.oggetto || '(senza oggetto)'}» di ${r.da || '?'} del ${(r.data_email || '').slice(0, 10)}.`,
+    r.casella === 'ceramex'
+      ? `Gmail: gmail_thread_id ${r.gmail_thread_id || r.message_id}. Riga riordino_mail id = '${r.id}', etichetta proposta: ${r.cartella_proposta || 'nessuna'}.)`
+      : `info@: message_id ${r.message_id}, ora in ${r.cartella_da} (in posta: stesso message_id). Riga riordino_mail id = '${r.id}', cartella proposta: ${r.cartella_proposta || 'nessuna'}.)`,
+  ].join('\n')
+}
+
+function testoBozza(r, parole) {
+  const oggi = new Date().toLocaleDateString('it-CH', { day: '2-digit', month: '2-digit' })
+  const quale = r.casella === 'ceramex'
+    ? `la conversazione Gmail «${r.oggetto || '(senza oggetto)'}» di ${r.da || '?'} (gmail_thread_id ${r.gmail_thread_id || r.message_id})`
+    : `la mail di info@ «${r.oggetto || '(senza oggetto)'}» di ${r.da || '?'} del ${(r.data_email || '').slice(0, 10)} (message_id ${r.message_id}; in posta: stesso message_id e la sua conversazione thread_key)`
+  return [
+    `«${parole}»`,
+    `Bozza di risposta chiesta da Giovanni dal Riordino dell'app (${oggi}) per ${quale}.`,
+    r.casella === 'ceramex'
+      ? 'Cosa fare: leggi la conversazione (get_thread) e prepara UNA bozza di risposta nella Gmail come nel passo delle bozze (create_draft nella stessa conversazione, all\'ultimo messaggio, e la sua riga in mail_bozze), seguendo le parole di Giovanni (lingua, tono, cosa dire). Vale anche se di solito non l\'avresti fatta.'
+      : 'Cosa fare: leggi la mail e la sua conversazione in posta e prepara UNA bozza di risposta come nelle regole BOZZE DI RISPOSTA (tabella bozze, stesso thread_key), seguendo le parole di Giovanni (lingua, tono, cosa dire). Vale anche se la mail è vecchia o se di solito non l\'avresti fatta. Se la mail non c\'è ancora in posta, dillo nella risposta.',
+    'Mai inventare prezzi, date o quantità: se servono e non li trovi scritti, metti [DA COMPLETARE] nel testo e dillo nella risposta. Non mandare niente: la bozza la approva Giovanni nella schermata Bozze.',
+    'Risposta: una frase («Bozza pronta in Bozze» oppure cosa manca).',
+  ].join('\n')
+}
 
 // "Rispondi" e "Inoltra" (13.10.2026 sera, la "via di mezzo" scelta da Giovanni): la firma come la scrive lui.
 const FIRMA = {
@@ -61,7 +94,9 @@ export function Riordino() {
   const [cambi, setCambi] = useState({})     // id → cartella scelta da Giovanni
   const [aperta, setAperta] = useState(null) // riga con la scelta della cartella aperta
   const [cartelle, setCartelle] = useState({}) // casella → elenco
-  const [conferma, setConferma] = useState(false)
+  const due = useDueTocchi()
+  const conferma = due.armato === 'sposta'
+  const setConferma = (v) => { if (!v) due.disarma() }
   const [lavoro, setLavoro] = useState(false)
   const [risponde, setRisponde] = useState(null) // riga con il campo "Rispondi all'agente" aperto
   const [letta, setLetta] = useState(null)       // { id, dati | errore } della mail aperta con "Leggi email"
@@ -152,7 +187,9 @@ export function Riordino() {
     if (!s.testo.trim() || s.testo.trim() === FIRMA[r.casella || 'gc']) return avvisa('Scrivi il testo')
     const a = mailValide(s.a)
     if (s.tipo === 'inoltra' && !a.length) return avvisa('Scrivi a chi inoltrarla (indirizzo mail)')
-    if (!s.conferma) { setScrive({ ...s, conferma: true }); return }
+    due.tocca(`manda-${r.id}`, () => mandaDavvero(r, s, a))
+  }
+  async function mandaDavvero(r, s, a) {
     setLavoro(true)
     try {
       const esito = await chiama('riordino-mail', { azione: s.tipo, id: r.id, testo: s.testo, tutti: s.tutti, a })
@@ -160,7 +197,24 @@ export function Riordino() {
       avvisa(esito.esito || (s.tipo === 'rispondi' ? 'Risposta mandata' : 'Inoltrata'))
       ricarica()
     } catch (e) {
-      setScrive({ ...s, conferma: false })
+      avvisa(messaggioErrore(e))
+    } finally {
+      setLavoro(false)
+    }
+  }
+
+  async function alCapo(r) {
+    const t = parole.trim().replace(/\s+/g, ' ')
+    if (!t) return avvisa('Scrivi cosa deve fare il Capo')
+    setLavoro(true)
+    try {
+      const q = chk(await sb.from('richieste_agenti').insert({ agente: 'capo', testo: testoCapo({ ...r, casella: r.casella || 'gc' }, t), riordino_id: r.id }).select('id').single())
+      setParole('')
+      setRisponde(null)
+      const esito = await chiama('agente-subito', { id: q.id }).catch(() => ({ ok: false }))
+      avvisa(esito.ok ? 'Mandata al Capo: la risposta arriva qui e nel tasto Capo' : 'Il Capo non è partito: riprova tra un minuto')
+      ricarica()
+    } catch (e) {
       avvisa(messaggioErrore(e))
     } finally {
       setLavoro(false)
@@ -173,14 +227,26 @@ export function Riordino() {
     setLavoro(true)
     try {
       const casella = r.casella || 'gc'
-      const q = chk(await sb.from('richieste_agenti').insert({ agente: AGENTE_DI[casella], testo: testoRichiesta({ ...r, casella }, t), riordino_id: r.id }).select('id').single())
+      const bozza = vuoleBozza(t)
+      const cartella = !bozza || parlaDiCartella(t)
+      // Una richiesta per agente: la bozza all'agente che scrive le risposte, la cartella a chi la propone.
+      const richieste = [
+        ...(bozza ? [{ agente: AGENTE_BOZZA[casella], testo: testoBozza({ ...r, casella }, t), riordino_id: r.id }] : []),
+        ...(cartella ? [{ agente: AGENTE_DI[casella], testo: testoRichiesta({ ...r, casella }, t), riordino_id: r.id }] : []),
+      ]
+      const fatte = chk(await sb.from('richieste_agenti').insert(richieste).select('id'))
       setParole('')
       setRisponde(null)
-      setCambi((c) => { const n = { ...c }; delete n[r.id]; return n })
-      segna([r.id], false)
-      const esito = await chiama('agente-subito', { id: q.id }).catch(() => ({ ok: false }))
-      avvisa(esito.ok ? 'Mandata: l\'agente cambia la proposta tra qualche minuto'
-        : `Mandata: la fa al prossimo giro dell'agente (${casella === 'ceramex' ? 'ogni ora piena, 7–22' : 'ogni 2 ore, 8–18'})`)
+      if (cartella) {
+        setCambi((c) => { const n = { ...c }; delete n[r.id]; return n })
+        segna([r.id], false)
+      }
+      const esiti = await Promise.all(fatte.map((q) => chiama('agente-subito', { id: q.id }).catch(() => ({ ok: false }))))
+      const partite = esiti.every((e) => e.ok)
+      avvisa(bozza && !cartella
+        ? (partite ? 'Mandata: l\'agente prepara la bozza, la trovi in Bozze tra qualche minuto' : 'Mandata: la bozza la prepara la prossima volta che l\'agente lavora')
+        : partite ? `Mandata: l'agente ${bozza ? 'prepara la bozza e ' : ''}cambia la proposta tra qualche minuto`
+          : `Mandata: la fa la prossima volta che l'agente lavora (${casella === 'ceramex' ? 'ogni ora piena, 7–22' : 'ogni 2 ore, 8–18'})`)
       ricarica()
     } catch (e) {
       avvisa(messaggioErrore(e))
@@ -204,9 +270,9 @@ export function Riordino() {
     }
   }
 
-  async function sposta() {
-    if (!conferma) { setConferma(true); return }
-    setConferma(false)
+  // Due tocchi (useDueTocchi): il secondo conta dopo mezzo secondo, dopo 5 secondi il tasto torna com'era.
+  const sposta = () => due.tocca('sposta', spostaDavvero)
+  async function spostaDavvero() {
     setLavoro(true)
     const voci = Object.keys(scelte).filter((id) => scelte[id]).map((id) => ({ id, ...(cambi[id] ? { cartella: cambi[id] } : {}) }))
     const tot = { spostate: 0, sparite: 0, errori: [] }
@@ -233,7 +299,7 @@ export function Riordino() {
     const ids = Object.keys(scelte).filter((id) => scelte[id])
     try {
       chk(await sb.from('riordino_mail').update({ stato: 'tenere', aggiornata_il: new Date().toISOString() }).in('id', ids))
-      avvisa(ids.length === 1 ? 'La tengo in vista: non te la ripropongo' : `Ne tengo in vista ${ids.length}: non te le ripropongo`)
+      avvisa(ids.length === 1 ? 'La lascio in casella: non te la ripropongo' : `Ne lascio in casella ${ids.length}: non te le ripropongo`)
       setScelte({})
       ricarica()
     } catch (e) {
@@ -272,23 +338,24 @@ export function Riordino() {
                 {lavora ? <> · l'agente ci sta lavorando…</> : q.risposta ? <><br />Agente: {q.risposta}</> : null}
               </span>
             )}
+            {/* Tasti grandi come un dito (14.10.2026). "Rispondi alla mail" manda una mail vera; "Istruzioni all'agente" no. */}
             <span className="tasti-riga">
-              <button type="button" className="tasto-link cambia-cartella" onClick={() => apriScelta(r)}>
+              <button type="button" className={'chip tasto-riga' + (letta?.id === r.id ? ' attivo' : '')} onClick={() => leggiMail(r)}>
+                {letta?.id === r.id ? 'Chiudi la mail' : 'Leggi'}
+              </button>
+              <button type="button" className={'chip tasto-riga' + (aperta === r.id ? ' attivo' : '')} onClick={() => apriScelta(r)}>
                 {cambi[r.id] ? `Cambiata: ${corta(cambi[r.id])}` : cartella ? (r.casella === 'ceramex' ? 'Altra etichetta' : 'Altra cartella') : (r.casella === 'ceramex' ? "Scegli l'etichetta" : 'Scegli la cartella')}
               </button>
-              <button type="button" className="tasto-link cambia-cartella" onClick={() => leggiMail(r)}>
-                {letta?.id === r.id ? 'Chiudi email' : 'Leggi email'}
+              <button type="button" className={'chip tasto-riga' + (scrive?.id === r.id && scrive.tipo === 'rispondi' ? ' attivo' : '')} onClick={() => apriScrivi(r, 'rispondi')}>
+                {scrive?.id === r.id && scrive.tipo === 'rispondi' ? 'Chiudi la risposta' : 'Rispondi alla mail'}
               </button>
-              <button type="button" className="tasto-link cambia-cartella" onClick={() => apriScrivi(r, 'rispondi')}>
-                {scrive?.id === r.id && scrive.tipo === 'rispondi' ? 'Chiudi risposta' : 'Rispondi'}
-              </button>
-              <button type="button" className="tasto-link cambia-cartella" onClick={() => apriScrivi(r, 'inoltra')}>
-                {scrive?.id === r.id && scrive.tipo === 'inoltra' ? 'Chiudi inoltro' : 'Inoltra'}
+              <button type="button" className={'chip tasto-riga' + (scrive?.id === r.id && scrive.tipo === 'inoltra' ? ' attivo' : '')} onClick={() => apriScrivi(r, 'inoltra')}>
+                {scrive?.id === r.id && scrive.tipo === 'inoltra' ? 'Chiudi l\'inoltro' : 'Inoltra'}
               </button>
               {puoRispondere && (
-                <button type="button" className="tasto-link cambia-cartella"
+                <button type="button" className={'chip tasto-riga tasto-agente' + (risponde === r.id ? ' attivo' : '')}
                   onClick={() => { setRisponde(risponde === r.id ? null : r.id); setParole(''); setAperta(null); setScrive(null) }}>
-                  {r.dubbio ? 'Rispondi all\'agente' : 'Scrivi all\'agente'}
+                  {r.dubbio ? 'Rispondi al dubbio dell\'agente' : 'Istruzioni all\'agente'}
                 </button>
               )}
             </span>
@@ -330,7 +397,7 @@ export function Riordino() {
                       {scrive.prima.cc.length > 0 && (
                         <label className="riga-meta scelta-tutti">
                           <input type="checkbox" checked={scrive.tutti}
-                            onChange={(e) => setScrive({ ...scrive, tutti: e.target.checked, conferma: false })} />
+                            onChange={(e) => { due.disarma(); setScrive({ ...scrive, tutti: e.target.checked }) }} />
                           {' '}Rispondi a tutti (anche {scrive.prima.cc.join(', ')})
                         </label>
                       )}
@@ -338,20 +405,20 @@ export function Riordino() {
                   )
             ) : (
               <input type="email" inputMode="email" multiple value={scrive.a} placeholder="A chi (indirizzo mail)"
-                onChange={(e) => setScrive({ ...scrive, a: e.target.value, conferma: false, cambiato: true })} />
+                onChange={(e) => { due.disarma(); setScrive({ ...scrive, a: e.target.value, cambiato: true }) }} />
             )}
             <textarea rows={6} value={scrive.testo} autoFocus
               onFocus={(e) => { if (!scrive.cambiato) e.target.setSelectionRange(0, 0) }}
-              onChange={(e) => setScrive({ ...scrive, testo: e.target.value, conferma: false, cambiato: true })}
+              onChange={(e) => { due.disarma(); setScrive({ ...scrive, testo: e.target.value, cambiato: true }) }}
               placeholder={scrive.tipo === 'rispondi' ? 'Scrivi la risposta' : 'Scrivi due righe (facoltativo) sopra la mail inoltrata'} />
             <p className="nota-piccola">
               {scrive.tipo === 'rispondi' ? 'Sotto aggiungo la mail a cui rispondi.' : 'Sotto aggiungo la mail con i suoi allegati.'}
               {' '}Parte da {r.casella === 'ceramex' ? 'giovannifabris@ceramex.ch' : 'info@homeconcepts.ch'}.
             </p>
             <div className="azioni">
-              <button type="button" className={'tasto-piccolo' + (scrive.conferma ? ' pericolo' : '')} onClick={() => manda(r)}
+              <button type="button" className={'tasto-grande tasto-manda' + (due.armato === `manda-${r.id}` ? ' conferma' : '')} onClick={() => manda(r)}
                 disabled={lavoro || (scrive.tipo === 'rispondi' && !scrive.prima?.a?.length)}>
-                {lavoro ? 'Mando…' : scrive.conferma
+                {lavoro ? 'Mando…' : due.armato === `manda-${r.id}`
                   ? `Tocca ancora: manda a ${scrive.tipo === 'rispondi' ? scrive.prima.a.join(', ') + (scrive.tutti ? ' e altri' : '') : mailValide(scrive.a).join(', ')}`
                   : scrive.tipo === 'rispondi' ? 'Manda la risposta' : 'Inoltra'}
               </button>
@@ -362,9 +429,11 @@ export function Riordino() {
         {risponde === r.id && (
           <div className="scelta-cartella rispondi-agente">
             <textarea rows={3} value={parole} onChange={(e) => setParole(e.target.value)} autoFocus
-              placeholder="Es. no, mettila in AMARARE/ROMBACH · crea la cartella DENIS sotto G&C" />
+              placeholder="Es. mettila in AMARARE/ROMBACH · crea la cartella DENIS sotto G&C · fai una bozza di risposta in tedesco: arriva lunedì" />
+            <p className="nota-piccola">All'agente: la cartella la cambia chi archivia; una bozza di risposta la prepara l'agente {r.casella === 'ceramex' ? 'Ceramex nella tua Gmail' : 'G&C'} (la trovi in Bozze). Al Capo: qualsiasi altra cosa su questa mail; quelle rischiose solo dopo i tuoi due tocchi. Nessuna mail parte da sola.</p>
             <div className="azioni">
               <button type="button" className="tasto-piccolo" onClick={() => rispondi(r)} disabled={lavoro || !parole.trim()}>Manda all'agente</button>
+              <button type="button" className="tasto-piccolo" onClick={() => alCapo(r)} disabled={lavoro || !parole.trim()}>Manda al Capo</button>
               <button type="button" className="tasto-link" onClick={() => { setRisponde(null); setParole('') }}>Annulla</button>
             </div>
           </div>
@@ -410,7 +479,7 @@ export function Riordino() {
         Scegli quelle che vanno bene e premi Sposta. Le altre restano dove sono.
       </p>
       <Stato carica={carica} errore={errore}
-        vuoto={dati && !dati.righe.length && !dati.spostate.length ? 'Niente da riordinare: gli agenti propongono le mail nuove a ogni giro.' : null}>
+        vuoto={dati && !dati.righe.length && !dati.spostate.length ? 'Niente da riordinare: gli agenti propongono le mail nuove ogni volta che lavorano.' : null}>
         {dati && (
           <>
             {CASELLE.map(([casella, codice, titolo]) => {
@@ -436,8 +505,8 @@ export function Riordino() {
 
             {inVista.length > 0 && (
               <div className="casella">
-                <h2>In vista <span className="conto">{inVista.length}</span></h2>
-                <p className="nota-piccola">Le hai tenute in Posta in arrivo: l'agente non le ripropone. Se vuoi spostarle, sceglile.</p>
+                <h2>Lasciate in casella <span className="conto">{inVista.length}</span></h2>
+                <p className="nota-piccola">Le hai lasciate in Posta in arrivo: l'agente non le ripropone. Se vuoi spostarle, sceglile.</p>
                 {gruppi(inVista)}
               </div>
             )}
@@ -467,7 +536,7 @@ export function Riordino() {
             {lavoro ? 'Sposto…' : conferma ? `Tocca ancora: sposta ${quante} mail` : `Sposta ${quante} mail`}
           </button>
           <div className="azioni">
-            <button type="button" className="tasto-link" onClick={tieni} disabled={lavoro}>Tieni in vista</button>
+            <button type="button" className="tasto-link" onClick={tieni} disabled={lavoro}>Lascia in casella</button>
             <button type="button" className="tasto-link" onClick={() => { setScelte({}); setConferma(false) }} disabled={lavoro}>Annulla la scelta</button>
           </div>
         </div>

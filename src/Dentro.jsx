@@ -19,8 +19,7 @@ export const VOCI_DENTRO = [
   { chiave: 'gemelli', titolo: 'Gemelli', dettaglio: 'Leo e Jolie: settimana, vacanze, feste dei compagni, diario', aree: ['P'] },
   { chiave: 'liste', titolo: 'Liste', dettaglio: 'Spesa, ristoranti e posti', aree: ['P'] },
   { chiave: 'garanzie', titolo: 'Garanzie', dettaglio: 'Scontrini e fino a quando vale la garanzia', aree: ['P'] },
-  { chiave: 'domande', titolo: 'Domande per te', dettaglio: 'I dubbi degli agenti' },
-  { chiave: 'agenti', titolo: 'Agenti', dettaglio: 'Cosa fanno, quando hanno girato; scrivigli' },
+  // Domande per te e Agenti dal 14.10.2026 stanno sotto il tasto Capo (scelta di Giovanni).
   { chiave: 'whatsapp', titolo: 'WhatsApp', dettaglio: 'Chat del numero Business' },
   { chiave: 'note', titolo: 'Tutte le note' },
   { chiave: 'notifiche', titolo: 'Notifiche', dettaglio: 'Cosa ti avviso sul telefono' },
@@ -33,16 +32,16 @@ const DETTAGLIO_CIRCOLARI = { C: 'Listini, aumenti e novità dei mandanti', G: '
 const DETTAGLIO_RIORDINO = { C: 'Mail della Gmail da mettere sotto la loro etichetta', G: 'Mail di info@ da spostare nelle cartelle di Hostpoint', T: 'Mail da spostare: Gmail (Ceramex) e info@ (G&C)' }
 
 // Il cassetto "Dentro": tutto quello che non sta nei 3 tasti. Scorrendo col dito si cambia area (useScorriAree).
-export function Dentro({ inbox, bozze, domande, risposte, riordino, seguire, circolari }) {
+export function Dentro({ inbox, bozze, riordino, seguire, circolari }) {
   const { area } = useApp()
   const scorri = useScorriAree()
   async function esci() {
     scrivi('impronta-rimandata', '')
     await sb.auth.signOut()
   }
-  const numeri = { inbox, bozze, domande, agenti: risposte, riordino, seguire, circolari }
+  const numeri = { inbox, bozze, riordino, seguire, circolari }
   const dettagli = { inbox: inbox ? `${inbox} da smistare` : 'vuota', bozze: DETTAGLIO_BOZZE[area] || DETTAGLIO_BOZZE.T, riordino: DETTAGLIO_RIORDINO[area] || DETTAGLIO_RIORDINO.T,
-    circolari: circolari ? ` ` : DETTAGLIO_CIRCOLARI[area] || DETTAGLIO_CIRCOLARI.T }
+    circolari: (circolari ? `${circolari} da leggere · ` : '') + (DETTAGLIO_CIRCOLARI[area] || DETTAGLIO_CIRCOLARI.T) }
   return (
     <div className="schermata dentro" {...scorri}>
       <h1>Dentro</h1>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { sb, AREE, areaDa, nomePersona, quando, CAMPI_PERSONA } from './supabase'
-import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, SceltaPersone, Icona, useModifiche } from './componenti'
+import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, SceltaPersone, Icona, useModifiche, useDueTocchi } from './componenti'
 
 const FINESTRA = 24 * 3600 * 1000
 const nomeContatto = (c) => (c.persone ? nomePersona(c.persone) : c.nome_rubrica || c.nome_profilo || `+${c.wa_id}`)
@@ -68,11 +68,12 @@ export function ChatWhatsApp() {
 export function ChatContatto({ waId }) {
   const { avvisa } = useApp()
   const [testo, setTesto] = useState('')
-  const [conferma, setConferma] = useState(false)
+  const due = useDueTocchi()
+  const conferma = due.armato === 'manda'
+  const setConferma = () => due.disarma()
   const [lavoro, setLavoro] = useState(false)
   const fondo = useRef(null)
   useModifiche(!!testo.trim())
-  const timer = useRef(null)
 
   const { dati, errore, carica, ricarica } = useCarica(async () => {
     const [c, m] = await Promise.all([
@@ -84,7 +85,6 @@ export function ChatContatto({ waId }) {
   }, [waId])
 
   useEffect(() => { fondo.current?.scrollIntoView({ block: 'end' }) }, [dati])
-  useEffect(() => () => clearTimeout(timer.current), [])
 
   if (!dati) return <div className="schermata"><Indietro titolo="WhatsApp" /><Stato carica={carica} errore={errore} /></div>
   const { c, messaggi } = dati
@@ -100,17 +100,12 @@ export function ChatContatto({ waId }) {
     }
   }
 
-  // Due tocchi: il primo chiede conferma, il secondo manda.
-  async function manda() {
+  // Due tocchi: il primo chiede conferma, il secondo manda (useDueTocchi).
+  function manda() {
     if (!testo.trim()) return
-    if (!conferma) {
-      setConferma(true)
-      clearTimeout(timer.current)
-      timer.current = setTimeout(() => setConferma(false), 4000)
-      return
-    }
-    clearTimeout(timer.current)
-    setConferma(false)
+    due.tocca('manda', mandaDavvero)
+  }
+  async function mandaDavvero() {
     setLavoro(true)
     try {
       await funzione('invia-whatsapp', { body: { wa_id: waId, testo } })
@@ -203,24 +198,19 @@ export function ModelliWhatsApp() {
   const [nome, setNome] = useState('')
   const [categoria, setCategoria] = useState('UTILITY')
   const [testo, setTesto] = useState('')
-  const [conferma, setConferma] = useState(false)
+  const due = useDueTocchi()
+  const conferma = due.armato === 'crea'
+  const setConferma = () => due.disarma()
   const [lavoro, setLavoro] = useState(false)
-  const timer = useRef(null)
   useModifiche(!!(nome.trim() || testo.trim()))
-  useEffect(() => () => clearTimeout(timer.current), [])
 
   const { dati, errore, carica, ricarica } = useCarica(async () => (await funzione('whatsapp-modelli', { method: 'GET' })).modelli, [])
 
   async function crea() {
     if (!nome.trim() || !testo.trim()) return avvisa('Scrivi nome e testo')
-    if (!conferma) {
-      setConferma(true)
-      clearTimeout(timer.current)
-      timer.current = setTimeout(() => setConferma(false), 4000)
-      return
-    }
-    clearTimeout(timer.current)
-    setConferma(false)
+    due.tocca('crea', creaDavvero)
+  }
+  async function creaDavvero() {
     setLavoro(true)
     try {
       const r = await funzione('whatsapp-modelli', { body: { nome, categoria, testo } })

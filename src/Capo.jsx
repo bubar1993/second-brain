@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { sb, quando } from './supabase'
-import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Icona, useModifiche, useDettatura } from './componenti'
+import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Icona, useModifiche, useDettatura, useDueTocchi, LinguetteCapo } from './componenti'
 import { AGENTI } from './Agenti'
 
 // Agente capo (13.10.2026, tasto "Capo" in basso accanto a Chiedi): Giovanni scrive o detta, il capo risponde qui.
@@ -13,13 +13,10 @@ const NOME_AGENTE = Object.fromEntries(AGENTI.map((a) => [a.codice, a.nome]))
 const TIPO = { mail: 'Mail', messaggio: 'Messaggio', cancella: 'Cancellare', gestionale: 'Gestionale', sposta_mail: 'Spostare mail', altro: 'Da confermare' }
 const APP = { brain: 'Brain', ceramex: 'App Ceramex', gc: 'App G&C' }
 
-// Badge del tasto Capo: cose da confermare + risposte del capo non lette.
-export async function contaCapo() {
-  const [c, r] = await Promise.all([
-    sb.from('capo_conferme').select('id', { count: 'exact', head: true }).eq('stato', 'da_confermare'),
-    sb.from('richieste_agenti').select('id', { count: 'exact', head: true }).eq('agente', 'capo').not('risposta_il', 'is', null).is('vista_il', null),
-  ])
-  return (c.count || 0) + (r.count || 0)
+// Cose che il Capo chiede di confermare (nel numero del tasto Capo, insieme a risposte e domande: App.jsx).
+export async function contaConferme() {
+  const { count } = await sb.from('capo_conferme').select('id', { count: 'exact', head: true }).eq('stato', 'da_confermare')
+  return count || 0
 }
 
 export function Capo() {
@@ -78,9 +75,9 @@ export function Capo() {
       const r = chk(await sb.from('richieste_agenti').insert({ agente: 'capo', testo: t }).select('id').single())
       setTesto('')
       const esito = await chiama('agente-subito', { id: r.id }).catch((e) => ({ ok: false, errore: messaggioErrore(e) }))
+      // Il Capo non ha orari: parte solo così. Se non parte, lo dice (non c'è un "prossimo giro" che lo legga).
       avvisa(esito.ok ? 'Il Capo ci pensa: risponde tra 1–2 minuti'
-        : esito.motivo === 'senza_pulsante' ? 'Il Capo risponde al prossimo giro (entro un\'ora)'
-          : 'Non è partito subito: risponde al prossimo giro')
+        : 'Il Capo non è partito. Riprova tra un minuto; se succede ancora, dillo a Claude')
       await ricarica()
       requestAnimationFrame(() => fondo.current?.scrollIntoView({ block: 'end', behavior: 'smooth' }))
     } catch (e) {
@@ -97,6 +94,7 @@ export function Capo() {
   return (
     <div className="schermata capo">
       <div className="testata"><h1>Capo</h1></div>
+      <LinguetteCapo attiva="capo" />
       <p className="nota-piccola">Scrivimi o dettami cosa ti serve: lo faccio io o lo passo all'agente giusto. Mail, messaggi, cancellazioni e gestionali solo dopo i tuoi due tocchi.</p>
 
       <Stato carica={carica} errore={errore}>
@@ -112,12 +110,13 @@ export function Capo() {
               <div className="chat-capo">
                 {dati.richieste.map((r) => (
                   <div key={r.id} className="scambio">
-                    <p className="fumetto fumetto-mio">{r.testo}<span className="ora">{quando(r.creata_il, true)}</span></p>
+                    {/* Dal Riordino: si vedono solo le parole di Giovanni (la prima riga), non i dati della mail per il Capo. */}
+                    <p className="fumetto fumetto-mio">{r.riordino_id ? `${r.testo.split('\n')[0]} · dal Riordino` : r.testo}<span className="ora">{quando(r.creata_il, true)}</span></p>
                     {r.risposta ? (
                       <p className="fumetto fumetto-capo">{r.risposta}<span className="ora">{quando(r.risposta_il, true)}</span></p>
                     ) : (
                       <p className="fumetto fumetto-capo in-attesa">
-                        {r.stato === 'in_corso' ? 'Ci sto lavorando…' : r.stato === 'avviata' ? 'Arrivo…' : 'Lo leggo al prossimo giro.'}
+                        {r.stato === 'in_corso' ? 'Ci sto lavorando…' : r.stato === 'avviata' ? 'Arrivo…' : 'In attesa: non sono ancora partito.'}
                         {r.errore && <span className="ora rosso">{r.errore}</span>}
                       </p>
                     )}
@@ -158,14 +157,10 @@ export function Capo() {
 // Una cosa rischiosa proposta dal capo: primo tocco "Conferma", secondo tocco "Sì, fallo".
 function Conferma({ c, dopo }) {
   const { avvisa } = useApp()
-  const [armata, setArmata] = useState(false)
+  const due = useDueTocchi()
+  const armata = due.armato === 'si'
   const [lavoro, setLavoro] = useState(false)
   const [aperta, setAperta] = useState(false)
-  useEffect(() => {
-    if (!armata) return
-    const t = setTimeout(() => setArmata(false), 5000)
-    return () => clearTimeout(t)
-  }, [armata])
 
   async function decidi(si) {
     setLavoro(true)
@@ -175,14 +170,14 @@ function Conferma({ c, dopo }) {
         .eq('id', c.id).eq('stato', 'da_confermare'))
       if (si) {
         const esito = await chiama('agente-subito', { sveglia: 'capo' }).catch(() => ({ ok: false }))
-        avvisa(esito.ok || esito.gia ? 'Confermato: il Capo lo fa adesso' : 'Confermato: il Capo lo fa al prossimo giro')
+        avvisa(esito.ok || esito.gia ? 'Confermato: il Capo lo fa adesso' : 'Confermato, ma il Capo non è partito: lo fa appena gli scrivi di nuovo')
       } else avvisa('Ok, non lo fa')
       dopo()
     } catch (e) {
       avvisa(messaggioErrore(e))
     } finally {
       setLavoro(false)
-      setArmata(false)
+      due.disarma()
     }
   }
 
@@ -198,10 +193,12 @@ function Conferma({ c, dopo }) {
       {c.stato === 'da_confermare' && (
         <div className="azioni">
           <button type="button" className={'tasto-grande' + (armata ? ' armato' : '')} disabled={lavoro}
-            onClick={() => (armata ? decidi(true) : setArmata(true))}>
-            {lavoro ? 'Un attimo…' : armata ? 'Sì, fallo' : 'Conferma'}
+            onClick={() => due.tocca('si', () => decidi(true))}>
+            {lavoro ? 'Un attimo…' : armata ? 'Tocca ancora: sì, fallo' : 'Conferma'}
           </button>
-          <button type="button" className="tasto-link" disabled={lavoro} onClick={() => decidi(false)}>No</button>
+          {/* Anche il No con due tocchi: non si torna indietro. */}
+          <button type="button" className={'tasto-link' + (due.armato === 'no' ? ' pericolo-pieno' : '')} disabled={lavoro}
+            onClick={() => due.tocca('no', () => decidi(false))}>{due.armato === 'no' ? 'Tocca ancora: non farlo' : 'No'}</button>
         </div>
       )}
     </section>
@@ -224,8 +221,8 @@ function Modifiche({ righe, dopo }) {
   const STATO = { proposta: 'aspetta il tuo ok', ok: 'ok dato: la faccio sul PC', fatta: 'fatta', scartata: 'scartata' }
   return (
     <>
-      <h3>Modifiche per Claude Code</h3>
-      <p className="nota-piccola">Cambi alle app che il Capo non può fare da solo: con il tuo ok li fa Claude Code sul PC.</p>
+      <h3>Cambi alle app</h3>
+      <p className="nota-piccola">Cambi alle app che il Capo non può fare da solo: con il tuo ok li fa Claude sul PC.</p>
       <div className="elenco">
         {righe.map((m) => (
           <section key={m.id} className="modifica-claude">

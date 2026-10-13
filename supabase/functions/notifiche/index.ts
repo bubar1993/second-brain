@@ -132,6 +132,12 @@ async function daAvvisare(): Promise<Avviso[]> {
 
 Deno.serve(async (req) => {
   if (!COPIA_TOKEN || req.headers.get('x-copia-token') !== COPIA_TOKEN) return new Response('Non autorizzato', { status: 401 })
+  // Prova (per i controlli di Claude): dice cosa manderebbe adesso, senza mandare né segnare niente.
+  const { prova } = await req.json().catch(() => ({}))
+  if (prova) {
+    const iscrizioni = await rest('push_iscrizioni?select=id')
+    return Response.json({ prova: true, iscrizioni: iscrizioni.length, avvisi: await daAvvisare() })
+  }
   const mandate: string[] = []
   const errori: string[] = []
   try {

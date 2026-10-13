@@ -41,7 +41,7 @@ function bozzaSalvata(k) {
 }
 
 // Aggiungi: scrivi, parla o foto. Senza area la nota va nell'Inbox.
-export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata }) {
+export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata, detta }) {
   const { area, avvisa, utente, vai } = useApp()
   const [condiviso] = useState(() => usaCondiviso())
   const chiave = chiaveBozza(personaId, aziendaId)
@@ -66,6 +66,14 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata 
     setTesto((x) => (x.trim() ? x.trimEnd() + ' ' : '') + t)
     setFonte((f) => (f === 'scritta' ? 'voce' : f))
   })
+
+  // Scorciatoia "Detta una nota" (tieni premuta l'icona dell'app): microfono subito acceso.
+  const dettaPartita = useRef(false)
+  useEffect(() => {
+    if (!detta || dettaPartita.current || !dettatura.supportata) return
+    dettaPartita.current = true
+    dettatura.avvia()
+  }, [detta, dettatura])
 
   // Arrivo dalla scheda di una persona: la collego già. Dopo una telefonata il testo comincia da solo.
   useEffect(() => {

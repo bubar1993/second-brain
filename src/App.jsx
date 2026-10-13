@@ -1,29 +1,51 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { sb, AREE, areaDa, leggi, scrivi } from './supabase'
 import { AppCtx, Icona, useLargo, haModifiche } from './componenti'
 import Accesso from './Accesso'
 import Consenso from './Consenso'
 import Oggi from './Oggi'
 import Aggiungi from './Aggiungi'
-import Chiedi from './Chiedi'
 import { Dentro, Inbox, ElencoNote, Cestino, VOCI_DENTRO, voceVisibile } from './Dentro'
-import { Persone, Persona } from './Persone'
-import Nota from './Nota'
-import { Aziende, Azienda } from './Aziende'
-import { Bozze, Bozza, Mail } from './Bozze'
-import { Domande } from './Domande'
-import { Gemelli } from './Gemelli'
 import { Visita } from './Visita'
-import { ChatWhatsApp, ChatContatto, ModelliWhatsApp } from './WhatsApp'
 import { Agenti, Agente } from './Agenti'
-import { Ordini } from './Ordini'
-import { Riordino } from './Riordino'
 import { Seguire, contaDaSeguire } from './Seguire'
 import { Circolari, contaCircolari } from './Circolari'
 import { Capo, contaCapo } from './Capo'
-import { Bacheca } from './Bacheca'
-import { Liste, Garanzie } from './Liste'
 import { Notifiche } from './Notifiche'
+
+// Le schermate usate meno si scaricano a parte (13.10.2026): l'app si apre prima. Dopo l'avvio si scaricano
+// comunque in sottofondo (precarica), così ci sono anche senza rete.
+const DA_PRECARICARE = []
+function pigra(carica, nome) {
+  DA_PRECARICARE.push(carica)
+  return lazy(() => carica().then((m) => ({ default: m[nome] })))
+}
+const caricaAziende = () => import('./Aziende')
+const caricaBozze = () => import('./Bozze')
+const caricaPersone = () => import('./Persone')
+const caricaWhatsApp = () => import('./WhatsApp')
+const caricaListe = () => import('./Liste')
+const Chiedi = pigra(() => import('./Chiedi'), 'default')
+const Persone = pigra(caricaPersone, 'Persone')
+const Persona = pigra(caricaPersone, 'Persona')
+const Nota = pigra(() => import('./Nota'), 'default')
+const Aziende = pigra(caricaAziende, 'Aziende')
+const Azienda = pigra(caricaAziende, 'Azienda')
+const Bozze = pigra(caricaBozze, 'Bozze')
+const Bozza = pigra(caricaBozze, 'Bozza')
+const Mail = pigra(caricaBozze, 'Mail')
+const Domande = pigra(() => import('./Domande'), 'Domande')
+const Gemelli = pigra(() => import('./Gemelli'), 'Gemelli')
+const ChatWhatsApp = pigra(caricaWhatsApp, 'ChatWhatsApp')
+const ChatContatto = pigra(caricaWhatsApp, 'ChatContatto')
+const ModelliWhatsApp = pigra(caricaWhatsApp, 'ModelliWhatsApp')
+const Ordini = pigra(() => import('./Ordini'), 'Ordini')
+const Riordino = pigra(() => import('./Riordino'), 'Riordino')
+const Bacheca = pigra(() => import('./Bacheca'), 'Bacheca')
+const Liste = pigra(caricaListe, 'Liste')
+const Garanzie = pigra(caricaListe, 'Garanzie')
+
+const Attesa = () => <div className="schermata"><p className="msg">Un attimo…</p></div>
 
 // Nell'interruttore in alto i loghi delle due ditte al posto di C e G (scelta di Giovanni, 12.10.2026); P resta P.
 const LOGHI = { C: '/logo-ceramex.svg', G: '/logo-gc.png' }
@@ -102,6 +124,12 @@ function Guscio({ utente, condiviso }) {
       window.removeEventListener('wheel', ferma)
       window.removeEventListener('hashchange', cambia)
     }
+  }, [])
+
+  // Le schermate scaricate a parte: in sottofondo qualche secondo dopo l'avvio (poi restano nel telefono).
+  useEffect(() => {
+    const t = setTimeout(() => DA_PRECARICARE.forEach((c) => c().catch(() => {})), 4000)
+    return () => clearTimeout(t)
   }, [])
 
   const setArea = (a) => { setAreaStato(a); scrivi('area', a) }
@@ -207,7 +235,7 @@ function Guscio({ utente, condiviso }) {
     )
   } else switch (primo) {
     case 'aggiungi': schermata = <Aggiungi key={rotta.query.toString()} usaCondiviso={usaCondiviso} personaId={rotta.query.get('persona')}
-      aziendaId={rotta.query.get('azienda')} chiamata={rotta.query.has('chiamata')} />; break
+      aziendaId={rotta.query.get('azienda')} chiamata={rotta.query.has('chiamata')} detta={rotta.query.has('detta')} />; break
     case 'chiedi': schermata = <Chiedi />; break
     case 'dentro': schermata = <Dentro inbox={inbox} bozze={bozze} domande={domande} risposte={risposte} riordino={riordino} seguire={seguire} circolari={circolari} />; break
     case 'riordino': schermata = <Riordino />; break
@@ -231,7 +259,7 @@ function Guscio({ utente, condiviso }) {
     case 'mail': schermata = <Mail key={secondo} chiave={secondo} />; break
     case 'domande': schermata = <Domande />; break
     case 'gemelli': schermata = <Gemelli />; break
-    case 'liste': schermata = <Liste />; break
+    case 'liste': schermata = <Liste key={rotta.query.toString()} scelta={rotta.query.has('spesa') ? 'spesa' : null} />; break
     case 'garanzie': schermata = <Garanzie />; break
     case 'notifiche': schermata = <Notifiche />; break
     case 'visita': schermata = <Visita key={secondo} id={secondo} />; break
@@ -297,7 +325,7 @@ function Guscio({ utente, condiviso }) {
       </header>
 
       {/* Nuovo "giro" = la schermata si rimonta e rilegge i dati (Aggiungi no: perderesti il testo). */}
-      <main key={primo === 'aggiungi' || primo === 'visita' ? primo : giro}>{schermata}</main>
+      <main key={primo === 'aggiungi' || primo === 'visita' ? primo : giro}><Suspense fallback={<Attesa />}>{schermata}</Suspense></main>
 
       <nav className="tasti">
         <a href="#/oggi" className={tasto === 'oggi' ? 'attivo' : ''} onClick={inCima}>

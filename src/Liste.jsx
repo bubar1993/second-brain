@@ -13,8 +13,9 @@ const Spunta = () => (
 )
 
 // ---------- Liste ----------
-export function Liste() {
-  const [scheda, setScheda] = useState(() => leggi('lista-scelta') || 'spesa')
+export function Liste({ scelta }) {
+  // Dalla scorciatoia "Spesa" si apre sempre la spesa; altrimenti l'ultima lista guardata.
+  const [scheda, setScheda] = useState(() => scelta || leggi('lista-scelta') || 'spesa')
   const cambia = (s) => { setScheda(s); scrivi('lista-scelta', s) }
   const { dati, errore, carica, ricarica } = useCarica(async () => {
     const [aperte, comprate] = await Promise.all([

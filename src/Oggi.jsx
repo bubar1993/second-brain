@@ -27,7 +27,28 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
   const [avanti, setAvanti] = useState(false)
   const [aperto, setAperto] = useState(null) // promemoria aperto per modificarlo
 
+  // Senza rete (garage, cantiere): l'ultima agenda caricata, solo da guardare, con l'ora in cui era aggiornata.
   const { dati, errore, carica, ricarica } = useCarica(async () => {
+    const copia = `oggi-copia:${area}`
+    try {
+      const d = await leggiOggi()
+      scrivi(copia, JSON.stringify({ ora: Date.now(), d }))
+      return d
+    } catch (e) {
+      let c = null
+      try { c = JSON.parse(leggi(copia) || 'null') } catch { /* copia rovinata */ }
+      if (c?.d) return { ...c.d, senzaRete: c.ora }
+      throw e
+    }
+  }, [area])
+
+  // Quando torna la rete, si rilegge subito.
+  useEffect(() => {
+    window.addEventListener('online', ricarica)
+    return () => window.removeEventListener('online', ricarica)
+  }, [ricarica])
+
+  async function leggiOggi() {
     let qp = sb.from('promemoria').select('id,testo,area,scade_il,urgente,nota_id,ricorrenza')
       .is('fatto_il', null).is('eliminata_il', null)
       .order('scade_il', { ascending: true, nullsFirst: false }).limit(50)
@@ -78,7 +99,7 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
     const riassunti = ['lavoro', 'privato'].map((parte) => chk(ria).filter((r) => r.parte === parte)
       .sort((a, b) => (a.momento === 'sera' ? -1 : 1) - (b.momento === 'sera' ? -1 : 1))[0]).filter(Boolean)
     return { promemoria: chk(promemoria), note: chk(note), aziende, compleanni, eventi: chk(ev), passati: chk(vecchi), riassunti }
-  }, [area])
+  }
 
   // Quanto è grande la memoria: si legge una volta.
   const [totali, setTotali] = useState({ note: null, aziende: null })
@@ -237,6 +258,12 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
         <h1 className="titolo-oggi">
           {!dati ? 'Oggi' : daFareOggi === 0 ? 'Niente di urgente oggi' : daFareOggi === 1 ? '1 cosa da fare oggi' : `${daFareOggi} cose da fare oggi`}
         </h1>
+
+        {dati?.senzaRete && (
+          <div className="scheda scheda-allarme" role="status">
+            <span>Senza rete: vedi l'agenda delle {new Date(dati.senzaRete).toLocaleTimeString('it-CH', { hour: '2-digit', minute: '2-digit' })}{giorniDaOggi(new Date(dati.senzaRete).toISOString()) < 0 ? ` del ${new Date(dati.senzaRete).toLocaleDateString('it-CH')}` : ''}. Si aggiorna da sola quando torna la rete.</span>
+          </div>
+        )}
 
         {dati?.riassunti.map((r) => (
           <section key={r.parte} className="riassunto-giorno">

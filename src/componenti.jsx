@@ -325,7 +325,8 @@ export function useDettatura(onTesto) {
     }
     r.onend = () => setAttiva(false)
     r.onerror = () => setAttiva(false)
-    r.start()
+    // Partita da sola (scorciatoia "Detta una nota") il telefono può rifiutarla: resta il tasto Parla.
+    try { r.start() } catch { return }
     rif.current = r
     setAttiva(true)
   }

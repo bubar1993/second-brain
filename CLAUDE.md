@@ -173,6 +173,12 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 - L'agente privato (`agente_privato`) può leggere/aggiornare `liste_voci` e `garanzie`, ma le sue regole e la routine NON ne parlano ancora (routine col token nel prompt, vedi nota sui sottoagenti): per ora fa tutto l'app.
 - **Notifiche** (Web Push gratis, chiavi VAPID: pubblica in `src/Notifiche.jsx`, privata nei segreti `VAPID_PRIVATE`/`VAPID_PUBLIC`/`VAPID_SUBJECT`): funzione `notifiche` ogni 5 minuti (pg_cron, token copia_token). Avvisa: appuntamenti lavoro e privati **1 ora prima** (non "tutto il giorno", non "Scuola chiusa"), promemoria **urgenti** all'ora, **risposte del Capo** e conferme chieste dal Capo. Una volta sola per cosa (`notifiche_inviate`, si riavvisa se l'ora cambia); telefoni in `push_iscrizioni` (404/410 = tolti da soli). Il tocco apre la scheda del cliente (se c'è) o Oggi/Capo. In Oggi la scheda "Attiva le notifiche"; Dentro → Notifiche (stato, telefoni, ultime mandate). Cifratura provata con la libreria di riferimento `http_ece`. **Niente notifiche di prova**: la prima vera è la prova.
 
+### Rifiniture (fase 8, 13.10.2026 notte, ok di Giovanni)
+- **Scorciatoie sull'icona** (manifest `shortcuts`, tenendo premuta l'icona su Android): "Detta una nota" (`#/aggiungi?detta=1`, microfono subito acceso; se il telefono lo rifiuta resta il tasto Parla), "Spesa" (`#/liste?spesa=1`), "Capo". Android aggiorna le scorciatoie dell'app installata da solo, può volerci un giorno.
+- **Oggi senza rete**: ogni caricamento riuscito di Oggi si salva sul telefono (`oggi-copia:<area>`); senza rete si vede quella copia con "Senza rete: vedi l'agenda delle HH:MM" e si rilegge da sola all'evento `online`.
+- **App più veloce**: React e Supabase in pezzi a parte (`vite.config.js`, `codeSplitting.groups`), le schermate usate meno con `lazy` in `App.jsx` (`pigra`) e scaricate in sottofondo 4 s dopo l'avvio (così ci sono anche senza rete). Per le schermate nuove poco usate: `pigra(() => import('./X'), 'X')`.
+- Funzione `notifiche` con `{ "prova": true }`: dice cosa manderebbe adesso, senza mandare né segnare niente (per i controlli).
+
 ### Comodità e correzioni (12.10.2026 pomeriggio, ok di Giovanni)
 - "In ritardo" solo dal giorno dopo (prima bastava passare l'ora).
 - Promemoria in Oggi: tocco → si apre sotto la riga: correggi testo e data, "Rimanda a" domani/lunedì/tra una settimana, "Elimina" (va nel Cestino), "Apri la nota". Ogni spunta, rimando, eliminazione o "No" alle proposte ha "Annulla" nell'avviso in basso (5 secondi).

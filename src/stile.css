@@ -813,3 +813,64 @@ mark { background: rgba(255, 214, 102, 0.22); color: var(--testo); border-radius
 .bacheca-legenda b { color: var(--testo); font-weight: 600; }
 .bacheca-legenda .segno { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
 .bacheca-legenda .segno.tratteggio { width: 16px; height: 0; border-radius: 0; border-top: 2px dashed var(--testo); opacity: 0.6; }
+
+/* ---------- Quaderno Note (13.10.2026): tre quaderni, capitoli, note per intero ---------- */
+.titolo-quaderno { display: flex; align-items: center; gap: 10px; font-size: 40px; margin: 2px 0 0; }
+.titolo-quaderno .pallino { width: 12px; height: 12px; background: var(--col); box-shadow: 0 0 12px var(--col); }
+.testa-quaderno { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }
+.testa-quaderno .torna { display: inline-flex; align-items: center; gap: 4px; padding: 8px 0; text-decoration: none; font-size: 15px; }
+.nota-qui { background: var(--col); border-color: var(--col); color: var(--vuoto); font-weight: 600; text-decoration: none; }
+.quaderni { display: flex; flex-direction: column; gap: 12px; }
+.quaderno-voce {
+  display: flex; align-items: center; gap: 14px; min-height: 84px; padding-right: 16px; overflow: hidden;
+  border-radius: var(--raggio); background: var(--superficie); border: 1px solid var(--bordo);
+  transition: background-color 160ms ease;
+}
+.quaderno-voce:active { background: rgba(255, 255, 255, 0.07); }
+.quaderno-voce .dorso { align-self: stretch; width: 10px; background: var(--col); box-shadow: 0 0 16px var(--col); }
+.quaderno-testo { flex: 1; display: flex; flex-direction: column; gap: 3px; padding: 12px 0; }
+.quaderno-nome { font-family: var(--serif); font-style: italic; font-size: 27px; line-height: 1.1; }
+.quaderno-aperti { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.ultima-nota .riga-testo { font-size: 15px; }
+.capitolo { min-height: 52px; }
+.capitolo .riga-testo { font-weight: 500; -webkit-line-clamp: 1; }
+.capitolo.filiale { padding-left: 34px; }
+.capitolo.filiale .riga-testo { font-weight: 400; }
+.capitolo.senza .riga-testo { font-style: italic; color: var(--tenue); }
+.capitolo.aperto { background: rgba(255, 93, 108, 0.07); }
+.capitolo.scelto { background: rgba(52, 213, 138, 0.12); box-shadow: inset 3px 0 0 var(--verde-gc); }
+.conto-capitolo { font-size: 13px; color: var(--tenue); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.conto-capitolo.rosso { color: var(--rosso); font-weight: 600; }
+.interruttore-agenti { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-height: 44px; font-size: 14px; color: var(--tenue); }
+.interruttore-agenti input { width: 20px; height: 20px; accent-color: var(--blu); }
+.vuota-mie { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.giorno-quaderno { display: flex; flex-direction: column; gap: 10px; }
+.giorno-quaderno h3 { margin: 8px 0 0; }
+.pagina-nota {
+  display: flex; flex-direction: column; gap: 10px; padding: 14px 16px;
+  border-radius: var(--raggio); background: var(--superficie); border: 1px solid var(--bordo);
+}
+.pagina-nota.problema { background: rgba(255, 93, 108, 0.07); border-color: rgba(255, 93, 108, 0.3); }
+.pagina-apri { display: flex; flex-direction: column; gap: 6px; text-decoration: none; }
+.pagina-testo { font-size: 16px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pagina-nota.risolta .pagina-testo { color: var(--tenue); text-decoration: line-through; text-decoration-color: var(--grigio); }
+.pagina-piede { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.pagina-piede .tasto-risolto { margin-left: auto; }
+.tessere { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tessera-capitolo { display: flex; flex-direction: column; border-radius: 16px; background: var(--superficie); border: 1px solid var(--bordo); }
+.tessera-capitolo a { display: flex; flex-direction: column; gap: 4px; padding: 14px; min-height: 76px; box-sizing: border-box; text-decoration: none; }
+.tessera-capitolo b { font-size: 17px; font-weight: 600; }
+.tessera-capitolo .tasto-link.pericolo { margin: 0 0 6px 8px; align-self: flex-start; padding: 6px; }
+.tessera-nuova { min-height: 76px; border-radius: 16px; border: 1px dashed rgba(255, 143, 69, 0.55); background: transparent; color: #ff8f45; font-size: 15px; }
+.scelta-persona { display: flex; flex-direction: column; gap: 8px; }
+@media (min-width: 1024px) {
+  main > .quaderno-pc { max-width: none; }
+  .quaderno-pc { display: grid; grid-template-columns: 320px minmax(0, 1fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+  .quaderno-pc-col {
+    position: sticky; top: calc(var(--barra) + 8px); max-height: calc(100vh - var(--barra) - 24px);
+    overflow-y: auto; padding-right: 6px; scrollbar-width: thin; scrollbar-color: var(--bordo) transparent; min-width: 0;
+  }
+  .quaderno-pc .titolo-quaderno { font-size: 32px; }
+  .quaderno-pc-nota .tasto-indietro { display: none; }
+  .quaderno-pc-nota .testata { margin-left: 0; }
+}

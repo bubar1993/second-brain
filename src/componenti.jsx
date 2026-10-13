@@ -131,6 +131,7 @@ const PERCORSI = {
   inbox: 'M3 13h5l1.5 3h5L16 13h5M5 5h14l2 8v6H3v-6z',
   bozze: 'M3 6h18v12H3zM3 7l9 6 9-6',
   note: 'M6 3h9l4 4v14H6zM14 3v5h5M9 12h7M9 16h5',
+  quaderno: 'M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3zM5 17a3 3 0 0 1 3-3h11M9 8h6',
   cestino: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13',
   esci: 'M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10',
   oggi: 'M12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8zM2.5 12c0-2 4.3-3.7 9.5-3.7s9.5 1.7 9.5 3.7-4.3 3.7-9.5 3.7S2.5 14 2.5 12z',

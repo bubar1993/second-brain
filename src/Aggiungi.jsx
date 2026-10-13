@@ -35,19 +35,21 @@ export function quandoRicordare(testo, adesso = new Date()) {
 }
 
 // Il testo che stai scrivendo resta sul telefono finché non salvi (anche se Android chiude l'app).
-const chiaveBozza = (personaId, aziendaId) => `aggiungi:${personaId || ''}:${aziendaId || ''}`
+const chiaveBozza = (personaId, aziendaId, cantiereId, temaId) =>
+  `aggiungi:${personaId || ''}:${aziendaId || ''}${cantiereId || temaId ? `:${cantiereId || ''}:${temaId || ''}` : ''}`
 function bozzaSalvata(k) {
   try { return JSON.parse(leggi(k) || 'null') } catch { return null }
 }
 
 // Aggiungi: scrivi, parla o foto. Senza area la nota va nell'Inbox.
-export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata, detta }) {
+// Dal quaderno Note (13.10.2026): "+ Nota qui" porta anche il cantiere (G&C), il tema (Privato) e l'area del quaderno.
+export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata, detta, cantiereId, temaId, areaQuaderno }) {
   const { area, avvisa, utente, vai } = useApp()
   const [condiviso] = useState(() => usaCondiviso())
-  const chiave = chiaveBozza(personaId, aziendaId)
+  const chiave = chiaveBozza(personaId, aziendaId, cantiereId, temaId)
   const [ripresa] = useState(() => (condiviso ? null : bozzaSalvata(chiave)))
   const [testo, setTesto] = useState(condiviso?.testo || ripresa?.testo || '')
-  const [areaNota, setAreaNota] = useState(ripresa ? ripresa.area : area === 'T' ? null : area)
+  const [areaNota, setAreaNota] = useState(ripresa ? ripresa.area : areaQuaderno || (area === 'T' ? null : area))
   const [persone, setPersone] = useState(ripresa?.persone || [])
   const [ditta, setDitta] = useState(null)
   const [foto, setFoto] = useState([])
@@ -159,11 +161,13 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
         nota = chk(await sb.from('note')
           .insert({
             testo: pulito, area: areaVera, azienda_id: inScheda?.id || null, fonte: !pulito && foto.length ? 'foto' : fonte,
+            ...(inScheda && cantiereId ? { cantiere_id: cantiereId } : {}),
             ...(garanzia || lista ? { lavorata_il: new Date().toISOString() } : {}),
           })
           .select('id').single())
         notaFatta.current = nota
         await collegaPersone(nota.id, areaVera, persone)
+        if (temaId && areaVera === 'P') chk(await sb.from('note_temi').insert({ nota_id: nota.id, capitolo_id: temaId }))
         if (garanzia) {
           chk(await sb.from('garanzie').insert({ cosa: garanzia.cosa, negozio: garanzia.negozio, mesi: garanzia.mesi, comprata_il: garanzia.comprata_il, nota_id: nota.id }))
         }

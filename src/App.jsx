@@ -44,6 +44,7 @@ const Riordino = pigra(() => import('./Riordino'), 'Riordino')
 const Bacheca = pigra(() => import('./Bacheca'), 'Bacheca')
 const Liste = pigra(caricaListe, 'Liste')
 const Garanzie = pigra(caricaListe, 'Garanzie')
+const Quaderno = pigra(() => import('./Quaderno'), 'Quaderno')
 
 const Attesa = () => <div className="schermata"><p className="msg">Un attimo…</p></div>
 
@@ -237,7 +238,8 @@ function Guscio({ utente, condiviso }) {
     )
   } else switch (primo) {
     case 'aggiungi': schermata = <Aggiungi key={rotta.query.toString()} usaCondiviso={usaCondiviso} personaId={rotta.query.get('persona')}
-      aziendaId={rotta.query.get('azienda')} chiamata={rotta.query.has('chiamata')} detta={rotta.query.has('detta')} />; break
+      aziendaId={rotta.query.get('azienda')} chiamata={rotta.query.has('chiamata')} detta={rotta.query.has('detta')}
+      cantiereId={rotta.query.get('cantiere')} temaId={rotta.query.get('tema')} areaQuaderno={rotta.query.get('area')} />; break
     case 'chiedi': schermata = <Chiedi />; break
     case 'dentro': schermata = <Dentro inbox={inbox} bozze={bozze} domande={domande} risposte={risposte} riordino={riordino} seguire={seguire} circolari={circolari} />; break
     case 'riordino': schermata = <Riordino />; break
@@ -263,6 +265,7 @@ function Guscio({ utente, condiviso }) {
     case 'gemelli': schermata = <Gemelli />; break
     case 'liste': schermata = <Liste key={rotta.query.toString()} scelta={rotta.query.has('spesa') ? 'spesa' : null} />; break
     case 'garanzie': schermata = <Garanzie />; break
+    case 'quaderno': schermata = <Quaderno parti={rotta.parti.slice(1)} query={rotta.query} />; break
     case 'notifiche': schermata = <Notifiche />; break
     case 'visita': schermata = <Visita key={secondo} id={secondo} />; break
     case 'whatsapp': schermata = secondo === 'modelli' ? <ModelliWhatsApp /> : secondo ? <ChatContatto key={secondo} waId={secondo} /> : <ChatWhatsApp />; break
@@ -292,7 +295,7 @@ function Guscio({ utente, condiviso }) {
         <a href="#/aggiungi" className={'lato-aggiungi' + (sezioneLato === 'aggiungi' ? ' attivo' : '')}>
           <Icona nome="piu" size={20} /><span>Aggiungi</span>
         </a>
-        {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], ['capo', 'Capo'], null, ['aziende', 'Aziende'], ['seguire', 'Da seguire'], ['bozze', 'Bozze'], ['riordino', 'Riordino casella'], ['ordini', 'Ordini Marazzi'], ['circolari', 'Circolari'], ['persone', 'Persone'], ['gemelli', 'Gemelli'], ['liste', 'Liste'], ['garanzie', 'Garanzie'], ['whatsapp', 'WhatsApp'],
+        {[['oggi', 'Oggi'], ['chiedi', 'Chiedi'], ['capo', 'Capo'], ['quaderno', 'Note'], null, ['aziende', 'Aziende'], ['seguire', 'Da seguire'], ['bozze', 'Bozze'], ['riordino', 'Riordino casella'], ['ordini', 'Ordini Marazzi'], ['circolari', 'Circolari'], ['persone', 'Persone'], ['gemelli', 'Gemelli'], ['liste', 'Liste'], ['garanzie', 'Garanzie'], ['whatsapp', 'WhatsApp'],
           ['domande', 'Domande per te'], ['agenti', 'Agenti'], ['inbox', 'Inbox'], ['note', 'Tutte le note'], ['notifiche', 'Notifiche'], ['cestino', 'Cestino']]
           .filter((v) => !v || voceVisibile(VOCI_DENTRO.find((x) => x.chiave === v[0]) || {}, area)).map((v, i) => v ? (
           <a key={v[0]} href={`#/${v[0]}`} className={'lato-voce' + (sezioneLato === v[0] ? ' attivo' : '')}
@@ -324,6 +327,10 @@ function Guscio({ utente, condiviso }) {
             </button>
           ))}
         </div>
+        {/* Quaderno Note (13.10.2026): dove prima c'era il tasto Dentro. Sul PC è nel menu a sinistra. */}
+        <a href="#/quaderno" className={'tasto-dentro' + (primo === 'quaderno' ? ' attivo' : '')} aria-label="Quaderno Note" title="Note">
+          <Icona nome="quaderno" />
+        </a>
       </header>
 
       {/* Nuovo "giro" = la schermata si rimonta e rilegge i dati (Aggiungi no: perderesti il testo). */}

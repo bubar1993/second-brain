@@ -789,6 +789,8 @@ mark { background: rgba(255, 214, 102, 0.22); color: var(--testo); border-radius
 .fumetto-mio { align-self: flex-end; background: rgba(255, 255, 255, 0.09); border: 1px solid var(--bordo); border-bottom-right-radius: 6px; }
 .fumetto-capo { align-self: flex-start; background: rgba(255, 214, 102, 0.07); border: 1px solid rgba(255, 214, 102, 0.22); border-bottom-left-radius: 6px; }
 .fumetto-capo.in-attesa { color: var(--tenue); font-style: italic; }
+.fumetto-segnalazione { align-self: center; max-width: 94%; background: rgba(255, 143, 69, 0.07); border: 1px dashed rgba(255, 143, 69, 0.35); }
+.fumetto-segnalazione .riga-meta { display: block; margin-bottom: 4px; font-size: 13px; color: var(--tenue); }
 .passata { align-self: flex-start; max-width: 88%; margin-left: 14px; padding: 8px 12px; border-left: 2px solid var(--bordo); white-space: pre-wrap; overflow-wrap: anywhere; }
 .passata p { margin: 0; }
 .conferma-capo { align-self: stretch; display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: var(--raggio); background: var(--superficie); border: 1px solid var(--bordo); }

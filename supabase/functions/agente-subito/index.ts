@@ -6,7 +6,9 @@
 //   a una domanda: lo smistatore guarda subito se va passata a un altro agente; al massimo una volta ogni 3 minuti)
 //   oppure { sveglia: 'capo' } (ha confermato o rifiutato una cosa del capo);
 // - lo smistatore (header x-agente-token = AGENTE_TOKEN_SMISTATORE): { id } solo per le richieste scritte da lui;
-// - il capo (x-agente-token = AGENTE_TOKEN_CAPO, 13.10.2026): { id } solo per le richieste scritte da lui, anche al privato.
+// - il capo (x-agente-token = AGENTE_TOKEN_CAPO, 13.10.2026): { id } solo per le richieste scritte da lui, anche al privato;
+// - l'agente Ceramex (x-agente-token = AGENTE_TOKEN_CERAMEX, 13.10.2026 sera): { id } solo per le sue segnalazioni
+//   di mail private al capo (agente = 'capo', da = 'ceramex').
 // Se manca il token della routine o non parte, la richiesta resta "nuova" e la fa il giro programmato.
 // Token: segreti ROUTINE_TOKEN_<AGENTE> (messi con scripts/salva-pulsante.mjs, mai in chat).
 
@@ -68,14 +70,16 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   if (req.method !== 'POST') return risposta({ errore: 'Usa POST' }, 405)
 
-  // Chi chiama: lo smistatore o il capo (col loro token) oppure Giovanni (accesso dell'app).
+  // Chi chiama: lo smistatore, il capo o l'agente Ceramex (col loro token) oppure Giovanni (accesso dell'app).
   const tokenAgente = req.headers.get('x-agente-token')
   const tokenSmistatore = Deno.env.get('AGENTE_TOKEN_SMISTATORE')
   const tokenCapo = Deno.env.get('AGENTE_TOKEN_CAPO')
-  let chi: 'giovanni' | 'smistatore' | 'capo'
+  const tokenCeramex = Deno.env.get('AGENTE_TOKEN_CERAMEX')
+  let chi: 'giovanni' | 'smistatore' | 'capo' | 'ceramex'
   if (tokenAgente) {
     if (tokenSmistatore && tokenAgente === tokenSmistatore) chi = 'smistatore'
     else if (tokenCapo && tokenAgente === tokenCapo) chi = 'capo'
+    else if (tokenCeramex && tokenAgente === tokenCeramex) chi = 'ceramex'
     else return risposta({ errore: 'Non autorizzato' }, 401)
   } else {
     const jwt = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
@@ -126,10 +130,13 @@ Deno.serve(async (req: Request) => {
   // Lo smistatore fa partire solo le richieste scritte da lui, e mai l'agente privato; il capo solo le sue (anche al privato).
   if (chi === 'smistatore' && (r.da !== 'smistatore' || r.agente === 'privato')) return risposta({ errore: 'Non autorizzato' }, 403)
   if (chi === 'capo' && (r.da !== 'capo' || r.agente === 'capo')) return risposta({ errore: 'Non autorizzato' }, 403)
+  if (chi === 'ceramex' && (r.da !== 'ceramex' || r.agente !== 'capo')) return risposta({ errore: 'Non autorizzato' }, 403)
   if (r.stato !== 'nuova') return risposta({ ok: true, gia: r.stato })
 
   try {
-    const testo = r.agente === 'capo'
+    const testo = r.agente === 'capo' && r.da === 'ceramex'
+      ? 'Avvio a richiesta dell\'agente Ceramex: ti segnala una o più mail private arrivate nella Gmail (richiesta con da = \'ceramex\', vedi MAIL PRIVATE). Fai il giro come sempre.'
+      : r.agente === 'capo'
       ? 'Avvio a richiesta dall\'app: Giovanni ti ha scritto (o ha appena confermato o rifiutato una cosa). Fai il giro come sempre.'
       : r.da === 'smistatore'
       ? 'Avvio a richiesta dello smistatore: c\'è una richiesta per te nella tabella richieste_agenti (passata dallo smistatore). Fai solo il punto RICHIESTE DI GIOVANNI.'

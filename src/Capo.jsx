@@ -10,7 +10,7 @@ import { AGENTI } from './Agenti'
 
 const IN_ATTESA = ['nuova', 'avviata', 'in_corso']
 const NOME_AGENTE = Object.fromEntries(AGENTI.map((a) => [a.codice, a.nome]))
-const TIPO = { mail: 'Mail', messaggio: 'Messaggio', cancella: 'Cancellare', gestionale: 'Gestionale', sposta_mail: 'Spostare mail', altro: 'Da confermare' }
+const TIPO = { mail: 'Mail', messaggio: 'Messaggio', cancella: 'Cancellare', gestionale: 'Gestionale', sposta_mail: 'Spostare mail', calendario: 'Calendario', altro: 'Da confermare' }
 const APP = { brain: 'Brain', ceramex: 'App Ceramex', gc: 'App G&C' }
 
 // Cose che il Capo chiede di confermare (nel numero del tasto Capo, insieme a risposte e domande: App.jsx).
@@ -110,8 +110,13 @@ export function Capo() {
               <div className="chat-capo">
                 {dati.richieste.map((r) => (
                   <div key={r.id} className="scambio">
-                    {/* Dal Riordino: si vedono solo le parole di Giovanni (la prima riga), non i dati della mail per il Capo. */}
-                    <p className="fumetto fumetto-mio">{r.riordino_id ? `${r.testo.split('\n')[0]} · dal Riordino` : r.testo}<span className="ora">{quando(r.creata_il, true)}</span></p>
+                    {/* Mail private passate dall'agente Ceramex (13.10.2026 sera): non sono parole di Giovanni. */}
+                    {r.da === 'ceramex' ? (
+                      <p className="fumetto fumetto-segnalazione"><span className="riga-meta">Mail privata nella Gmail · dall'agente Ceramex</span>{r.testo.split('\n').slice(1).join('\n') || r.testo}<span className="ora">{quando(r.creata_il, true)}</span></p>
+                    ) : (
+                      /* Dal Riordino: si vedono solo le parole di Giovanni (la prima riga), non i dati della mail per il Capo. */
+                      <p className="fumetto fumetto-mio">{r.riordino_id ? `${r.testo.split('\n')[0]} · dal Riordino` : r.testo}<span className="ora">{quando(r.creata_il, true)}</span></p>
+                    )}
                     {r.risposta ? (
                       <p className="fumetto fumetto-capo">{r.risposta}<span className="ora">{quando(r.risposta_il, true)}</span></p>
                     ) : (

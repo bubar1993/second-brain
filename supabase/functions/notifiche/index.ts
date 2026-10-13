@@ -122,10 +122,13 @@ async function daAvvisare(): Promise<Avviso[]> {
     })
   }
 
-  const risposte = await rest(`richieste_agenti?select=id,testo,risposta&agente=eq.capo&da=is.null&vista_il=is.null`
+  // (13.10.2026 sera: prima c'era anche "da=is.null", che non era mai vero: le risposte del Capo non suonavano.)
+  // Una segnalazione senza niente da fare il Capo la segna già vista (vista_il): niente notifica.
+  const risposte = await rest(`richieste_agenti?select=id,testo,risposta,da&agente=eq.capo&vista_il=is.null`
     + `&risposta=not.is.null&risposta_il=gte.${iso(adesso - 2 * 3600e3)}`)
   for (const r of risposte) {
-    avvisi.push({ tipo: 'capo_risposta', rif_id: r.id, chiave: '', titolo: 'Il Capo ti ha risposto', corpo: corto(r.risposta, 160), url: '/#/capo' })
+    avvisi.push({ tipo: 'capo_risposta', rif_id: r.id, chiave: '', titolo: r.da === 'ceramex' ? 'Il Capo: mail privata' : 'Il Capo ti ha risposto',
+      corpo: corto(r.risposta, 160), url: '/#/capo' })
   }
 
   const conferme = await rest(`capo_conferme?select=id,cosa&stato=eq.da_confermare&creata_il=gte.${iso(adesso - 2 * 3600e3)}`)

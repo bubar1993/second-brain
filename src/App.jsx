@@ -92,6 +92,8 @@ function Guscio({ utente, condiviso }) {
   // Ogni pagina della cronologia ha un suo segno: tornando indietro si ritrova la posizione nella lista;
   // una pagina nuova parte dall'alto.
   const passi = useRef(0)
+  // L'ultima pagina fuori dal quaderno Note: ritoccando il tasto Note si torna lì.
+  const fuoriQuaderno = useRef('#/oggi')
   useEffect(() => {
     try { history.scrollRestoration = 'manual' } catch { /* niente */ }
     const segna = () => { const k = `${Date.now()}-${Math.random()}`; history.replaceState({ k }, ''); return k }
@@ -217,6 +219,7 @@ function Guscio({ utente, condiviso }) {
 
   const largo = useLargo()
   const [primo, secondo] = rotta.parti
+  if (primo !== 'quaderno') fuoriQuaderno.current = location.hash || '#/oggi'
   let schermata
   // Sul PC: elenco aziende a sinistra e scheda a destra, come la posta.
   if (largo && (primo === 'aziende' || primo === 'azienda')) {
@@ -330,7 +333,13 @@ function Guscio({ utente, condiviso }) {
           ))}
         </div>
         {/* Quaderno Note (13.10.2026): dove prima c'era il tasto Dentro. Sul PC è nel menu a sinistra. */}
-        <a href="#/quaderno" className={'tasto-dentro' + (primo === 'quaderno' ? ' attivo' : '')} aria-label="Quaderno Note" title="Note">
+        {/* Ritoccato quando sei già nel quaderno: torni dov'eri prima di entrarci (come il tasto Dentro). */}
+        <a href="#/quaderno" className={'tasto-dentro' + (primo === 'quaderno' ? ' attivo' : '')} aria-label={primo === 'quaderno' ? 'Chiudi le Note' : 'Quaderno Note'} title="Note"
+          onClick={(e) => {
+            if (primo !== 'quaderno') return
+            e.preventDefault()
+            vai(fuoriQuaderno.current)
+          }}>
           <Icona nome="quaderno" />
         </a>
       </header>

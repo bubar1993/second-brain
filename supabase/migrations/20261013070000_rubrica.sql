@@ -80,10 +80,13 @@ declare
   collegate int := 0;
   nuove int := 0;
   r record;
-  pid uuid;
+  c record;
+  nuova uuid;
+  v_nome text;
+  v_cognome text;
 begin
-  -- 1. Persona già nel brain: stesso numero, stessa mail (con lo stesso nome di battesimo: le info@ le usano in tanti)
-  --    o stesso nome e cognome. Solo se porta a UNA persona non ancora collegata a un altro contatto.
+  -- 1. Persona già nel brain: stesso numero, stessa mail (le info@ solo con lo stesso nome di battesimo: le usano in tanti)
+  --    o stesso nome e cognome. Solo se porta a UNA persona.
   for r in
     with liberi as (
       select x.* from public.rubrica x where x.persona_id is null and x.eliminata_il is null and x.utente_id = u
@@ -98,7 +101,8 @@ begin
       from liberi l cross join lateral jsonb_array_elements(l.email) e
       join public.persone p on p.eliminata_il is null
         and (lower(p.email) = lower(e->>'valore') or lower(e->>'valore') = any (select lower(z) from unnest(p.email_altre) z))
-        and lower(p.nome) = lower(split_part(btrim(l.nome), ' ', 1))
+        and (lower(p.nome) = lower(split_part(btrim(l.nome), ' ', 1))
+             or split_part(lower(e->>'valore'), '@', 1) !~ '^(info|office|contact|kontakt|mail|admin|buero|bureau|ufficio|ordini|order|orders|verkauf|vente|sales|amministrazione|segreteria)')
       union
       select l.id, p.id
       from liberi l
@@ -107,9 +111,8 @@ begin
     ), unici as (
       select rid, min(pid::text)::uuid as pid from cand group by rid having count(distinct pid) = 1
     )
+    -- Lo stesso contatto salvato due volte sul telefono porta alla stessa persona: si collegano tutti e due.
     select un.rid, un.pid from unici un
-    where not exists (select 1 from public.rubrica o where o.persona_id = un.pid)
-      and (select count(*) from unici u2 where u2.pid = un.pid) = 1
   loop
     update public.rubrica set persona_id = r.pid,
       area = coalesce((select pa.area from public.persone_aree pa where pa.persona_id = r.pid order by pa.area = 'P', pa.area limit 1), 'P')
@@ -134,33 +137,65 @@ begin
       from nuovi n cross join lateral (values (n.ditta), (substring(n.cognome from '\(([^)]+)\)\s*$')), (substring(n.nome from '\(([^)]+)\)\s*$'))) w(v)
       where nullif(btrim(v), '') is not null
     ), cand as (
-      select nm.rid, a.id as aid from nomi nm
+      select nm.rid, a.id as aid, a.area as aarea from nomi nm
       join public.aziende a on a.eliminata_il is null and a.unito_in is null and a.area in ('C', 'G')
+        and lower(a.nome) not in ('g&c', 'ceramex')   -- "(G&C)" sul telefono = contatto G&C, non il parcheggio
         and (lower(a.nome) = nm.nome or lower(a.ragione_sociale) = nm.nome)
       union
-      select n.id, a.id from nuovi n cross join lateral jsonb_array_elements(n.email) e
+      select n.id, a.id, a.area from nuovi n cross join lateral jsonb_array_elements(n.email) e
       join public.aziende a on a.eliminata_il is null and a.unito_in is null and a.area in ('C', 'G')
         and lower(split_part(e->>'valore', '@', 2)) = any (select lower(d) from unnest(a.domini) d)
       where lower(split_part(e->>'valore', '@', 2)) not in ('gmail.com', 'googlemail.com', 'hotmail.com', 'hotmail.it', 'outlook.com',
         'live.com', 'yahoo.com', 'yahoo.it', 'icloud.com', 'me.com', 'bluewin.ch', 'gmx.ch', 'gmx.net', 'sunrise.ch', 'ticino.com', 'libero.it', 'hispeed.ch')
     )
-    select rid, min(aid::text)::uuid as aid from cand group by rid having count(distinct aid) = 1
+    -- Stessa ditta in Ceramex e in G&C (es. Crea Ceram): vale quella Ceramex.
+    select rid, coalesce(case when count(distinct aid) = 1 then min(aid::text) end, min(aid::text) filter (where aarea = 'C'))::uuid as aid
+    from cand group by rid
+    having count(distinct aid) = 1 or (count(distinct aid) = 2 and count(distinct aid) filter (where aarea = 'C') = 1)
+    order by rid
   loop
-    insert into public.persone (utente_id, nome, cognome, telefono, email, compleanno, fonte, chiave)
-    select u, coalesce(nullif(btrim(regexp_replace(x.nome, '\s*\([^)]*\)\s*$', '')), ''), 'Senza nome'), public.senza_ditta(x.cognome),
-      (select t->>'valore' from jsonb_array_elements(x.telefoni) t limit 1),
-      (select lower(e->>'valore') from jsonb_array_elements(x.email) e limit 1),
-      x.compleanno, 'rubrica', 'rubrica:' || x.risorsa
-    from public.rubrica x where x.id = r.rid
-    on conflict (chiave) do nothing
-    returning id into pid;
-    if pid is not null then
+    select x.*, a.nome as ditta_nome, a.area as ditta_area into c
+      from public.rubrica x, public.aziende a where x.id = r.rid and a.id = r.aid;
+    -- Nome sul telefono scritto di corsa: "Martin Gotthard | Volketswil", "JOHO | Ming", "Simon. 8149 | ATEGA".
+    v_nome := btrim(regexp_replace(regexp_replace(coalesce(c.nome, ''), '\s*\([^)]*\)\s*$', ''), '[0-9.]+', '', 'g'));
+    v_cognome := btrim(regexp_replace(coalesce(public.senza_ditta(c.cognome), ''), '[0-9.]+', '', 'g'));
+    if position(' ' in v_nome) > 0 then
+      v_cognome := substr(v_nome, position(' ' in v_nome) + 1);
+      v_nome := split_part(v_nome, ' ', 1);
+    end if;
+    if length(v_nome) >= 4 and position(lower(left(v_nome, 4)) in lower(c.ditta_nome)) = 1 then
+      v_nome := v_cognome; v_cognome := '';
+    end if;
+    if length(v_cognome) >= 4 and position(lower(left(v_cognome, 4)) in lower(c.ditta_nome)) = 1 then v_cognome := ''; end if;
+    v_nome := coalesce(nullif(v_nome, ''), nullif(v_cognome, ''), 'Senza nome');
+    v_cognome := case when nullif(v_cognome, '') = v_nome then null else nullif(v_cognome, '') end;
+
+    -- C'è già nella ditta (stessa mail o stesso nome, anche da un doppione appena creato)? Allora si collega quella.
+    nuova := null;
+    select p.id into nuova from public.persone p
+      join public.persone_aziende pa on pa.persona_id = p.id and pa.azienda_id = r.aid
+      where p.eliminata_il is null and (
+        lower(p.email) in (select lower(e->>'valore') from jsonb_array_elements(c.email) e)
+        or lower(concat_ws(' ', p.nome, p.cognome)) = lower(concat_ws(' ', v_nome, v_cognome)))
+      limit 1;
+    if nuova is null then
+      insert into public.persone (utente_id, nome, cognome, telefono, email, compleanno, fonte, chiave)
+      values (u, v_nome, v_cognome,
+        (select t->>'valore' from jsonb_array_elements(c.telefoni) t limit 1),
+        (select lower(e->>'valore') from jsonb_array_elements(c.email) e limit 1),
+        c.compleanno, 'rubrica', 'rubrica:' || c.risorsa)
+      on conflict (chiave) do nothing
+      returning id into nuova;
+      if nuova is not null then nuove := nuove + 1; end if;
+    else
+      collegate := collegate + 1;
+    end if;
+    if nuova is not null then
       insert into public.persone_aziende (persona_id, azienda_id, ruolo, utente_id)
-        select pid, r.aid, x.ruolo, u from public.rubrica x where x.id = r.rid on conflict do nothing;
+        select nuova, r.aid, x.ruolo, u from public.rubrica x where x.id = r.rid on conflict do nothing;
       insert into public.persone_aree (persona_id, area, utente_id)
-        select pid, a.area, u from public.aziende a where a.id = r.aid on conflict do nothing;
-      update public.rubrica set persona_id = pid, area = (select a.area from public.aziende a where a.id = r.aid) where id = r.rid;
-      nuove := nuove + 1;
+        select nuova, a.area, u from public.aziende a where a.id = r.aid on conflict do nothing;
+      update public.rubrica set persona_id = nuova, area = c.ditta_area where id = r.rid;
     end if;
   end loop;
 

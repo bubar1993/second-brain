@@ -119,7 +119,7 @@ function Copertina() {
       <h1 className="titolo-quaderno">Note</h1>
       <p className="nota-piccola">Tutte le note per intero, in tre quaderni.</p>
       <input type="search" value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca nelle note: cliente, cantiere, parola…" />
-      {cerca.trim().length >= 3 ? <Trovate q={cerca} /> : (
+      {cerca.trim().length >= 2 ? <Ricerca q={cerca} /> : (
         <>
           <nav className="quaderni" aria-label="Quaderni">
             {QUADERNI.map((q) => {
@@ -159,6 +159,78 @@ function Copertina() {
         </>
       )}
     </div>
+  )
+}
+
+// Ricerca (13.10.2026, come la vuole Giovanni): prima le persone col nome cercato (e la loro ditta), poi le ditte
+// (quelle col nome cercato e quelle dove lavorano quelle persone), poi le note. Se non è una persona né una ditta
+// ("Vals 30x60") restano solo le note. Le persone e le ditte aprono le loro schede. Rispetta l'area scelta in alto:
+// le persone del Privato si vedono solo in Privato o in Tutte.
+function Ricerca({ q, area: soloArea }) {
+  const { area } = useApp()
+  const aree = soloArea ? [soloArea] : area === 'T' ? ['C', 'G', 'P'] : [area]
+  const [trovati, setTrovati] = useState(null)
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      const parole = q.trim().replace(/[%_,()*]/g, ' ').split(/\s+/).filter((p) => p.length > 1).slice(0, 4)
+      if (!parole.length) { setTrovati({ persone: [], ditte: [] }); return }
+      let qp = sb.from('persone').select(CAMPI_PERSONA).is('eliminata_il', null).order('nome').limit(30)
+      let qa = sb.from('aziende').select('id,nome,area').is('eliminata_il', null).is('unito_in', null).in('area', aree).order('nome').limit(20)
+      for (const p of parole) {
+        qp = qp.or(`nome.ilike.%${p}%,cognome.ilike.%${p}%`)
+        qa = qa.or(`nome.ilike.%${p}%,ragione_sociale.ilike.%${p}%`)
+      }
+      const [{ data: persone }, { data: ditte }] = await Promise.all([qp, qa])
+      // Persone: solo quelle che stanno in una delle aree scelte; le ditte mostrate sono quelle di queste aree.
+      const tenute = (persone || []).map((p) => ({
+        ...p, ditte: (p.persone_aziende || []).map((x) => x.aziende).filter((d) => d && aree.includes(d.area)),
+      })).filter((p) => (p.persone_aree || []).some((x) => aree.includes(x.area)) || p.ditte.length)
+      const tutte = new Map((ditte || []).map((d) => [d.id, d]))
+      tenute.forEach((p) => p.ditte.forEach((d) => { if (!tutte.has(d.id)) tutte.set(d.id, d) }))
+      setTrovati({ persone: tenute, ditte: [...tutte.values()] })
+    }, 300)
+    return () => clearTimeout(t)
+  }, [q, aree.join()])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <>
+      {trovati?.persone.length > 0 && (
+        <section className="blocco">
+          <h3>Persone</h3>
+          <div className="elenco">
+            {trovati.persone.map((p) => (
+              <a key={p.id} href={`#/persona/${p.id}`} className="riga capitolo">
+                <span className="riga-corpo">
+                  <span className="riga-testo">{nomePersona(p)}</span>
+                  {p.ditte.length > 0 && <span className="riga-meta">{p.ditte.map((d) => d.nome).join(', ')}</span>}
+                </span>
+                <Icona nome="freccia" size={18} />
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+      {trovati?.ditte.length > 0 && (
+        <section className="blocco">
+          <h3>Ditte</h3>
+          <div className="elenco">
+            {trovati.ditte.map((d) => (
+              <a key={d.id} href={`#/azienda/${d.id}`} className="riga capitolo">
+                <span className="pallino" style={{ background: areaDa(d.area)?.colore }} aria-hidden="true" />
+                <span className="riga-corpo"><span className="riga-testo">{d.nome}</span></span>
+                <Icona nome="freccia" size={18} />
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+      {q.trim().length >= 3 && (
+        <section className="blocco">
+          {(trovati?.persone.length > 0 || trovati?.ditte.length > 0) && <h3>Note</h3>}
+          <Trovate q={q} area={soloArea} />
+        </section>
+      )}
+    </>
   )
 }
 
@@ -282,7 +354,7 @@ function CapitoliClienti({ area, compatto }) {
     <div className="schermata quaderno">
       <TestaQuaderno area={area} />
       <input type="search" value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca un cliente o una parola" />
-      {cerca.trim().length >= 3 && !visibili.length ? <Trovate q={cerca} area={area} /> : (
+      {cerca.trim().length >= 3 && !visibili.length ? <Ricerca q={cerca} area={area} /> : (
         <Stato carica={carica} errore={errore}>
           {dati && (
             <>

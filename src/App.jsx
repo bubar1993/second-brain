@@ -7,7 +7,7 @@ import Oggi from './Oggi'
 import Aggiungi from './Aggiungi'
 import { Dentro, Inbox, ElencoNote, Cestino, VOCI_DENTRO, voceVisibile } from './Dentro'
 import { Visita } from './Visita'
-import { Agenti, Agente } from './Agenti'
+import { Agenti, Agente, AGENTI } from './Agenti'
 import { Seguire, contaDaSeguire } from './Seguire'
 import { Circolari, contaCircolari } from './Circolari'
 import { Capo, contaCapo } from './Capo'
@@ -194,8 +194,10 @@ function Guscio({ utente, condiviso }) {
       if (area !== 'T') qr = qr.eq('casella', area === 'C' ? 'ceramex' : 'gc')
       qr.then(({ count }) => setRiordino(count || 0))
     } else setRiordino(0)
-    // Risposte degli agenti non ancora lette (schermata Agenti).
+    // Risposte degli agenti non ancora lette (schermata Agenti): solo degli agenti che si vedono nell'area scelta,
+    // così il numero porta sempre a qualcosa che trovi (13.10.2026).
     sb.from('richieste_agenti').select('id', { count: 'exact', head: true }).not('risposta_il', 'is', null).is('vista_il', null)
+      .in('agente', AGENTI.filter((a) => area === 'T' || a.aree.includes(area)).map((a) => a.codice))
       .then(({ count }) => setRisposte(count || 0))
     sb.from('note').select('id', { count: 'exact', head: true })
       .is('area', null).is('eliminata_il', null)

@@ -66,7 +66,7 @@ export function Riordino() {
       sb.from('riordino_mail').select('*').in('casella', caselleDi(area)).in('stato', ['proposta', 'tenere']).order('data_email', { ascending: false }).then(chk),
       sb.from('riordino_mail').select('id,oggetto,da,cartella_finale,spostata_il').in('casella', caselleDi(area)).eq('stato', 'spostata')
         .gte('spostata_il', new Date(Date.now() - 86400e3).toISOString()).order('spostata_il', { ascending: false }).then(chk),
-      sb.from('richieste_agenti').select('id,riordino_id,testo,stato,risposta,creata_il').not('riordino_id', 'is', null)
+      sb.from('richieste_agenti').select('id,riordino_id,testo,stato,risposta,creata_il,vista_il').not('riordino_id', 'is', null)
         .gte('creata_il', new Date(Date.now() - 7 * 86400e3).toISOString()).order('creata_il', { ascending: false }).then(chk),
     ])
     // L'ultima risposta di Giovanni per ogni mail.
@@ -74,6 +74,12 @@ export function Riordino() {
     for (const q of risposte) ultima[q.riordino_id] ||= q
     return { righe, spostate, ultima }
   }, [area])
+
+  // Le risposte degli agenti che vedi qui sotto le mail contano come lette (spengono la notifica di Agenti).
+  useEffect(() => {
+    const ids = Object.values(dati?.ultima || {}).filter((q) => q.risposta && !q.vista_il).map((q) => q.id)
+    if (ids.length) sb.from('richieste_agenti').update({ vista_il: new Date().toISOString() }).in('id', ids).then(() => {})
+  }, [dati])
 
   // Mentre l'agente lavora su una risposta, la schermata si rilegge ogni 20 secondi (per 15 minuti al massimo).
   const inAttesa = Object.values(dati?.ultima || {}).some((q) => IN_CORSO.includes(q.stato) && Date.now() - new Date(q.creata_il) < 15 * 60e3)

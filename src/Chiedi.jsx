@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { sb, areaDa, nomePersona, quando, CAMPI_PERSONA, etichettePersona } from './supabase'
-import { useApp, chk, messaggioErrore, Icona, EtichettePersona, tenutoQui, tieniQui } from './componenti'
+import { useApp, chk, chiama, messaggioErrore, Icona, EtichettePersona, tenutoQui, tieniQui } from './componenti'
 import { iniziali, battesimo } from './Aziende'
 
 const pulisci = (s) => s.replace(/[,()%*\\.:]/g, '')
@@ -65,9 +65,13 @@ export default function Chiedi() {
         ? sb.from('persone').select(CAMPI_PERSONA).is('eliminata_il', null).order('nome').limit(30)
           .or(parole.flatMap((p) => [`nome.ilike.${p}%`, `cognome.ilike.${p}%`]).join(','))
         : Promise.resolve({ data: [] })
-      const [trovati, persone] = await Promise.all([
+      // Per significato (13.10.2026): le cose che parlano della stessa cosa anche con altre parole. Se non risponde, pazienza.
+      const qs = chiama('significato', { azione: 'cerca', q: domanda.trim(), area: area === 'T' ? null : area, quanti: 15 })
+        .then((r) => r?.risultati || []).catch(() => [])
+      const [trovati, persone, simili] = await Promise.all([
         sb.rpc('cerca', { q: domanda.trim(), area_scelta: area === 'T' ? null : area, quanti: 40 }),
         qp,
+        qs,
       ])
       let pers = chk(persone)
       // Prima chi ha più parole della domanda nel nome.
@@ -82,8 +86,11 @@ export default function Chiedi() {
         visti.add(k)
         return true
       })
-      setRisultati({ cose, persone: pers })
-      tieniRicerca(domanda, { cose, persone: pers })
+      // Solo quelle che la ricerca per parole non ha già trovato.
+      const gia = new Set(cose.map((r) => r.tipo + r.id))
+      const significato = simili.filter((r) => !gia.has(r.tipo + r.id)).slice(0, 10)
+      setRisultati({ cose, persone: pers, significato })
+      tieniRicerca(domanda, { cose, persone: pers, significato })
     } catch (e) {
       setMsg(messaggioErrore(e))
     } finally {
@@ -91,7 +98,8 @@ export default function Chiedi() {
     }
   }
 
-  const vuoto = risultati && !risultati.cose.length && !risultati.persone.length && !clienti.length && !trovatiCantieri.length
+  const vuoto = risultati && !risultati.cose.length && !risultati.persone.length && !risultati.significato?.length
+    && !clienti.length && !trovatiCantieri.length
 
   return (
     <div className="schermata">
@@ -103,7 +111,7 @@ export default function Chiedi() {
         </button>
       </form>
       <p className="nota-piccola">
-        Scrivi come parli («cosa mi aveva detto Emiliana sui campioni»): cerco in note, mail, persone e WhatsApp{area !== 'T' ? ` di ${areaDa(area).nome}` : ''}, anche con parole simili.
+        Scrivi come parli («cosa mi aveva detto Emiliana sui campioni»): cerco in note, mail, persone e WhatsApp{area !== 'T' ? ` di ${areaDa(area).nome}` : ''}, anche con parole simili e per significato.
       </p>
 
       {clienti.length > 0 && (
@@ -181,6 +189,24 @@ export default function Chiedi() {
                 <span className="riga-corpo">
                   <span className="riga-meta">{TIPI[r.tipo]} · {r.titolo}{r.data ? ` · ${quando(r.data)}` : ''}</span>
                   <span className="riga-testo"><Evidenzia testo={r.estratto} /></span>
+                </span>
+              </a>
+            ))}
+          </div>
+        </>
+      )}
+
+      {risultati?.significato?.length > 0 && (
+        <>
+          <h2>Parlano della stessa cosa</h2>
+          <p className="nota-piccola">Trovate per significato, anche se non hanno le tue parole.</p>
+          <div className="elenco">
+            {risultati.significato.map((r) => (
+              <a key={r.tipo + r.id} className="riga riga-trovato" href={r.collegamento}>
+                <span className="pallino" style={{ background: areaDa(r.area)?.colore || 'var(--grigio)' }} />
+                <span className="riga-corpo">
+                  <span className="riga-meta">{TIPI[r.tipo]} · {r.titolo}{r.data ? ` · ${quando(r.data)}` : ''}</span>
+                  <span className="riga-testo">{r.estratto}</span>
                 </span>
               </a>
             ))}

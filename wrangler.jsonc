@@ -1,9 +1,14 @@
 {
-  // App Second Brain: solo file statici (cartella dist), pubblicati come Worker.
+  // App Second Brain: i file statici (cartella dist) e un piccolo Worker per /api/vettori
+  // (ricerca per significato, modello bge-m3 di Workers AI, gratis entro la quota giornaliera).
   "name": "second-brain",
+  "main": "worker/index.js",
   "compatibility_date": "2026-10-01",
   "assets": {
     "directory": "./dist",
-    "not_found_handling": "single-page-application"
-  }
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "ai": { "binding": "AI" }
 }

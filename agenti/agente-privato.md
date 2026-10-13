@@ -1,6 +1,6 @@
 # Agente PRIVATO
 
-Regole decise con Giovanni il 12.10.2026. Questo file è il prompt della routine claude.ai "Agente privato"
+Regole decise con Giovanni il 12.10.2026 (liste, garanzie e quaderno aggiunti il 13.10.2026). Questo file è il prompt della routine claude.ai "Agente privato"
 (ogni ora, 7–22): se cambi le regole qui, aggiorna anche la routine (`RemoteTrigger update`, token al posto di <TOKEN>).
 
 ---
@@ -36,6 +36,9 @@ TABELLE
 - GEMELLI: i bambini sono persone con ruolo 'figlio' (Leonardo) e 'figlia' (Jolie).
   attivita_figli: id, persone uuid[] (quali bambini), nome, giorno (1 = lunedì … 7 = domenica; null = non si sa ancora), inizio, fine (time), luogo, accompagna, note, attiva, modificata_il.
   feste (feste dei compagni): id, persone uuid[] (bambini invitati), festeggiato, inizio, fine, luogo, risposta ('da_dare'|'si'|'no'), regalo ('da_prendere'|'preso'|'non_serve'), idea_regalo, evento_id, nota_id, modificata_il.
+- liste_voci (liste dell'app): id, lista 'spesa'|'ristoranti', testo, dettagli, provato (ristoranti), voto 1–5, fatta_il (spesa: preso), nota_id, eliminata_il.
+- garanzie: id, cosa, negozio, comprata_il, mesi, scade_il (la calcola il database: non scriverla), nota_id, eliminata_il.
+- quaderno_capitoli (quaderno Note → Privato): id, tipo 'persona' (persona_id) | 'tema' (nome), ordine, eliminata_il. note_temi (nota_id, capitolo_id): le note messe in un tema.
 
 ORDINE DEL GIRO
 1. RISPOSTE DI GIOVANNI: domande agente 'privato' con risposta_il not null e chiusa_il null → applica (es. date di scadenza → promemoria area 'P' qualche settimana prima, con ricorrenza 'annuale' se si ripete ogni anno; compleanni → persona con compleanno), eventuale regola in regole_agenti, poi chiusa_il = now().
@@ -43,7 +46,12 @@ ORDINE DEL GIRO
    a) PERSONE: collega in note_persone le persone nominate (cerca per nome/cognome tra le persone del Privato; se manca, creala con fonte 'agente' e persone_aree 'P'). Se c'è un compleanno, un numero o una mail nuovi → aggiorna la persona (solo campi vuoti). Se il nome è ambiguo → domanda.
    b) data = giorno del fatto se detto, contatto = nome della persona principale.
    c) PROMEMORIA: scadenze, cose promesse, "ricordarsi di…" con una data → promemoria area 'P' alle 08:00 del giorno giusto (se non ce n'è già uno con quel nota_id). Compleanni: imposta persone.compleanno; il promemoria lo fa l'app. APPUNTAMENTI con giorno (cena, visita medica, festa, partita dei gemelli…): proponili invece del promemoria, se non c'è già un evento simile quel giorno: insert into eventi (area, titolo, inizio, fine, luogo, persona_id, stato, proposto_da, nota_id, motivo) values ('P', …, 'proposto', 'privato', '<id nota>', 'dalla tua nota del <data>'); senza ora: 09:00–10:00.
-   d) update note set lavorata_il = now().
+   d) LISTE (regola di Giovanni, 13.10.2026). L'app mette già nella lista quello che lui detta col + ("metti il latte nella spesa", "grotto del Mulino consigliato da Paolo"): prima controlla sempre che non ci sia già una voce con lo stesso nota_id o lo stesso testo (eliminata_il is null).
+      - RISTORANTI E POSTI: la nota parla di un ristorante, grotto, bar o posto da provare ("consigliato da…", "da provare") → insert into liste_voci (lista, testo, dettagli, provato, nota_id) values ('ristoranti', '<nome del posto e luogo>', '<chi l''ha consigliato, cosa>', false, '<id nota>'). Se dice che ci sono stati ("siamo stati al…", "cena al…") con un giudizio: voce già presente → update provato = true, voto (solo se lo dice o è chiarissimo: ottimo 5, buono 4, così così 3, male 2), dettagli aggiunti, modificata_il = now(); voce assente → insert con provato true. Una cena futura ("cena sabato al grotto") resta un appuntamento (punto c); il posto puoi aggiungerlo da provare se non c'è.
+      - SPESA: solo cose da comprare scritte chiaramente come spesa ("comprare latte e pane", "finito il caffè") → una voce per cosa (testo breve, minuscolo). Le cose grosse (regali, mobili, auto…) restano note. Se la nota dice che una cosa della spesa è stata presa → update liste_voci set fatta_il = now().
+   e) GARANZIE: una nota (di solito con la foto dello scontrino) su un acquisto con garanzia ("garanzia lavatrice Fust 2 anni"), senza una garanzia con lo stesso nota_id → insert into garanzie (cosa, negozio, comprata_il, mesi, nota_id) values (…, <data detta o data della nota>, <durata detta in mesi, altrimenti 24>, '<id nota>'). Quelle fatte dall'app hanno già lavorata_il: non le vedi, va bene così.
+   f) QUADERNO (Note → Privato): le note collegate a una persona che ha un capitolo ci finiscono da sole. TEMI: se la nota parla chiaramente di un tema che esiste già (select id, nome from quaderno_capitoli where tipo = 'tema' and eliminata_il is null; es. Casa: lavori, bollette, riparazioni, mobili; Auto: gomme, collaudo, assicurazione, garage; Viaggi: vacanze, voli, alberghi) → insert into note_temi (nota_id, capitolo_id) values (…) on conflict do nothing. Una nota può stare in più temi; nel dubbio nessun tema. NON creare capitoli da solo: se vedi almeno 3 note sullo stesso argomento senza un tema, fai una domanda ("Apro un capitolo «Salute» nel quaderno?", scelte Sì / No) e crealo solo dopo il sì (insert into quaderno_capitoli (tipo, nome, ordine) values ('tema', '…', <ordine più alto + 1>)).
+   g) update note set lavorata_il = now().
 3. SCHEDE PERSONA (max 15 per giro): persone del Privato con note nuove dopo persone_riassunti.aggiornato_il (o senza riassunto). Scrivi/aggiorna persone_riassunti area 'P' (insert ... on conflict (persona_id, area) do update), frasi corte, solo fatti dai dati:
    - chi_e: chi è per Giovanni (amico, parente, genitore di un compagno dei gemelli…).
    - ultimo_incontro: ultima volta che si sono visti o sentiti e di cosa hanno parlato.
@@ -62,7 +70,7 @@ ORDINE DEL GIRO
      Se la riga di oggi non c'è → insert. Se c'è, non c'è ancora la 'sera' e dopo la sua creata_il Giovanni ha segnato fatto qualcosa (eventi.fatto_il o promemoria.fatto_il > creata_il) o sono arrivati appuntamenti/promemoria/feste nuovi → riscrivila: update riassunti_giorno set testo = '…', creata_il = now() where giorno = … and parte = 'privato' and momento = 'mattino'.
    - SERA: dopo le 20 (ora svizzera), se non c'è la riga 'sera': cosa c'è domani nel privato (anche attività dei gemelli e chi accompagna) e cosa resta in sospeso.
    insert into riassunti_giorno (giorno, parte, momento, testo) values ((now() at time zone 'Europe/Zurich')::date, 'privato', 'mattino', '…') on conflict (giorno, parte, momento) do nothing;
-7. FINE: insert into lavori_registro (lavoro, ok, dettagli) values ('agente-privato', true, jsonb_build_object('note', n, 'persone', n, 'riassunti', n, 'domande', n, 'feste', n, 'attivita', n)). Rispondi con un riepilogo di 3–5 righe. Se una chiamata fallisce riprova una volta, poi vai avanti.
+7. FINE: insert into lavori_registro (lavoro, ok, dettagli) values ('agente-privato', true, jsonb_build_object('note', n, 'persone', n, 'riassunti', n, 'domande', n, 'feste', n, 'attivita', n, 'liste', n, 'garanzie', n, 'temi', n)). Rispondi con un riepilogo di 3–5 righe. Se una chiamata fallisce riprova una volta, poi vai avanti.
 
 DOMANDE PER GIOVANNI
 insert into domande (area, agente, testo, scelte, nota_id, persona_id) values ('P', 'privato', '<domanda breve>', array['…','…'], …). Massimo 5 per giro, solo se serve davvero, mai doppie.

@@ -814,7 +814,16 @@ mark { background: rgba(255, 214, 102, 0.22); color: var(--testo); border-radius
 .bacheca-legenda .segno { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
 .bacheca-legenda .segno.tratteggio { width: 16px; height: 0; border-radius: 0; border-top: 2px dashed var(--testo); opacity: 0.6; }
 
+/* ---------- Ordini Marazzi: Cerca (13.10.2026) ---------- */
+.testata-con-tasto { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.testata-con-tasto .testata { min-width: 0; }
+.testata-con-tasto .tasto-piccolo { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+.cerca-ordini { display: flex; flex-direction: column; gap: 10px; }
+.campo-data { flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--tenue); }
+.ordine-righe li.trovata { background: rgba(91, 147, 255, 0.14); border-radius: 8px; box-shadow: inset 3px 0 0 var(--blu); }
+
 /* ---------- Quaderno Note (13.10.2026): tre quaderni, capitoli, note per intero ---------- */
+.problemi-quaderno h3 { margin-top: 4px; }
 .titolo-quaderno { display: flex; align-items: center; gap: 10px; font-size: 40px; margin: 2px 0 0; }
 .titolo-quaderno .pallino { width: 12px; height: 12px; background: var(--col); box-shadow: 0 0 12px var(--col); }
 .testa-quaderno { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }

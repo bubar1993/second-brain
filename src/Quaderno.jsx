@@ -237,7 +237,9 @@ function CapitoliClienti({ area, compatto }) {
       if (mia(n)) i.mie++
       const g = giornoDi(n)
       if (g > i.ultima) i.ultima = g
-      if (n.sezione === 'problemi' && !n.risolto_il) i.aperti[n.mandante || 'Altro'] = (i.aperti[n.mandante || 'Altro'] || 0) + 1
+      // Ceramex: per mandante. G&C: per cliente (nella pagina del cliente i problemi stanno in cima, di tutti i cantieri).
+      const k = area === 'G' ? '' : n.mandante || 'Altro'
+      if (n.sezione === 'problemi' && !n.risolto_il) i.aperti[k] = (i.aperti[k] || 0) + 1
     }
     // Le filiali stanno sotto il loro gruppo (come nel gestionale Ceramex).
     const capi = []
@@ -289,8 +291,8 @@ function CapitoliClienti({ area, compatto }) {
                   <h3 className="rosso">Problemi aperti</h3>
                   <div className="elenco">
                     {aperti.map(({ x, m, n }) => (
-                      <a key={x.id + m} href={`#/quaderno/${area}/${x.gruppo_id && dati.info[x.gruppo_id] ? x.gruppo_id : x.id}?m=${encodeURIComponent(m)}`} className="riga capitolo aperto">
-                        <span className="riga-corpo"><span className="riga-testo">{x.nome} · {m}</span></span>
+                      <a key={x.id + m} href={`#/quaderno/${area}/${x.gruppo_id && dati.info[x.gruppo_id] ? x.gruppo_id : x.id}${m ? `?m=${encodeURIComponent(m)}` : ''}`} className="riga capitolo aperto">
+                        <span className="riga-corpo"><span className="riga-testo">{m ? `${x.nome} · ${m}` : x.nome}</span></span>
                         <span className="rosso conto-capitolo">{n} {n === 1 ? 'aperto' : 'aperti'}</span>
                       </a>
                     ))}
@@ -371,7 +373,11 @@ function Cliente({ area, id, query }) {
     filtro = (n) => (n.mandante || 'Altro') === scelta?.id
     nuova = `#/aggiungi?azienda=${id}&area=${area}`
   }
-  const dellaScheda = note.filter(filtro)
+  // I problemi aperti del cliente stanno sempre in cima, di tutti i mandanti e cantieri, anche se li ha scritti un agente:
+  // così si chiudono subito (13.10.2026: Giovanni non trovava quelli dei cantieri G&C).
+  const apertiTutti = note.filter((n) => n.sezione === 'problemi' && !n.risolto_il)
+  const nomeCantiere = Object.fromEntries(cantieri.map((c) => [c.id, c.nome]))
+  const dellaScheda = note.filter(filtro).filter((n) => !apertiTutti.includes(n))
   const mostrate = dellaScheda.filter((n) => agenti || mia(n))
   const nascoste = dellaScheda.length - mostrate.length
   const cambia = (k, v) => {
@@ -386,6 +392,14 @@ function Cliente({ area, id, query }) {
       <TestaQuaderno area={area} titolo={a.nome} indietro={`#/quaderno/${area}`}
         destra={<a href={nuova} className="tasto-piccolo nota-qui" style={{ '--col': areaDa(area).colore }}>+ Nota qui</a>} />
       {a.gruppo && <p className="nota-piccola">Filiale del gruppo <a href={`#/quaderno/${area}/${a.gruppo.id}`}>{a.gruppo.nome}</a></p>}
+
+      {apertiTutti.length > 0 && (
+        <section className="blocco problemi-quaderno">
+          <h3 className="rosso">Problemi aperti ({apertiTutti.length})</h3>
+          <PagineNote note={apertiTutti} risolvi={risolvi} mandante
+            sede={(n) => [filiali.length && n.azienda_id !== a.id ? nomeSede[n.azienda_id] : null, n.cantiere_id ? nomeCantiere[n.cantiere_id] : area === 'G' ? 'senza cantiere' : null].filter(Boolean).join(' · ') || null} />
+        </section>
+      )}
 
       {schede.length > 0 && (
         area === 'G' ? (

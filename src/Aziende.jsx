@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { sb, leggi, scrivi, areaDa } from './supabase'
-import { useApp, useCarica, chk, Stato, Indietro, Icona, tenutoQui, tieniQui } from './componenti'
+import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, Icona, tenutoQui, tieniQui } from './componenti'
 
 // Le 6 sezioni come nel gestionale Ceramex: chiave, nome lungo, nome corto.
 export const SEZIONI = [
@@ -130,6 +130,24 @@ export function Aziende({ scelta }) {
 
 // Scheda azienda come nel gestionale Ceramex: filiali, mandanti, sezioni; vista per sezione o per data.
 // Per ora si legge soltanto: fino al trasloco le note si correggono nel gestionale Ceramex.
+// Problema risolto / riaperto con un tocco, con "Annulla" (13.10.2026, richiesta di Giovanni).
+export function useRisolvi(dopo) {
+  const { avvisa } = useApp()
+  return async (n) => {
+    const prima = n.risolto_il || null
+    const metti = (valore) => sb.from('note').update({ risolto_il: valore }).eq('id', n.id).then(chk)
+    try {
+      await metti(prima ? null : new Date().toISOString())
+      avvisa(prima ? 'Problema riaperto' : 'Problema risolto', { etichetta: 'Annulla', fai: async () => {
+        try { await metti(prima); dopo() } catch (e) { avvisa(messaggioErrore(e)) }
+      } })
+      dopo()
+    } catch (e) {
+      avvisa(messaggioErrore(e))
+    }
+  }
+}
+
 export function Azienda({ id, cantiere: cantiereIniziale }) {
   const { vai } = useApp()
   const [sede, setSede] = useState(null) // null = tutto il gruppo
@@ -140,7 +158,7 @@ export function Azienda({ id, cantiere: cantiereIniziale }) {
   const [risolte, setRisolte] = useState(false)
   const [tutteLePersone, setTutteLePersone] = useState(false)
 
-  const { dati, errore, carica } = useCarica(async () => {
+  const { dati, errore, carica, ricarica } = useCarica(async () => {
     const [a, filiali] = await Promise.all([
       sb.from('aziende').select('*,gruppo:gruppo_id(id,nome)').eq('id', id).single().then(chk),
       sb.from('aziende').select('id,nome,contatti').eq('gruppo_id', id).is('eliminata_il', null).order('nome').then(chk),
@@ -159,6 +177,7 @@ export function Azienda({ id, cantiere: cantiereIniziale }) {
       .map((g) => ({ ...g.persone, ruolo: g.ruolo, azienda_id: g.azienda_id }))
     return { a, filiali, note, cantieri, persone }
   }, [id])
+  const risolvi = useRisolvi(ricarica)
 
   // Una scheda unita a un'altra porta a quella giusta (al posto suo: "indietro" non ci ritorna).
   const unita = dati?.a.unito_in
@@ -205,7 +224,7 @@ export function Azienda({ id, cantiere: cantiereIniziale }) {
   const mostraSede = !sede && filiali.length > 0
 
   const riga = (n, conSezione) => (
-    <NotaCliente key={n.id} n={n} conSezione={conSezione}
+    <NotaCliente key={n.id} n={n} conSezione={conSezione} risolvi={risolvi}
       sede={mostraSede && n.azienda_id !== a.id ? nomeSede[n.azienda_id] : null}
       cantiere={!cantiere && n.cantiere_id ? nomeCantiere[n.cantiere_id] : null} />
   )
@@ -371,10 +390,11 @@ const linkMail = (n) => (n.area === 'G'
   : (n.thread_id ? GMAIL + n.thread_id : null))
 
 // Tocco sulla nota: si apre (persone, promemoria, foto). I link dentro (persona, mail) restano i loro.
-function NotaCliente({ n, conSezione, sede, cantiere }) {
+function NotaCliente({ n, conSezione, sede, cantiere, risolvi }) {
   const meta = sede || cantiere || n.contatto || conSezione
   const mail = linkMail(n)
-  const apri = (e) => { if (!e.target.closest('a')) location.hash = `/nota/${n.id}` }
+  const problema = n.sezione === 'problemi'
+  const apri = (e) => { if (!e.target.closest('a, button')) location.hash = `/nota/${n.id}` }
   return (
     <div className={'nota-cliente apribile' + (n.risolto_il ? ' risolta' : '')} onClick={apri} role="link" tabIndex={0}
       onKeyDown={(e) => { if (e.key === 'Enter') apri(e) }}>
@@ -393,9 +413,14 @@ function NotaCliente({ n, conSezione, sede, cantiere }) {
           )}
           {n.testo}
         </p>
-        {(n.risolto_il || mail) && (
+        {(problema || mail) && (
           <p className="nota-piede">
             {n.risolto_il && <span>risolto il {dataBreve(n.risolto_il)}</span>}
+            {problema && (
+              <button type="button" className="tasto-risolto" onClick={() => risolvi(n)}>
+                {n.risolto_il ? 'Riapri' : '✓ Risolto'}
+              </button>
+            )}
             {mail && (n.area === 'G'
               ? <a href={mail}>dalla mail</a>
               : <a href={mail} target="_blank" rel="noopener noreferrer">dalla mail</a>)}

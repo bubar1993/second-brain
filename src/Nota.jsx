@@ -4,7 +4,7 @@ import {
   useApp, useCarica, chk, messaggioErrore, Stato, Indietro, SceltaArea, SceltaPersone, Icona,
   caricaFoto, aggiungiAreaPersone, useModifiche,
 } from './componenti'
-import { nomeSezione } from './Aziende'
+import { nomeSezione, useRisolvi } from './Aziende'
 
 const FONTI = { scritta: 'Scritta', voce: 'Dettata', foto: 'Foto', condivisa: 'Condivisa', mail: 'Da mail' }
 
@@ -21,6 +21,7 @@ export default function Nota({ id }) {
       .select('*,aziende(id,nome),note_persone(persone(id,nome,cognome)),allegati(id,percorso),promemoria(id,testo,scade_il,fatto_il,eliminata_il)')
       .eq('id', id).single(),
   ), [id])
+  const risolvi = useRisolvi(ricarica)
 
   useEffect(() => {
     if (dati && testo === null) setTesto(dati.testo)
@@ -120,6 +121,12 @@ export default function Nota({ id }) {
           <a href={`#/azienda/${dati.aziende.id}`}>{dati.aziende.nome}</a>
           {[dati.mandante, nomeSezione[dati.sezione], dati.contatto].filter(Boolean).map((x) => ` · ${x}`)}
           {dati.risolto_il && ` · risolto ${quando(dati.risolto_il)}`}
+        </p>
+      )}
+      {dati.sezione === 'problemi' && (
+        <p className="nota-piede">
+          <span>{dati.risolto_il ? 'Problema risolto' : 'Problema aperto'}</span>
+          <button type="button" className="tasto-risolto" onClick={() => risolvi(dati)}>{dati.risolto_il ? 'Riapri' : '✓ Risolto'}</button>
         </p>
       )}
 

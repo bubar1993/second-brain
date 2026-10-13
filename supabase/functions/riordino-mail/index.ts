@@ -1,8 +1,10 @@
 // Riordino delle caselle: info@homeconcepts.ch (Hostpoint, cartelle) dal 12.10.2026 sera e Gmail Ceramex (etichette)
 // dal 12.10.2026 notte, ok di Giovanni.
 // L'agente propone la cartella (tabella riordino_mail); Giovanni spunta nell'app e preme "Sposta":
-// questa funzione sposta SOLO le mail scelte da lui (IMAP MOVE su Hostpoint). Non cancella e non invia niente.
+// questa funzione sposta SOLO le mail scelte da lui (IMAP MOVE su Hostpoint). Non cancella per sempre e non invia niente.
 // Crea una cartella solo se è la cartella nuova proposta dall'agente (✚) e Giovanni l'ha approvata.
+// Cartella "Cestino" (13.10.2026, richiesta di Giovanni): la mail va nel Cestino (Gmail: threads.trash, la tiene 30 giorni;
+// info@: cartella Trash di Hostpoint, finché Giovanni non la svuota). Gli agenti possono solo proporlo.
 // Azioni: { azione: 'cartelle', casella? } → cartelle di info@ (dall'ultima lettura di posta-gc) o etichette Gmail;
 //         { azione: 'sposta', voci: [{ id, cartella? }] } → sposta (cartella = correzione di Giovanni).
 //         { azione: 'leggi', id } → testo della mail (info@) o degli ultimi messaggi della conversazione (Gmail), con gli allegati;
@@ -21,6 +23,7 @@ const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const UTENTE = 'f220cb9e-6628-4fd4-b2ef-f7e5f49d9a54'
 const IO = Deno.env.get('GC_MAIL_USER') || 'info@homeconcepts.ch'
 const MASSIMO = 60 // mail per chiamata
+const CESTINO = 'Cestino'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -338,7 +341,7 @@ async function spostaCeramex(righe: Record<string, any>[], scelte: Map<string, s
     try {
       const dest = (scelte.get(r.id) || r.cartella_proposta || '').trim()
       if (!dest) throw new Error('manca l\'etichetta')
-      let id = etichette.get(dest)
+      let id = dest === CESTINO ? 'TRASH' : etichette.get(dest)
       if (!id) {
         // Etichetta nuova: solo quella proposta dall'agente con ✚ (approvata spuntando la mail).
         if (!(r.nuova && dest === (r.cartella_proposta || '').trim())) throw new Error(`l'etichetta "${dest}" non esiste`)
@@ -353,7 +356,8 @@ async function spostaCeramex(righe: Record<string, any>[], scelte: Map<string, s
         continue
       }
       // Tutta la conversazione, come "Sposta in" di Gmail: etichetta messa e fuori dalla Posta in arrivo.
-      await gmail(token, `threads/${r.gmail_thread_id}/modify`, { method: 'POST', body: JSON.stringify({ addLabelIds: [id], removeLabelIds: ['INBOX'] }) })
+      if (dest === CESTINO) await gmail(token, `threads/${r.gmail_thread_id}/trash`, { method: 'POST' })
+      else await gmail(token, `threads/${r.gmail_thread_id}/modify`, { method: 'POST', body: JSON.stringify({ addLabelIds: [id], removeLabelIds: ['INBOX'] }) })
       await aggiorna(r.id, { stato: 'spostata', cartella_finale: dest, spostata_il: new Date().toISOString(), esito: 'ok' })
       esito.spostate++
     } catch (e) {
@@ -370,7 +374,9 @@ async function spostaGC(righe: Record<string, any>[], scelte: Map<string, string
   if (!password) throw new Error('manca la password della casella (GC_MAIL_PASSWORD)')
   const imap = new ImapFlow({ host: 'imap.mail.hostpoint.ch', port: 993, secure: true, auth: { user: IO, pass: password }, logger: false })
   await imap.connect()
-  const esistenti = new Set((await imap.list()).map((b) => b.path))
+  const tutte = await imap.list()
+  const esistenti = new Set(tutte.map((b) => b.path))
+  const cestino = (tutte.find((b) => b.specialUse === '\\Trash') || tutte.find((b) => /^(INBOX[./])?Trash$/i.test(b.path)))?.path
   // Di solito INBOX e Sent; anche altre cartelle quando Giovanni chiede di spostare una mail già archiviata (13.10.2026).
   for (const da of new Set(righe.map((r) => String(r.cartella_da || 'INBOX')))) {
     const gruppo = righe.filter((r) => String(r.cartella_da || 'INBOX') === da)
@@ -386,8 +392,10 @@ async function spostaGC(righe: Record<string, any>[], scelte: Map<string, string
       for (const r of gruppo) {
         const indietro = r.stato // 'proposta' o 'tenere'
         try {
-          const dest = inChiaro(scelte.get(r.id) || r.cartella_proposta || '')
-          if (!dest) throw new Error('manca la cartella')
+          const scelta = inChiaro(scelte.get(r.id) || r.cartella_proposta || '')
+          if (!scelta) throw new Error('manca la cartella')
+          if (scelta === CESTINO && !cestino) throw new Error('non trovo il Cestino della casella')
+          const dest = scelta === CESTINO ? cestino! : scelta
           if (!esistenti.has(dest)) {
             // Cartella nuova: solo quella proposta dall'agente con ✚ (approvata spuntando la mail).
             if (!(r.nuova && dest === inChiaro(r.cartella_proposta || ''))) throw new Error(`la cartella "${dest}" non esiste`)
@@ -408,7 +416,7 @@ async function spostaGC(righe: Record<string, any>[], scelte: Map<string, string
             continue
           }
           await imap.messageMove(giuste.join(','), dest, { uid: true })
-          await aggiorna(r.id, { stato: 'spostata', cartella_finale: dest, spostata_il: new Date().toISOString(), esito: 'ok' })
+          await aggiorna(r.id, { stato: 'spostata', cartella_finale: scelta, spostata_il: new Date().toISOString(), esito: 'ok' })
           esito.spostate++
         } catch (e) {
           const msg = String((e as Error)?.message || e).slice(0, 200)

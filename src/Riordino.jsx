@@ -12,7 +12,10 @@ import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, useMo
 // dentro, l'agente la fa partire subito e cambia solo la proposta. Le mail le sposta sempre Giovanni con "Sposta".
 
 const CASELLE = [['gc', 'INBOX', 'Posta in arrivo info@'], ['gc', 'Sent', 'Posta inviata info@'], ['ceramex', 'INBOX', 'Gmail Ceramex']]
-const corta = (c) => (c ? c.replace(/^Archive\//, '').replace(/^INBOX\/\d{4}\//, '') : '')
+// "Cestino" (13.10.2026, richiesta di Giovanni) è una cartella speciale: con "Sposta" la mail va nel Cestino della casella
+// (Gmail la tiene 30 giorni, Hostpoint finché non lo svuoti). Lo sceglie Giovanni col tasto o lo propone l'agente.
+const CESTINO = 'Cestino'
+const corta = (c) => (c === CESTINO ? '🗑 Cestino' : c ? c.replace(/^Archive\//, '').replace(/^INBOX\/\d{4}\//, '') : '')
 const caselleDi = (area) => (area === 'C' ? ['ceramex'] : area === 'G' ? ['gc'] : ['gc', 'ceramex'])
 const nomeBreve = (da) => (da || '').replace(/\s*<[^>]+>\s*/, '').replace(/^"|"$/g, '') || da || ''
 const IN_CORSO = ['nuova', 'avviata', 'in_corso']
@@ -246,7 +249,7 @@ export function Riordino() {
       avvisa(bozza && !cartella
         ? (partite ? 'Mandata: l\'agente prepara la bozza, la trovi in Bozze tra qualche minuto' : 'Mandata: la bozza la prepara la prossima volta che l\'agente lavora')
         : partite ? `Mandata: l'agente ${bozza ? 'prepara la bozza e ' : ''}cambia la proposta tra qualche minuto`
-          : `Mandata: la fa la prossima volta che l'agente lavora (${casella === 'ceramex' ? 'ogni ora piena, 7–22' : 'ogni 2 ore, 8–18'})`)
+          : `Mandata: la fa la prossima volta che l'agente lavora (${casella === 'ceramex' ? 'ogni ora piena, 6–23' : 'ogni 2 ore, 6–22'})`)
       ricarica()
     } catch (e) {
       avvisa(messaggioErrore(e))
@@ -257,6 +260,20 @@ export function Riordino() {
 
   const cartellaDi = (r) => cambi[r.id] || r.cartella_proposta || ''
   const segna = (ids, si) => { setConferma(false); setScelte((s) => { const n = { ...s }; ids.forEach((id) => { n[id] = si }); return n }) }
+
+  // "Cestino": la mail passa nel gruppo 🗑 Cestino già scelta; si cestina solo con "Sposta" (due tocchi). Ritoccando torna com'era.
+  function cestina(r) {
+    setAperta(null)
+    if (cambi[r.id] === CESTINO) {
+      setCambi((c) => { const n = { ...c }; delete n[r.id]; return n })
+      segna([r.id], false)
+    } else if (!cambi[r.id] && r.cartella_proposta === CESTINO) {
+      segna([r.id], !scelte[r.id])
+    } else {
+      setCambi((c) => ({ ...c, [r.id]: CESTINO }))
+      segna([r.id], true)
+    }
+  }
 
   async function apriScelta(r) {
     setAperta(aperta === r.id ? null : r.id)
@@ -344,7 +361,10 @@ export function Riordino() {
                 {letta?.id === r.id ? 'Chiudi la mail' : 'Leggi'}
               </button>
               <button type="button" className={'chip tasto-riga' + (aperta === r.id ? ' attivo' : '')} onClick={() => apriScelta(r)}>
-                {cambi[r.id] ? `Cambiata: ${corta(cambi[r.id])}` : cartella ? (r.casella === 'ceramex' ? 'Altra etichetta' : 'Altra cartella') : (r.casella === 'ceramex' ? "Scegli l'etichetta" : 'Scegli la cartella')}
+                {cambi[r.id] && cambi[r.id] !== CESTINO ? `Cambiata: ${corta(cambi[r.id])}` : cartella && cartella !== CESTINO ? (r.casella === 'ceramex' ? 'Altra etichetta' : 'Altra cartella') : (r.casella === 'ceramex' ? "Scegli l'etichetta" : 'Scegli la cartella')}
+              </button>
+              <button type="button" className={'chip tasto-riga tasto-cestino' + (cartella === CESTINO ? ' attivo' : '')} onClick={() => cestina(r)}>
+                {cambi[r.id] === CESTINO ? 'Non nel Cestino' : cartella === CESTINO && scelta ? 'Nel Cestino ✓' : 'Cestino'}
               </button>
               <button type="button" className={'chip tasto-riga' + (scrive?.id === r.id && scrive.tipo === 'rispondi' ? ' attivo' : '')} onClick={() => apriScrivi(r, 'rispondi')}>
                 {scrive?.id === r.id && scrive.tipo === 'rispondi' ? 'Chiudi la risposta' : 'Rispondi alla mail'}
@@ -468,6 +488,7 @@ export function Riordino() {
     })
   }
 
+  const nelCestino = (dati?.righe || []).filter((r) => scelte[r.id] && cartellaDi(r) === CESTINO).length
   const proposte = dati?.righe.filter((r) => r.stato === 'proposta') || []
   const inVista = dati?.righe.filter((r) => r.stato === 'tenere') || []
 
@@ -476,7 +497,7 @@ export function Riordino() {
       <Indietro titolo="Riordino casella" />
       <p className="nota-piccola">
         Le mail ancora in Posta in arrivo (e Posta inviata di info@), con la cartella o l'etichetta proposta dall'agente.
-        Scegli quelle che vanno bene e premi Sposta. Le altre restano dove sono.
+        Scegli quelle che vanno bene e premi Sposta. Le altre restano dove sono. Con «Cestino» la mail va nel Cestino della casella (si può ancora recuperare).
       </p>
       <Stato carica={carica} errore={errore}
         vuoto={dati && !dati.righe.length && !dati.spostate.length ? 'Niente da riordinare: gli agenti propongono le mail nuove ogni volta che lavorano.' : null}>
@@ -533,7 +554,7 @@ export function Riordino() {
       {quante > 0 && (
         <div className="barra-riordino">
           <button type="button" className={'tasto-grande' + (conferma ? ' conferma' : '')} onClick={sposta} disabled={lavoro}>
-            {lavoro ? 'Sposto…' : conferma ? `Tocca ancora: sposta ${quante} mail` : `Sposta ${quante} mail`}
+            {lavoro ? 'Sposto…' : `${conferma ? 'Tocca ancora: sposta' : 'Sposta'} ${quante} mail${nelCestino ? ` (${nelCestino === quante ? 'tutte' : nelCestino} nel Cestino)` : ''}`}
           </button>
           <div className="azioni">
             <button type="button" className="tasto-link" onClick={tieni} disabled={lavoro}>Lascia in casella</button>

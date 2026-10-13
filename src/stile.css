@@ -945,3 +945,7 @@ mark { background: rgba(255, 214, 102, 0.22); color: var(--testo); border-radius
 
 /* Chiedi: microfono accanto alla ricerca. */
 .cerca .tasto-mic { width: 48px; height: 48px; }
+
+/* Riordino: tasto Cestino (13.10.2026) */
+.chip.tasto-cestino { color: var(--rosso); border-color: rgba(255, 93, 108, 0.45); }
+.chip.tasto-cestino.attivo { background: rgba(255, 93, 108, 0.16); border-color: var(--rosso); }

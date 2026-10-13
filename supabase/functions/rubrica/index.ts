@@ -344,8 +344,14 @@ const numeriDaSistemare = (lista: Riga[]) => {
   return new Set(k).size < k.length || k.some((a) => k.some((b) => b !== a && b.length > a.length && dentro(a, b)))
 }
 
-async function pulisci(token: string, prova: boolean) {
+// coppie = unioni scelte da Giovanni ([resta, via], es. "Mamma (Leo)" dentro "Teresa Mamma Elodie"): si fanno solo quelle.
+async function pulisci(token: string, prova: boolean, coppie?: [string, string][]) {
   const righe = await tutte(`rubrica?utente_id=eq.${UTENTE}&eliminata_il=is.null&risorsa=not.is.null&select=*`) as Riga[]
+  if (coppie?.length) {
+    const per = new Map(righe.map((r) => [r.id, r]))
+    const scelte = coppie.map(([a, b]) => ({ resta: per.get(a)!, via: [per.get(b)!] })).filter((u) => u.resta && u.via[0] && u.resta.id !== u.via[0].id)
+    return unisci(token, prova, scelte, scelte.map((u) => u.resta))
+  }
   // 1. Gruppi da unire (unione-ricerca su numero + nome di battesimo).
   const padre = righe.map((_, i) => i)
   const radice = (i: number): number => (padre[i] === i ? i : (padre[i] = radice(padre[i])))
@@ -377,6 +383,11 @@ async function pulisci(token: string, prova: boolean) {
     || numeriDaSistemare(r.telefoni as Riga[])
     || nomeSenzaNumeri({ givenName: r.nome, familyName: r.cognome })))
 
+  return unisci(token, prova, unioni, daSistemare)
+}
+
+async function unisci(token: string, prova: boolean, unioni: { resta: Riga, via: Riga[] }[], daSistemare: Riga[]) {
+  const viaIds = new Set(unioni.flatMap((u) => u.via.map((r) => r.id)))
   if (prova) {
     return {
       unioni: unioni.length, contatti_tolti: viaIds.size, da_sistemare: daSistemare.length,
@@ -479,7 +490,10 @@ Deno.serve(async (req: Request) => {
       return risposta(await sincronizza())
     }
     const token = await accesso()
-    if (azione === 'pulisci') return risposta(await pulisci(token, corpo.prova !== false))
+    if (azione === 'pulisci') {
+      const coppie = Array.isArray(corpo.coppie) ? corpo.coppie.filter((c: unknown) => Array.isArray(c) && c.length === 2 && c.every(uuid)) : undefined
+      return risposta(await pulisci(token, corpo.prova !== false, coppie))
+    }
     if (azione === 'salva' && persona_id) {
       if (!uuid(persona_id)) return risposta({ errore: 'Persona sconosciuta' }, 400)
       return risposta(await salvaPersona(token, persona_id))

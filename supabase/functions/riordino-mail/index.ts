@@ -108,9 +108,16 @@ async function spostaGC(righe: Record<string, any>[], scelte: Map<string, string
   const imap = new ImapFlow({ host: 'imap.mail.hostpoint.ch', port: 993, secure: true, auth: { user: IO, pass: password }, logger: false })
   await imap.connect()
   const esistenti = new Set((await imap.list()).map((b) => b.path))
-  for (const da of ['INBOX', 'Sent']) {
-    const gruppo = righe.filter((r) => r.cartella_da === da)
-    if (!gruppo.length) continue
+  // Di solito INBOX e Sent; anche altre cartelle quando Giovanni chiede di spostare una mail già archiviata (13.10.2026).
+  for (const da of new Set(righe.map((r) => String(r.cartella_da || 'INBOX')))) {
+    const gruppo = righe.filter((r) => String(r.cartella_da || 'INBOX') === da)
+    if (!esistenti.has(da)) {
+      for (const r of gruppo) {
+        await aggiorna(r.id, { stato: r.stato, esito: `Non spostata: la cartella "${da}" non esiste` })
+        esito.errori.push(`${r.oggetto || r.message_id}: la cartella "${da}" non esiste`)
+      }
+      continue
+    }
     const lock = await imap.getMailboxLock(da)
     try {
       for (const r of gruppo) {
@@ -133,7 +140,7 @@ async function spostaGC(righe: Record<string, any>[], scelte: Map<string, string
             if (m && senzaParentesi(m.envelope?.messageId || '') === mid) giuste.push(uid)
           }
           if (!giuste.length) {
-            await aggiorna(r.id, { stato: 'sparita', esito: `Non è più in ${da === 'INBOX' ? 'Posta in arrivo' : 'Posta inviata'}` })
+            await aggiorna(r.id, { stato: 'sparita', esito: `Non è più in ${da === 'INBOX' ? 'Posta in arrivo' : da === 'Sent' ? 'Posta inviata' : da}` })
             esito.sparite++
             continue
           }

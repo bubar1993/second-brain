@@ -167,6 +167,17 @@ export function Riordino() {
               )
             })}
 
+            {/* Mail già archiviate che Giovanni ha chiesto di spostare (13.10.2026) */}
+            {[...new Set(proposte.filter((r) => (r.casella || 'gc') === 'gc' && !['INBOX', 'Sent'].includes(r.cartella_da)).map((r) => r.cartella_da))].map((da) => {
+              const rr = proposte.filter((r) => (r.casella || 'gc') === 'gc' && r.cartella_da === da)
+              return (
+                <div key={'gc' + da} className="casella">
+                  <h2>Da {corta(da)} <span className="conto">{rr.length}</span></h2>
+                  {gruppi(rr)}
+                </div>
+              )
+            })}
+
             {inVista.length > 0 && (
               <div className="casella">
                 <h2>In vista <span className="conto">{inVista.length}</span></h2>

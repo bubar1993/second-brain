@@ -137,17 +137,19 @@ export function Persone() {
           <div className="elenco">
             {visibili.slice(0, 200).map((p) => {
               const figli = parole.length ? [] : sottoDi(p)
+              if (!figli.length) return riga(p)
               const aperto = aperti.includes(p.id)
-              return [
-                riga(p),
-                figli.length > 0 && (
-                  <button key={p.id + '-tendina'} type="button" className="riga riga-tendina" aria-expanded={aperto}
+              // Una sola "cella": la persona, il menu a tendina e (aperto) le persone sotto di lei.
+              return (
+                <div key={p.id} className="gruppo-persona">
+                  {riga(p)}
+                  <button type="button" className="riga-tendina" aria-expanded={aperto}
                     onClick={() => setAperti(aperto ? aperti.filter((x) => x !== p.id) : [...aperti, p.id])}>
-                    <span className="riga-corpo"><span className="riga-meta">{aperto ? '▴' : '▾'} {figli.map((f) => f.nome).join(', ')}</span></span>
+                    {aperto ? '▴' : '▾'} {figli.map((f) => f.nome).join(', ')}
                   </button>
-                ),
-                ...(aperto ? figli.map((f) => riga(f, true)) : []),
-              ]
+                  {aperto && figli.map((f) => riga(f, true))}
+                </div>
+              )
             })}
             {visibili.length > 200 && <p className="msg">Altre {visibili.length - 200}: scrivi un nome per trovarle.</p>}
             {cerca.trim() && (

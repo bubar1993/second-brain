@@ -888,8 +888,15 @@ mark { background: rgba(255, 214, 102, 0.22); color: var(--testo); border-radius
 .tessera-capitolo .tasto-link.pericolo { margin: 0 0 6px 8px; align-self: flex-start; padding: 6px; }
 .tessera-capitolo .tendina { margin: -6px 0 8px 8px; align-self: flex-start; padding: 8px 6px; min-height: 40px; text-align: left; }
 .tessera-figlia { border-left: 3px solid #ff8f45; }
-.riga-tendina { min-height: 44px; padding-top: 4px; padding-bottom: 4px; padding-left: 52px; background: transparent; border: 0; width: 100%; text-align: left; cursor: pointer; }
-.riga-figlia { padding-left: 32px; border-left: 3px solid #ff8f45; }
+/* Persona con altre persone sotto (es. Lady di Blackwood con i figli): tutto in una cella dell'elenco. */
+.gruppo-persona { border-bottom: 1px solid var(--bordo); }
+.elenco > .gruppo-persona:last-child { border-bottom: 0; }
+.gruppo-persona > .riga { border-bottom: 0; }
+.gruppo-persona > .riga:first-child { padding-bottom: 2px; }
+.riga-tendina { display: block; min-height: 44px; margin: 0 16px 8px 44px; padding: 8px 12px; border-radius: 12px;
+  background: rgba(255, 143, 69, 0.08); border: 1px solid rgba(255, 143, 69, 0.25); color: var(--testo);
+  font-size: 15px; text-align: left; width: calc(100% - 60px); box-sizing: border-box; cursor: pointer; }
+.gruppo-persona > .riga-figlia { margin-left: 44px; width: calc(100% - 44px); min-height: 52px; border-left: 3px solid #ff8f45; }
 .tessera-nuova { min-height: 76px; border-radius: 16px; border: 1px dashed rgba(255, 143, 69, 0.55); background: transparent; color: #ff8f45; font-size: 15px; }
 .scelta-persona { display: flex; flex-direction: column; gap: 8px; }
 @media (min-width: 1024px) {

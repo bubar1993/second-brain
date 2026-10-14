@@ -57,10 +57,18 @@ export function Persone() {
   const [scelta, setScelta] = useState(null)
   const [cerca, setCerca] = useState('')
 
-  const { dati, errore, carica } = useCarica(async () => chk(
-    await sb.from('persone').select(CAMPI_PERSONA + ',email,ruolo')
-      .is('eliminata_il', null).order('nome').order('cognome'),
-  ), [])
+  const [aperti, setAperti] = useState([]) // persone con il menu a tendina aperto (es. i figli di Lady di Blackwood)
+  // Ordine (14.10.2026, scelta di Giovanni): prima quelle "in cima" (Lady di Blackwood, Leonardo, Jolie),
+  // poi chi ha più note, messaggi WhatsApp e appuntamenti (vista persone_uso), poi per nome.
+  const { dati, errore, carica } = useCarica(async () => {
+    const [persone, uso] = await Promise.all([
+      sb.from('persone').select(CAMPI_PERSONA + ',email,ruolo,in_cima,sotto_id').is('eliminata_il', null).order('nome').order('cognome').then(chk),
+      sb.from('persone_uso').select('id,uso').gt('uso', 0).then(chk),
+    ])
+    const n = Object.fromEntries(uso.map((u) => [u.id, u.uso]))
+    return persone.map((p) => ({ ...p, uso: n[p.id] || 0 }))
+      .sort((a, b) => (a.in_cima ?? 99) - (b.in_cima ?? 99) || b.uso - a.uso)
+  }, [])
 
   const conteggi = {}
   const tutte = (dati || []).map((p) => {
@@ -70,10 +78,26 @@ export function Persone() {
   })
 
   const parole = cerca.trim().toLowerCase().split(/\s+/).filter(Boolean)
-  const visibili = tutte.filter((p) =>
+  const trovate = tutte.filter((p) =>
     (scelta === null || p.chiave === scelta) &&
     (area === 'T' || p.chiave.includes(area)) &&
     parole.every((w) => p.cercabile.includes(w)))
+  // Senza ricerca chi sta "sotto" un'altra persona si vede solo aprendo il suo menu a tendina.
+  const sottoDi = (p) => trovate.filter((x) => x.sotto_id === p.id)
+  const visibili = parole.length ? trovate : trovate.filter((p) => !p.sotto_id || !trovate.some((x) => x.id === p.sotto_id))
+  const riga = (p, figlia = false) => (
+    <a key={p.id} className={'riga' + (figlia ? ' riga-figlia' : '')} href={`#/persona/${p.id}`}>
+      <span className="pallini">
+        {p.chiave.split('').map((c) => (
+          <span key={c} className="pallino" style={{ background: areaDa(c).colore }} />
+        ))}
+      </span>
+      <span className="riga-corpo">
+        <span className="riga-testo">{nomePersona(p)}</span>
+        <span className="riga-meta"><EtichettePersona p={p} /></span>
+      </span>
+    </a>
+  )
 
   async function crea() {
     const parti = cerca.trim().split(/\s+/)
@@ -111,19 +135,20 @@ export function Persone() {
       <Stato carica={carica} errore={errore}>
         {dati && (
           <div className="elenco">
-            {visibili.slice(0, 200).map((p) => (
-              <a key={p.id} className="riga" href={`#/persona/${p.id}`}>
-                <span className="pallini">
-                  {p.chiave.split('').map((c) => (
-                    <span key={c} className="pallino" style={{ background: areaDa(c).colore }} />
-                  ))}
-                </span>
-                <span className="riga-corpo">
-                  <span className="riga-testo">{nomePersona(p)}</span>
-                  <span className="riga-meta"><EtichettePersona p={p} /></span>
-                </span>
-              </a>
-            ))}
+            {visibili.slice(0, 200).map((p) => {
+              const figli = parole.length ? [] : sottoDi(p)
+              const aperto = aperti.includes(p.id)
+              return [
+                riga(p),
+                figli.length > 0 && (
+                  <button key={p.id + '-tendina'} type="button" className="riga riga-tendina" aria-expanded={aperto}
+                    onClick={() => setAperti(aperto ? aperti.filter((x) => x !== p.id) : [...aperti, p.id])}>
+                    <span className="riga-corpo"><span className="riga-meta">{aperto ? '▴' : '▾'} {figli.map((f) => f.nome).join(', ')}</span></span>
+                  </button>
+                ),
+                ...(aperto ? figli.map((f) => riga(f, true)) : []),
+              ]
+            })}
             {visibili.length > 200 && <p className="msg">Altre {visibili.length - 200}: scrivi un nome per trovarle.</p>}
             {cerca.trim() && (
               <button type="button" className="riga crea" onClick={crea}>+ Nuova persona «{cerca.trim()}»</button>

@@ -888,6 +888,8 @@ mark { background: rgba(255, 214, 102, 0.22); color: var(--testo); border-radius
 .tessera-capitolo .tasto-link.pericolo { margin: 0 0 6px 8px; align-self: flex-start; padding: 6px; }
 .tessera-capitolo .tendina { margin: -6px 0 8px 8px; align-self: flex-start; padding: 8px 6px; min-height: 40px; text-align: left; }
 .tessera-figlia { border-left: 3px solid #ff8f45; }
+.riga-tendina { min-height: 44px; padding-top: 4px; padding-bottom: 4px; padding-left: 52px; background: transparent; border: 0; width: 100%; text-align: left; cursor: pointer; }
+.riga-figlia { padding-left: 32px; border-left: 3px solid #ff8f45; }
 .tessera-nuova { min-height: 76px; border-radius: 16px; border: 1px dashed rgba(255, 143, 69, 0.55); background: transparent; color: #ff8f45; font-size: 15px; }
 .scelta-persona { display: flex; flex-direction: column; gap: 8px; }
 @media (min-width: 1024px) {

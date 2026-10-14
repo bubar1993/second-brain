@@ -951,3 +951,22 @@ mark { background: rgba(255, 214, 102, 0.22); color: var(--testo); border-radius
 /* Riordino: tasto Cestino (13.10.2026) */
 .chip.tasto-cestino { color: var(--rosso); border-color: rgba(255, 93, 108, 0.45); }
 .chip.tasto-cestino.attivo { background: rgba(255, 93, 108, 0.16); border-color: var(--rosso); }
+
+/* Chiedi: la risposta dell'AI (14.10.2026). Vetro con un filo viola-blu, numeri delle fonti come piccoli cerchi. */
+.risposta-ai {
+  display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: var(--raggio);
+  background: linear-gradient(160deg, rgba(91, 147, 255, 0.10), rgba(160, 120, 255, 0.04));
+  border: 1px solid rgba(140, 150, 255, 0.28);
+}
+.risposta-testo { margin: 0; font-size: 17px; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; }
+.risposta-attesa { margin: 0; color: var(--tenue); font-style: italic; animation: pensa 1.6s ease-in-out infinite; }
+@keyframes pensa { 50% { opacity: 0.45; } }
+.cita {
+  position: relative; display: inline-grid; place-items: center; min-width: 22px; height: 22px; margin: 0 2px; padding: 0 5px;
+  border-radius: 999px; vertical-align: 2px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
+  background: rgba(91, 147, 255, 0.18); color: var(--blu); text-decoration: none;
+}
+a.cita::after { content: ''; position: absolute; inset: -11px -6px; } /* area di tocco piu' grande */
+.cita.fermo { flex: none; align-self: center; }
+.fonti-ai .riga { min-height: 46px; }
+@media (prefers-reduced-motion: reduce) { .risposta-attesa { animation: none; } }

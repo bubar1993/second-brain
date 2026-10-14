@@ -16,19 +16,73 @@ function Evidenzia({ testo }) {
     ? <mark key={i}>{p.slice(1, -1)}</mark> : p))
 }
 
-// Tornando da una scheda ritrovi domanda e risultati; toccando Chiedi riparti da zero.
-const tieniRicerca = (domanda, risultati) => tieniQui('chiedi', { domanda, risultati })
+const TIPI_FONTE = { ...TIPI, azienda: 'Scheda', appuntamento: 'Appuntamento', promemoria: 'Promemoria' }
 
-// Chiedi (fase 4, gratis): clienti e cantieri mentre scrivi; con Invio cerca per parole simili ovunque.
+// Risposta scritta dall'AI (14.10.2026, crediti API del piano Max): testo semplice, i numeri [n] diventano
+// link alle fonti (i link li costruisce il server, mai il modello).
+function RispostaAI({ ai }) {
+  const fonte = (n) => ai.fonti?.find((f) => f.n === n)
+  const parti = (ai.testo || '').split(/(\[\d+(?:\s*,\s*\d+)*\])/)
+  return (
+    <section className="risposta-ai" aria-live="polite">
+      {ai.stato === 'in_corso' && <p className="risposta-attesa">Ci penso… di solito bastano 10–30 secondi.</p>}
+      {ai.stato === 'errore' && <p className="msg">{ai.testo}</p>}
+      {ai.stato === 'fatta' && (
+        <>
+          <p className="risposta-testo">
+            {parti.map((p, i) => {
+              const m = p.match(/^\[(.+)\]$/)
+              if (!m) return p
+              return m[1].split(',').map((x) => Number(x.trim())).map((n) => fonte(n)
+                ? <a key={i + '-' + n} className="cita" href={fonte(n).link} aria-label={`Fonte ${n}`}>{n}</a> : null)
+            })}
+          </p>
+          {ai.fonti?.length > 0 && (
+            <div className="elenco fonti-ai">
+              {ai.fonti.map((f) => (
+                <a key={f.n} className="riga riga-trovato" href={f.link}>
+                  <span className="cita fermo">{f.n}</span>
+                  <span className="riga-corpo">
+                    <span className="riga-meta">{TIPI_FONTE[f.tipo] || f.tipo} · {f.titolo}{f.data ? ` · ${quando(f.data)}` : ''}</span>
+                  </span>
+                </a>
+              ))}
+            </div>
+          )}
+          <p className="nota-piccola">
+            {ai.nota ? ai.nota + ' ' : ''}Risposta dell'AI da quello che c'è qui: guarda le fonti. Per fare qualcosa, scrivilo al Capo.
+          </p>
+        </>
+      )}
+    </section>
+  )
+}
+
+// Chiedi (fase 4): clienti e cantieri mentre scrivi; con Invio cerca per parole simili ovunque e l'AI risponde.
+// Tornando da una scheda ritrovi domanda, risultati e risposta; toccando Chiedi riparti da zero.
 export default function Chiedi() {
   const { area } = useApp()
   const [tenuta] = useState(() => tenutoQui('chiedi'))
-  const [domanda, setDomandaStato] = useState(tenuta?.domanda || '')
+  const [domanda, setDomanda] = useState(tenuta?.domanda || '')
   const [risultati, setRisultati] = useState(tenuta?.risultati || null)
-  const setDomanda = (d) => { setDomandaStato(d); tieniRicerca(d, risultati) }
+  const [ai, setAi] = useState(tenuta?.ai || null)
+  useEffect(() => { tieniQui('chiedi', { domanda, risultati, ai }) }, [domanda, risultati, ai])
   const [msg, setMsg] = useState('')
   const [lavoro, setLavoro] = useState(false)
   const ricerca = useRef(0)
+
+  // La risposta la scrive la funzione in sottofondo: qui la si rilegge finché è pronta (anche tornando nell'app).
+  useEffect(() => {
+    if (!ai?.id || ai.stato !== 'in_corso') return
+    let via = false
+    const t = setInterval(async () => {
+      const { data } = await sb.from('ai_risposte').select('id,stato,testo,fonti,nota,creata_il').eq('id', ai.id).maybeSingle()
+      if (via || !data) return
+      if (data.stato !== 'in_corso') setAi(data)
+      else if (Date.now() - new Date(data.creata_il).getTime() > 180_000) setAi({ ...data, stato: 'errore', testo: 'Non sono riuscito a rispondere. Riprova.' })
+    }, 1500)
+    return () => { via = true; clearInterval(t) }
+  }, [ai?.id, ai?.stato])
 
   // I clienti sono pochi: si leggono una volta e si filtrano mentre scrivi.
   const [aziende, setAziende] = useState([])
@@ -60,6 +114,14 @@ export default function Chiedi() {
     if (!domanda.trim()) return
     setLavoro(true)
     setMsg('')
+    const mia = ++ricerca.current
+    // L'AI parte subito, insieme alla ricerca. Senza chiave risponde { pronta: false } e non si vede niente.
+    setAi(null)
+    if (domanda.trim().length >= 3) {
+      chiama('chiedi-ai', { domanda: domanda.trim(), area: area === 'T' ? null : area })
+        .then((r) => { if (r?.id && mia === ricerca.current) setAi({ id: r.id, stato: 'in_corso' }) })
+        .catch((e) => { if (mia === ricerca.current) setAi({ stato: 'errore', testo: messaggioErrore(e) }) })
+    }
     try {
       // Persone per nome: tutte le parole della domanda che somigliano a un nome.
       const qp = parole.length
@@ -87,7 +149,7 @@ export default function Chiedi() {
         visti.add(k)
         return true
       })
-      const mia = ++ricerca.current
+      if (mia !== ricerca.current) return // nel frattempo hai cercato altro
       setRisultati({ cose, persone: pers, significato: null })
       setLavoro(false)
       // Solo quelle che la ricerca per parole non ha già trovato.
@@ -95,7 +157,6 @@ export default function Chiedi() {
       const significato = (await qs).filter((r) => !gia.has(r.tipo + r.id)).slice(0, 10)
       if (mia !== ricerca.current) return // nel frattempo hai cercato altro
       setRisultati({ cose, persone: pers, significato })
-      tieniRicerca(domanda, { cose, persone: pers, significato })
     } catch (e) {
       setMsg(messaggioErrore(e))
     } finally {
@@ -113,7 +174,7 @@ export default function Chiedi() {
   }, [dettatura.attiva]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const vuoto = risultati && risultati.significato !== null && !risultati.cose.length && !risultati.persone.length && !risultati.significato?.length
-    && !clienti.length && !trovatiCantieri.length
+    && !clienti.length && !trovatiCantieri.length && ai?.stato !== 'fatta' && ai?.stato !== 'in_corso'
 
   return (
     <div className="schermata">
@@ -133,6 +194,8 @@ export default function Chiedi() {
       <p className="nota-piccola">
         Scrivi come parli («cosa mi aveva detto Emiliana sui campioni»): cerco in note, mail, persone e WhatsApp{area !== 'T' ? ` di ${areaDa(area).nome}` : ''}, anche con parole simili e per significato.
       </p>
+
+      {ai && <RispostaAI ai={ai} />}
 
       {clienti.length > 0 && (
         <>

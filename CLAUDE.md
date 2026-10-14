@@ -1,6 +1,6 @@
 # Second Brain GF
 
-Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo aggiornamento: 14.10.2026 (risposta dell'AI in Chiedi coi crediti API del piano Max).
+Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo aggiornamento: 14.10.2026 sera (inviti a call nelle mail, pianoforte e figli di Lady di Blackwood, ordine delle Persone, attrezzi in `scripts/`).
 
 ## Chi è Giovanni e come rispondergli
 - Giovanni Fabris, Manno (Ticino). Ha due società: **Ceramex SAGL** (agente di commercio: Marazzi/Ragno, Flaviker/ABK, Garbelotto, Profilitec) e **G&C Home Concepts Sagl** (forniture per interni).
@@ -32,6 +32,7 @@ Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo
 - Accesso tramite **token personale di Supabase** (supabase.com → Account → Access Tokens), che vede tutte le organizzazioni.
 - Il token si salva solo come variabile d'ambiente di Windows (`SUPABASE_ACCESS_TOKEN`) o con `supabase login`. **Mai** nella chat, mai in file del progetto, mai su git.
 - Per Cloudflare si usa lo stesso metodo delle altre due app (guarda come sono pubblicate in `Documenti\ceramex` e `Documenti\gchomeconcepts`).
+- Attrezzi di Claude (14.10.2026): `scripts/sql.ps1 -File x.sql [-Nome migrazione]` per eseguire SQL o registrare una migrazione; `scripts/routine-prompt.mjs estrai|confronta` per cambiare i prompt delle routine senza errori (i file col prompt contengono token: solo nella cartella temporanea).
 
 ## Il progetto
 Una sola app (PWA installabile su Android, come le altre due) dove Giovanni tiene tutto quello che deve ricordare. Ci sono tre aree: **Ceramex (C)**, **G&C (G)**, **Privato (P)**, ognuna con un colore fisso.

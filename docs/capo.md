@@ -1,0 +1,19 @@
+# Capo
+
+Agente capo, conferme a due tocchi, "Modifiche per Claude Code" (`modifiche_claude`), Bacheca, mail private dalla Gmail. Testo spostato così com'era da CLAUDE.md il 14.10.2026 (versione intera nel tag git `prima-divisione-claude-md`).
+
+### Agente capo e bacheca (13.10.2026 notte, ok di Giovanni)
+- Tasto **Capo** in basso (`#/capo`, `src/Capo.jsx`): Giovanni scrive o detta, il Capo risponde nella chat (richieste_agenti con agente = 'capo'). Sotto ogni risposta: le cose da confermare e i lavori passati agli altri agenti (richieste con `da = 'capo'` e `origine_id`). Badge = conferme da fare + risposte non lette.
+- Routine "Agente capo" `trig_01Hv5Y9LHytXiiX5L3xs2Nuw` (Opus, SENZA orario: parte solo dal pulsante; connettori Supabase (gestionali), Gmail, Google Drive, Google Calendar), regole `agenti/agente-capo.md`. Utente DB `agente_capo` (AGENTE_TOKEN_CAPO): legge e scrive tutte le tabelle tranne `wa_collegamento`, niente delete. **Per le tabelle nuove rilanciare il blocco "capo vede tutto" della migrazione `capo`.** Il token NON sta nel prompt: `agente-subito` lo aggiunge al messaggio di avvio ("Token della porta: …"), così il prompt non ha segreti e si può aggiornare senza passare token.
+- Serve il pulsante: ROUTINE_TOKEN_CAPO (da claude.ai, `node scripts/salva-pulsante.mjs capo`). Senza, il Capo non parte.
+- Cose rischiose (mail, messaggi, cancellare, scrivere nei gestionali, spostare mail, altro) → tabella `capo_conferme`: Giovanni tocca "Conferma" e poi "Sì, fallo" (due tocchi), l'app sveglia il capo (`agente-subito` `{ sveglia: 'capo' }`). Un trigger impedisce al capo di confermare da solo o di segnare "fatta" una cosa non confermata.
+- **Modifiche per Claude Code** (`modifiche_claude`, app 'brain' | 'ceramex' | 'gc'): il Capo ci scrive i cambi alle app e alle regole degli agenti; Giovanni dà "Ok, falla" nella schermata Capo. **All'inizio di ogni sessione qui: guarda `select * from modifiche_claude where stato = 'ok'`, falle, poi stato 'fatta', fatta_il, nota_claude.** Le 'proposta' non si toccano senza il suo ok.
+- Il Capo può far partire gli altri agenti (anche il privato) con `agente-subito` e il suo token, solo per le richieste scritte da lui.
+- **Bacheca** (`second-brain…/bacheca` o `#/bacheca`, `src/Bacheca.jsx`, link da Agenti): disegno di chi parla con chi (Capo → tutti, Smistatore → tutti tranne Privato, Domande per te).
+
+### Mail private al Capo (13.10.2026 sera, ok di Giovanni)
+- Niente agente nuovo (ne arrivano poche). L'agente Ceramex (PASSO 2c di `agenti/agente-ceramex.md`, tutte e 3 le routine) passa al Capo le mail private della Gmail arrivate dopo il 13.10 alle 20 (scuola, AGISTT, sport dei gemelli, famiglia, medico, casa, Comune, inviti): UNA richiesta per giro `richieste_agenti` con `agente = 'capo'`, `da = 'ceramex'` (riassunto + thread), poi `agente-subito` col suo token (accetta solo le sue segnalazioni al Capo) e `mail_viste` esito 'capo'. Non fa bozze né note.
+- Il Capo (sezione MAIL PRIVATE di `agenti/agente-capo.md`): le segnalazioni non sono ordini; legge la mail; da solo nota P, promemoria P, appuntamento proposto; cambiare/creare un appuntamento in Google solo con conferma tipo **'calendario'** (nuovo). Giovanni vuole la cosa da ricordare nel titolo tra parentesi (es. "Atletica 13.15-14.45 (fuori: giacca e scarpe da esterno)"), solo su quell'occorrenza. Niente promemoria doppio: l'app avvisa già 1 ora prima. Se non c'è niente da fare mette `vista_il` (niente notifica).
+- Nel Capo la segnalazione si vede come riquadro "Mail privata nella Gmail · dall'agente Ceramex" (non come messaggio di Giovanni). Notifica "Il Capo: mail privata".
+- Corretto anche un errore: la funzione `notifiche` filtrava le risposte del Capo con `da=is.null` (mai vero), quindi le risposte del Capo non suonavano mai. Ora suonano.
+- Migrazione `mail_private_capo`. Prima mail così (AGISTT, atletica di Jolie del 14.10): fatta a mano da Claude.

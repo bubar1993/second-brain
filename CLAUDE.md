@@ -167,6 +167,13 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 - Prove senza Giovanni: col copia_token `{ prova: 'strumento', nome, argomenti, area }` (non chiama Claude) o `{ domanda, prova: true }` (riga segnata `prova`). Migrazioni `chiedi_ai`, `chiedi_ai_spesa`.
 - Prossime idee proposte (non fatte): "Prima della visita" sull'appuntamento in Oggi; foto cercabili; una prima risposta veloce del Capo via API per le domande semplici.
 
+### Inviti a call nelle mail (14.10.2026, chiesto dal Capo, ok di Giovanni)
+- `posta-gc` legge anche la parte calendario delle mail di info@ (text/calendar, .ics) e la salva in `posta.invito` (metodo, titolo, inizio/fine in UTC, link più corto, organizzatore; i fusi Outlook tipo "W. Europe Standard Time" sono tradotti). `{ "inviti_giorni": N }` rilegge gli inviti di INBOX degli ultimi N giorni (fatto una volta il 14.10).
+- Agente G&C (punto 3 b2, 2 routine) e agente Ceramex (PASSO 2d, 3 routine): invito a una call → appuntamento `eventi` 'proposto' con il link nella descrizione, niente bozza. **L'archiviazione nel Riordino resta come sempre** (Giovanni, 14.10). Prima controllano `call_gia_in_calendario()` (risponde solo sì/no, vede tutte le aree); `eventi.da_mail` è unico, così una mail dà una proposta sola. Migrazione `inviti_call` (agente_gc/agente_ceramex: select+insert 'proposto' nella loro area; agente_ceramex può fare domande area C).
+- Agente calendario: crea l'evento con `eventi.descrizione` per prima (link, ID, passcode), poi "Dal second brain: motivo".
+- Oggi: "Entra nella call" in "Adesso" e nel pannello dell'appuntamento, "Link della call" nelle proposte (`linkCall` in `Visita.jsx`); niente "Naviga" se il luogo è Teams/Zoom/Meet.
+- Prima prova: la call Redsun «Abstimmung Zusammenarbeit» di venerdì 16.10 alle 9 (proposta dal Capo, approvata da Giovanni).
+
 ### Oggi: spunta sugli appuntamenti (12.10.2026)
 - Ogni appuntamento in Oggi ha la spunta come i promemoria: `eventi.fatto_il` (solo nel second brain, Google non cambia; l'agente calendario non la tocca). Gli agenti lavoro e privato riscrivono il punto del mattino quando qualcosa è stato spuntato o è arrivato di nuovo (solo cose ancora da fare).
 

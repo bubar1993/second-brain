@@ -3,7 +3,7 @@ import { sb, areaDa, quando, giorniDaOggi, leggi, scrivi } from './supabase'
 import { useApp, useCarica, chk, messaggioErrore, NotaRiga, Stato, Icona, useModifiche, perCampo, useScorriAree } from './componenti'
 import Rete from './Rete'
 import { AttivaNotifiche } from './Notifiche'
-import { visiteAperte, valoriEvento, CAMPI_EVENTO, ModificaAppuntamento } from './Visita'
+import { visiteAperte, valoriEvento, CAMPI_EVENTO, ModificaAppuntamento, linkCall } from './Visita'
 
 const corto = (s, n = 16) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s)
 const numero = (n) => (n == null ? '…' : n.toLocaleString('de-CH'))
@@ -409,13 +409,15 @@ function Adesso({ e }) {
   const inCorso = new Date(e.inizio) <= new Date()
   const tel = e.persone?.telefono
   const chi = e.persone ? [e.persone.nome, e.persone.cognome].filter(Boolean).join(' ') : ''
+  const call = linkCall(e)
   return (
     <section className="adesso" style={{ '--col': areaDa(e.area)?.colore || 'var(--grigio)' }} aria-label="Prossimo appuntamento">
       <p className="adesso-quando">{inCorso ? 'Adesso' : `Alle ${ora(e)}`}{inCorso && e.fine ? ` · fino alle ${new Date(e.fine).toLocaleTimeString('it-CH', { hour: '2-digit', minute: '2-digit' })}` : ''}</p>
       <p className="adesso-titolo">{e.titolo}</p>
       {(e.luogo || e.aziende || chi) && <p className="riga-meta">{[e.luogo, e.aziende?.nome, chi].filter(Boolean).join(' · ')}</p>}
       <div className="adesso-tasti">
-        {e.luogo && <a className="tasto-piccolo" href={mappa(e.luogo)} target="_blank" rel="noreferrer">Naviga</a>}
+        {call && <a className="tasto-piccolo" href={call} target="_blank" rel="noreferrer">Entra nella call</a>}
+        {e.luogo && !call && !/teams|zoom|meet|webex/i.test(e.luogo) && <a className="tasto-piccolo" href={mappa(e.luogo)} target="_blank" rel="noreferrer">Naviga</a>}
         {tel && <a className="tasto-piccolo" href={`tel:${tel}`}
           onClick={() => scrivi('chiamata', JSON.stringify({ id: e.persone.id, ora: Date.now() }))}>Chiama {e.persone.nome}</a>}
         <a className="tasto-piccolo" href={`#/visita/${e.id}`}>Appunti</a>
@@ -540,6 +542,7 @@ function RiquadroEvento({ e, chiuso, apri, tocca, fatto, ricarica, chiudi, daChi
         {apri && (
           <div className="pannello-evento">
             <div className="contatti-persona pannello-link">
+              {linkCall(e) && <a className="tasto-piccolo" href={linkCall(e)} target="_blank" rel="noreferrer">Entra nella call</a>}
               {e.aziende && <a className="tasto-piccolo" href={`#/azienda/${e.aziende.id}`}>Scheda {e.aziende.nome}</a>}
               {e.persone && <a className="tasto-piccolo" href={`#/persona/${e.persone.id}`}>{[e.persone.nome, e.persone.cognome].filter(Boolean).join(' ')}</a>}
               {lavoro(e) || !e.persone
@@ -575,7 +578,16 @@ function Proposte({ proposte, aperto, setAperto, decidi, ricarica }) {
                 <button type="button" className="tasto-link" onClick={() => decidi(e, false)}>No</button>
               </span>
             </div>
-            {aperto === e.id && <div className="pannello-evento"><ModificaAppuntamento e={e} fatto={ricarica} chiudi={() => setAperto(null)} /></div>}
+            {aperto === e.id && (
+              <div className="pannello-evento">
+                {linkCall(e) && (
+                  <div className="contatti-persona pannello-link">
+                    <a className="tasto-piccolo" href={linkCall(e)} target="_blank" rel="noreferrer">Link della call</a>
+                  </div>
+                )}
+                <ModificaAppuntamento e={e} fatto={ricarica} chiudi={() => setAperto(null)} />
+              </div>
+            )}
           </div>
         ))}
       </div>

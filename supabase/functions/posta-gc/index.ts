@@ -41,13 +41,14 @@ const daHtml = (html: string) => html
   .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
   .replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n')
 
-// Dalla struttura della mail: quale parte è il testo e quali sono gli allegati.
+// Dalla struttura della mail: quale parte è il testo, quale l'invito (text/calendar) e quali sono gli allegati.
 type Nodo = { part?: string, type?: string, size?: number, disposition?: string, parameters?: Record<string, string>,
   dispositionParameters?: Record<string, string>, childNodes?: Nodo[] }
-function parti(n: Nodo | undefined, out = { testo: '', html: '', allegati: [] as { nome?: string, tipo?: string, kb: number }[] }) {
+function parti(n: Nodo | undefined, out = { testo: '', html: '', calendario: '', allegati: [] as { nome?: string, tipo?: string, kb: number }[] }) {
   if (!n) return out
   if (n.childNodes?.length) { n.childNodes.forEach((c) => parti(c, out)); return out }
   const nome = n.dispositionParameters?.filename || n.parameters?.name
+  if (!out.calendario && (n.type === 'text/calendar' || n.type === 'application/ics' || /\.ics$/i.test(nome || ''))) out.calendario = n.part || '1'
   if (nome || n.disposition === 'attachment') out.allegati.push({ nome, tipo: n.type, kb: Math.round((n.size || 0) / 1024) })
   else if (n.type === 'text/plain' && !out.testo) out.testo = n.part || '1'
   else if (n.type === 'text/html' && !out.html) out.html = n.part || '1'
@@ -59,6 +60,71 @@ async function scarica(client: ImapFlow, uid: number, parte: string) {
   const pezzi: Uint8Array[] = []
   for await (const p of content) pezzi.push(typeof p === 'string' ? new TextEncoder().encode(p) : p)
   return new TextDecoder().decode(await new Blob(pezzi).arrayBuffer())
+}
+
+// Inviti a call/riunioni (14.10.2026): dalla parte calendario si tengono data, ora, titolo e link per entrare.
+// I nomi di fuso di Outlook ("W. Europe Standard Time") si traducono in quelli veri.
+const FUSI_WINDOWS: Record<string, string> = {
+  'W. Europe Standard Time': 'Europe/Zurich', 'Central Europe Standard Time': 'Europe/Budapest',
+  'Romance Standard Time': 'Europe/Paris', 'Central European Standard Time': 'Europe/Warsaw',
+  'GMT Standard Time': 'Europe/London', 'E. Europe Standard Time': 'Europe/Bucharest',
+  'FLE Standard Time': 'Europe/Kiev', 'GTB Standard Time': 'Europe/Athens', 'UTC': 'UTC',
+}
+const LINK_CALL = /https:\/\/(?:teams\.microsoft\.com\/(?:meet|l\/meetup-join)\/[^\s<>"']+|[\w.-]*zoom\.us\/j\/[^\s<>"']+|meet\.google\.com\/[a-z-]+|[\w.-]*webex\.com\/[^\s<>"']+)/i
+
+// Ora locale di un fuso → ISO in UTC (due passaggi per i cambi d'ora).
+function daFuso(y: number, mo: number, d: number, h: number, mi: number, s: number, fuso: string) {
+  const voluto = Date.UTC(y, mo - 1, d, h, mi, s)
+  const scarto = (t: number) => {
+    const p = new Intl.DateTimeFormat('en-US', { timeZone: fuso, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(new Date(t))
+    const v = (k: string) => Number(p.find((x) => x.type === k)?.value)
+    return Date.UTC(v('year'), v('month') - 1, v('day'), v('hour'), v('minute'), v('second')) - t
+  }
+  let t = voluto - scarto(voluto)
+  t = voluto - scarto(t)
+  return new Date(t).toISOString()
+}
+
+// "DTSTART;TZID=W. Europe Standard Time:20261020T100000" → { quando (ISO), giorno (solo data), fuso }
+function dataIcs(riga: string | undefined) {
+  if (!riga) return null
+  const [testa, valore = ''] = [riga.slice(0, riga.indexOf(':')), riga.slice(riga.indexOf(':') + 1).trim()]
+  const m = valore.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z)?)?$/)
+  if (!m) return null
+  const [, y, mo, d, h, mi, s, z] = m
+  if (h === undefined) return { giorno: `${y}-${mo}-${d}`, quando: null, fuso: null }
+  const tzid = (testa.match(/TZID=("?)([^;:"]+)\1/) || [])[2]
+  let fuso = z ? 'UTC' : (tzid ? (FUSI_WINDOWS[tzid] || tzid) : 'Europe/Zurich')
+  try { new Intl.DateTimeFormat('en-US', { timeZone: fuso }) } catch { fuso = 'Europe/Zurich' }
+  return { giorno: null, quando: daFuso(+y, +mo, +d, +h, +mi, +(s || 0), fuso), fuso: tzid || (z ? 'UTC' : null) }
+}
+
+function leggiInvito(ics: string, testoMail: string) {
+  const righe = ics.replace(/\r?\n[ \t]/g, '').split(/\r?\n/)
+  const inizioEv = righe.findIndex((r) => r.startsWith('BEGIN:VEVENT'))
+  if (inizioEv < 0) return null
+  const fineEv = righe.findIndex((r, i) => i > inizioEv && r.startsWith('END:VEVENT'))
+  const ev = righe.slice(inizioEv, fineEv < 0 ? undefined : fineEv)
+  const campo = (nome: string) => ev.find((r) => r.startsWith(nome + ':') || r.startsWith(nome + ';'))
+  const valore = (nome: string) => {
+    const r = campo(nome)
+    return r ? r.slice(r.indexOf(':') + 1).replace(/\\n/gi, '\n').replace(/\\([,;\\])/g, '$1').trim() : null
+  }
+  const metodo = (righe.find((r) => r.startsWith('METHOD:')) || '').slice(7).trim() || null
+  const inizio = dataIcs(campo('DTSTART'))
+  if (!inizio) return null
+  const fine = dataIcs(campo('DTEND'))
+  const org = campo('ORGANIZER')
+  // Tra i link trovati il più corto: per Teams è quello "teams.microsoft.com/meet/…" col codice già dentro.
+  const link = [valore('X-MICROSOFT-SKYPETEAMSMEETINGURL'), valore('URL'), valore('LOCATION'), valore('DESCRIPTION'), testoMail]
+    .map((t) => (t || '').match(LINK_CALL)?.[0]).filter(Boolean).sort((a, b) => a!.length - b!.length)[0] || null
+  return {
+    metodo, stato: valore('STATUS'), titolo: valore('SUMMARY'), luogo: valore('LOCATION'), link, uid: valore('UID'),
+    inizio: inizio.quando || inizio.giorno, fine: fine ? (fine.quando || fine.giorno) : null,
+    tutto_il_giorno: !inizio.quando, fuso: inizio.fuso,
+    organizzatore: org ? (org.match(/mailto:([^\s;]+)/i)?.[1] || null)?.toLowerCase() : null,
+  }
 }
 
 // Legge un blocco di mail: prima busta e struttura (leggere), poi solo la parte di testo di ognuna.
@@ -73,6 +139,11 @@ async function leggiBlocco(client: ImapFlow, da: number, a: number, percorso: st
       let testo = ''
       if (p.testo) testo = await scarica(client, m.uid, p.testo)
       else if (p.html) testo = daHtml(await scarica(client, m.uid, p.html))
+      // Un invito illeggibile non deve far saltare la mail.
+      let invito = null
+      if (p.calendario) {
+        try { invito = leggiInvito(await scarica(client, m.uid, p.calendario), testo) } catch { invito = null }
+      }
       const id = pulisciId(e.messageId) || `uid-${percorso}-${m.uid}@${IO}`
       const rif = listaId(m.headers ? new TextDecoder().decode(m.headers) : '')
       const risponde = listaId(e.inReplyTo)[0] || null
@@ -82,7 +153,7 @@ async function leggiBlocco(client: ImapFlow, da: number, a: number, percorso: st
         thread_key: rif[0] || risponde || id, in_reply_to: risponde, riferimenti: rif,
         da: indirizzo(e.from?.[0]), da_nome: e.from?.[0]?.name || null, a: indirizzi(e.to), cc: indirizzi(e.cc),
         oggetto: e.subject || null, data: e.date ? new Date(e.date).toISOString() : null,
-        testo: testo.slice(0, 60000), allegati: p.allegati, fonte: 'imap', imap_uid: m.uid,
+        testo: testo.slice(0, 60000), allegati: p.allegati, fonte: 'imap', imap_uid: m.uid, invito,
       })
     } catch (e) {
       // Mail illeggibile: si salta, ma si conta (e si tiene il primo errore per capire).
@@ -185,8 +256,35 @@ Deno.serve(async (req: Request) => {
   if (!COPIA_TOKEN || req.headers.get('x-copia-token') !== COPIA_TOKEN) {
     return new Response('Non autorizzato', { status: 401 })
   }
+  const corpo = await req.clone().json().catch(() => ({}))
+  // Una volta sola (14.10.2026): rilegge la parte calendario delle mail di INBOX degli ultimi N giorni,
+  // arrivate prima che posta-gc sapesse leggere gli inviti. Non tocca le mail, aggiorna solo posta.invito.
+  if (corpo?.inviti_giorni) {
+    const c = new ImapFlow({ host: 'imap.mail.hostpoint.ch', port: 993, secure: true, logger: false,
+      auth: { user: Deno.env.get('GC_MAIL_USER') || IO, pass: Deno.env.get('GC_MAIL_PASSWORD') || '' } })
+    await c.connect()
+    const trovati = []
+    try {
+      await c.mailboxOpen('INBOX', { readOnly: true })
+      const uids = await c.search({ since: new Date(Date.now() - Number(corpo.inviti_giorni) * 864e5) }, { uid: true }) || []
+      if (uids.length) {
+        for (const m of await c.fetchAll(uids, { uid: true, envelope: true, bodyStructure: true }, { uid: true })) {
+          const p = parti(m.bodyStructure as Nodo)
+          if (!p.calendario) continue
+          const testo = p.testo ? await scarica(c, m.uid, p.testo) : p.html ? daHtml(await scarica(c, m.uid, p.html)) : ''
+          const invito = leggiInvito(await scarica(c, m.uid, p.calendario), testo)
+          const id = pulisciId(m.envelope?.messageId) || `uid-INBOX-${m.uid}@${IO}`
+          if (invito) await rest(`posta?message_id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ invito }) })
+          trovati.push({ oggetto: m.envelope?.subject, invito })
+        }
+      }
+    } finally {
+      await c.logout().catch(() => c.close())
+    }
+    return new Response(JSON.stringify(trovati), { headers: { 'Content-Type': 'application/json' } })
+  }
   // Solo per controllo: elenco delle cartelle della casella con il numero di mail (non legge le mail).
-  if ((await req.clone().json().catch(() => ({})))?.cartelle) {
+  if (corpo?.cartelle) {
     const c = new ImapFlow({ host: 'imap.mail.hostpoint.ch', port: 993, secure: true, logger: false,
       auth: { user: Deno.env.get('GC_MAIL_USER') || IO, pass: Deno.env.get('GC_MAIL_PASSWORD') || '' } })
     await c.connect()

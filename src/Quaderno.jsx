@@ -19,6 +19,7 @@ const QUADERNI = [
   { codice: 'G', sotto: 'Clienti, cantieri, poi le note' },
   { codice: 'P', sotto: 'Persone e temi, li scegli tu' },
 ]
+const GIORNI_SETTIMANA = ['', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
 const MESI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
 const CAMPI_NOTA = 'id,area,azienda_id,cantiere_id,testo,mandante,sezione,data,contatto,fonte,risolto_il,creata_il,note_persone(persona_id)'
 const FONTI = { voce: 'dettata', foto: 'foto', condivisa: 'condivisa', mail: 'dalla mail', whatsapp: 'da WhatsApp' }
@@ -676,9 +677,10 @@ function CapitoliPrivato({ compatto }) {
   const [modifica, setModifica] = useState(false)
   const [nuovo, setNuovo] = useState(null) // 'persona' | 'tema'
   const [nome, setNome] = useState('')
+  const [aperti, setAperti] = useState([]) // capitoli con il menu a tendina aperto
   const { dati, errore, carica, ricarica } = useCarica(async () => {
     const [capitoli, note, personeP] = await Promise.all([
-      sb.from('quaderno_capitoli').select('id,tipo,persona_id,nome,ordine,persone(id,nome,cognome)').is('eliminata_il', null).order('ordine').then(chk),
+      sb.from('quaderno_capitoli').select('id,tipo,persona_id,nome,ordine,sotto_id,persone(id,nome,cognome)').is('eliminata_il', null).order('ordine').then(chk),
       sb.from('note').select('id,note_persone(persona_id),note_temi(capitolo_id)').eq('area', 'P').is('eliminata_il', null).then(chk),
       sb.from('persone').select(CAMPI_PERSONA).is('eliminata_il', null).order('nome').then(chk),
     ])
@@ -712,18 +714,29 @@ function CapitoliPrivato({ compatto }) {
     } catch (e) { avvisa(messaggioErrore(e)) }
   }
 
-  const tessera = (c) => {
+  // Capitoli dentro un altro (14.10.2026: Davide e Celeste sotto Lady di Blackwood): menu a tendina sotto il genitore.
+  const sotto = (c) => dati.capitoli.filter((x) => x.sotto_id === c.id)
+  const tessera = (c, figlio = false) => {
     const titolo = c.tipo === 'persona' ? nomePersona(c.persone) : c.nome
     const quante = dati.conto[c.tipo === 'persona' ? c.persona_id : c.id] || 0
-    return (
-      <div key={c.id} className="tessera-capitolo">
+    const figli = figlio ? [] : sotto(c)
+    const aperto = aperti.includes(c.id)
+    return [
+      <div key={c.id} className={'tessera-capitolo' + (figlio ? ' tessera-figlia' : '')}>
         <a href={`#/quaderno/P/${c.tipo}/${c.id}`}>
           <b>{titolo}</b>
           <span className="nota-piccola">{quante} {quante === 1 ? 'nota' : 'note'}</span>
         </a>
+        {figli.length > 0 && (
+          <button type="button" className="tasto-link tendina" aria-expanded={aperto}
+            onClick={() => setAperti(aperto ? aperti.filter((x) => x !== c.id) : [...aperti, c.id])}>
+            {aperto ? '▴' : '▾'} {figli.map((f) => nomePersona(f.persone)).join(', ')}
+          </button>
+        )}
         {modifica && <button type="button" className="tasto-link pericolo" onClick={() => togli(c)}>Togli</button>}
-      </div>
-    )
+      </div>,
+      ...(aperto ? figli.map((f) => tessera(f, true)) : []),
+    ]
   }
 
   return (
@@ -737,7 +750,7 @@ function CapitoliPrivato({ compatto }) {
               <section key={tipo} className="blocco">
                 <h3>{tipo === 'persona' ? 'Persone' : 'Temi'}</h3>
                 <div className="tessere">
-                  {dati.capitoli.filter((c) => c.tipo === tipo).map(tessera)}
+                  {dati.capitoli.filter((c) => c.tipo === tipo && !c.sotto_id).map((c) => tessera(c))}
                   <button type="button" className="tessera-nuova" onClick={() => { setNuovo(nuovo === tipo ? null : tipo); setNome('') }}>
                     + {tipo === 'persona' ? 'Persona' : 'Tema'}
                   </button>
@@ -784,7 +797,12 @@ function CapitoloPrivato({ tipo, id }) {
     const note = capitolo.tipo === 'persona'
       ? (await sb.from('note_persone').select(`note!inner(${campi})`).eq('persona_id', capitolo.persona_id).eq('note.area', 'P').is('note.eliminata_il', null).then(chk)).map((r) => r.note)
       : (await sb.from('note_temi').select(`note!inner(${campi})`).eq('capitolo_id', id).eq('note.area', 'P').is('note.eliminata_il', null).then(chk)).map((r) => r.note)
-    return { capitolo, temi, note: ordinaNote(note.map((n) => ({ ...n, temi: n.note_temi.map((t) => t.capitolo_id) }))) }
+    // Attività fisse della persona (es. Davide e Celeste: non stanno nel calendario Google, solo qui).
+    const attivita = capitolo.tipo === 'persona'
+      ? await sb.from('attivita_figli').select('id,nome,giorno,inizio,fine').contains('persone', [capitolo.persona_id]).eq('attiva', true)
+        .order('giorno').order('inizio').then(chk)
+      : []
+    return { capitolo, temi, attivita, note: ordinaNote(note.map((n) => ({ ...n, temi: n.note_temi.map((t) => t.capitolo_id) }))) }
   }, [id])
   const risolvi = useRisolvi(ricarica)
 
@@ -802,6 +820,21 @@ function CapitoloPrivato({ tipo, id }) {
     <div className="schermata quaderno">
       <TestaQuaderno area="P" titolo={titolo} indietro="#/quaderno/P"
         destra={dati && <a href={nuova} className="tasto-piccolo nota-qui" style={{ '--col': areaDa('P').colore }}>+ Nota qui</a>} />
+      {dati?.attivita.length > 0 && (
+        <section className="blocco">
+          <h3>Attività fisse</h3>
+          <div className="elenco">
+            {dati.attivita.map((a) => (
+              <div key={a.id} className="riga">
+                <span className="riga-corpo">
+                  <span className="riga-testo">{a.nome}</span>
+                  <span className="riga-meta">{GIORNI_SETTIMANA[a.giorno]} {a.inizio?.slice(0, 5)}{a.fine ? `–${a.fine.slice(0, 5)}` : ''}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
       <Stato carica={carica} errore={errore} vuoto={dati && !dati.note.length ? 'Ancora nessuna nota qui. Tocca "+ Nota qui" per scrivere la prima.' : null}>
         {dati && <PagineNote note={dati.note} risolvi={risolvi} temi={dati.temi} cambiaTema={cambiaTema} />}
       </Stato>

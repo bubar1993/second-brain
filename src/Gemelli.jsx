@@ -39,7 +39,9 @@ export function Gemelli() {
     // Dal calendario: solo gli appuntamenti che parlano dei bambini o delle loro attività.
     const ev = chk(eventi).filter((e) => !/^scuola chiusa/i.test(e.titolo)
       && (legateAFeste.has(e.id) || PAROLE.some((p) => new RegExp(`\\b${p}`, 'i').test(e.titolo))))
-    return { figli: ff, attivita: chk(attivita), feste: fe, eventi: ev, diario, vacanze }
+    // Solo le attività di Leo e Jolie (in attivita_figli ci sono anche quelle dei figli di Lady di Blackwood).
+    const att = chk(attivita).filter((a) => a.persone?.some((id) => ff.some((f) => f.id === id)))
+    return { figli: ff, attivita: att, feste: fe, eventi: ev, diario, vacanze }
   }, [])
 
   async function cambiaFesta(f, campi, messaggio) {

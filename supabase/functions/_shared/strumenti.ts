@@ -32,11 +32,13 @@ export function nuovoContesto(sb: SupabaseClient, area: Area | null, chiamaFunzi
   return {
     sb, area, chiamaFunzione, fonti,
     fonte: (f) => {
-      const gia = perLink.get(f.link)
+      // Appuntamenti e promemoria senza nota portano tutti a Oggi: lì conta anche titolo e data, sennò diventano una fonte sola.
+      const chiave = f.link === '#/oggi' ? `${f.link}|${f.titolo}|${f.data}` : f.link
+      const gia = perLink.get(chiave)
       if (gia) return gia
       const n = fonti.length + 1
       fonti.push({ ...f, n })
-      perLink.set(f.link, n)
+      perLink.set(chiave, n)
       return n
     },
   }

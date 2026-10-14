@@ -12,8 +12,9 @@ if (!tokenApi) { console.log('ERRORE: manca SUPABASE_ACCESS_TOKEN'); process.exi
 
 const svuota = () => execSync('powershell -NoProfile -Command Set-Clipboard -Value $null')
 const chiave = execSync('powershell -NoProfile -Command Get-Clipboard', { encoding: 'utf8' }).trim()
-if (!/^sk-ant-api03-[A-Za-z0-9_-]{20,}$/.test(chiave)) {
-  console.log('Negli appunti non c\'è una chiave API (deve cominciare con sk-ant-api03-). Niente salvato.')
+// La Console dà chiavi sk-ant-api03-… oppure (dal 2026) sk-ant-usr-…: vanno bene tutte e due.
+if (!/^sk-ant-(api03|usr)-[A-Za-z0-9_-]{20,}$/.test(chiave)) {
+  console.log('Negli appunti non c\'è una chiave API (deve cominciare con sk-ant-api03- o sk-ant-usr-). Niente salvato.')
   process.exit(1)
 }
 

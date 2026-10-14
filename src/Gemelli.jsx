@@ -67,7 +67,9 @@ export function Gemelli() {
       const righe = [
         ...dati.attivita.filter((a) => a.giorno === giornoIso(d))
           .map((a) => ({ k: 'a' + a.id, ora: ora(a.inizio), testo: `${a.nome}${a.fine ? ` (fino alle ${ora(a.fine)})` : ''}`, chi: nomi(a.persone), extra: a.accompagna })),
-        ...dati.eventi.filter((e) => stessoGiorno(new Date(e.inizio), d) && !dati.feste.some((f) => f.evento_id === e.id))
+        // Un'attività fissa che è anche nel calendario Google (es. "Pianoforte Leo e Jolie") si vede una volta sola.
+        ...dati.eventi.filter((e) => stessoGiorno(new Date(e.inizio), d) && !dati.feste.some((f) => f.evento_id === e.id)
+          && !dati.attivita.some((a) => a.giorno === giornoIso(d) && (e.titolo || '').toLowerCase().includes(a.nome.toLowerCase())))
           .map((e) => ({ k: 'e' + e.id, ora: e.tutto_il_giorno ? '' : oraDa(e.inizio), testo: e.titolo, extra: e.luogo })),
         ...dati.feste.filter((f) => f.inizio && stessoGiorno(new Date(f.inizio), d))
           .map((f) => ({ k: 'f' + f.id, ora: oraDa(f.inizio), testo: `Festa di ${f.festeggiato}`, chi: nomi(f.persone), extra: f.luogo })),

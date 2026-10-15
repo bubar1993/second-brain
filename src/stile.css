@@ -657,17 +657,9 @@ a.ordine-cliente { text-decoration: underline; text-underline-offset: 3px; }
 .ordine a { text-decoration: underline; text-underline-offset: 3px; }
 
 /* Agenti: scrivere a un agente e leggere le sue risposte. */
-.scrivi-agente { display: flex; flex-direction: column; gap: 10px; }
-.scrivi-agente textarea { font-size: 16px; min-height: 90px; }
-.scrivi-agente .azioni { flex-direction: column; align-items: stretch; }
-.scrivi-agente .tasto-link { align-self: center; }
-.richieste { display: flex; flex-direction: column; gap: 10px; }
-.richiesta { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: var(--raggio); background: var(--superficie); border: 1px solid var(--bordo); }
-.richiesta p { margin: 0; }
-.richiesta.in-attesa { border-color: rgba(91, 147, 255, 0.45); }
+.scrivi-agente .tasto-link { flex: none; padding: 0 6px; }
 .richiesta-testo { font-weight: 600; }
 .richiesta-risposta { padding: 10px 12px; border-radius: 12px; background: rgba(52, 213, 138, 0.08); border: 1px solid rgba(52, 213, 138, 0.22); }
-.richiesta a { text-decoration: underline; text-underline-offset: 3px; }
 .riga-trovato .riga-corpo { gap: 2px; }
 .riga-trovato .riga-testo { font-size: 15px; }
 mark { background: rgba(255, 214, 102, 0.22); color: var(--testo); border-radius: 3px; padding: 0 2px; }
@@ -811,6 +803,23 @@ mark { background: rgba(255, 214, 102, 0.22); color: var(--testo); border-radius
 .tasto-mic { display: grid; place-items: center; flex: none; width: 48px; height: 48px; border-radius: 50%; border: 1px solid var(--bordo); background: var(--superficie); }
 .tasto-mic.attivo { background: var(--rosso); border-color: var(--rosso); color: #fff; box-shadow: 0 0 16px rgba(255, 93, 108, 0.5); }
 @media (min-width: 1024px) { .scrivi-capo { bottom: 16px; } }
+
+/* Sezioni nelle chat del Capo e degli agenti (15.10.2026): una per argomento, le chiuse in alto in una riga. */
+.sezioni { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+.sezione { border-radius: var(--raggio); background: var(--superficie); border: 1px solid var(--bordo); }
+.sezione.viva { border-color: rgba(255, 214, 102, 0.45); }
+.sezione-testa { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 14px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.sezione-testa .riga-testo { -webkit-line-clamp: 1; white-space: normal; font-weight: 600; }
+.sezione-freccia { flex: none; color: var(--tenue); }
+.sezione-corpo { display: flex; flex-direction: column; gap: 10px; padding: 4px 12px 12px; }
+.sezione-continua { align-self: center; padding: 6px 12px; }
+.sezione-nuova { text-align: center; }
+.scrivi-sopra { display: flex; align-items: center; gap: 8px; }
+.scrivi-sopra .nota-piccola { flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scrivi-sopra .tasto-link { flex: none; padding: 2px 0; }
+.giri-agente { margin-bottom: 14px; }
+.giri-agente summary { cursor: pointer; padding: 8px 0; color: var(--tenue); font-size: 15px; }
+.link-lavoro { align-self: flex-start; text-decoration: underline; text-underline-offset: 3px; }
 
 /* ---------- Bacheca: chi parla con chi ---------- */
 .bacheca-tela { margin: 0 -8px; }

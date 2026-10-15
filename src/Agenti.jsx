@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { sb, quando } from './supabase'
 import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, Icona, useModifiche, LinguetteCapo } from './componenti'
+import { IN_ATTESA, useSezioni, Sezione, vaiInFondo } from './sezioni'
 
 // Schermata "Agenti" (12.10.2026): un posto solo per vedere cosa fanno gli agenti e scrivergli.
 // "Fallo adesso" fa partire subito la routine (funzione agente-subito); altrimenti la richiesta
@@ -22,7 +23,6 @@ export const AGENTI = [
   { codice: 'privato', nome: 'Agente privato', cosa: 'Note private, gemelli, scadenze, compleanni', registro: 'agente-privato', aree: ['P'], orari: 'ogni ora, dalle 6 alle 23' },
 ]
 
-const IN_ATTESA = ['nuova', 'avviata', 'in_corso']
 const STATI = { nuova: 'aspetta che l\'agente lavori', avviata: 'partito, arriva tra poco', in_corso: 'ci sta lavorando', fatta: 'fatto', non_fatta: 'non fatto' }
 
 // Il riepilogo di un giro: quello scritto dall'agente, altrimenti i numeri.
@@ -85,16 +85,33 @@ export function Agente({ codice }) {
   const a = AGENTI.find((x) => x.codice === codice)
   const [testo, setTesto] = useState('')
   const [lavoro, setLavoro] = useState(false)
+  const scrivi = useRef(null)
+  const primoGiro = useRef(true)
   useModifiche(!!testo.trim())
 
+  // Come una chat (15.10.2026): le vecchie in alto, divise per argomento (sezioni.jsx), l'ultima in fondo.
   const { dati, errore, carica, ricarica } = useCarica(async () => {
     const [richieste, giri] = await Promise.all([
-      sb.from('richieste_agenti').select('*').eq('agente', codice).order('creata_il', { ascending: false }).limit(15).then(chk),
+      sb.from('richieste_agenti').select('*').eq('agente', codice).order('creata_il', { ascending: false }).limit(60).then(chk),
       sb.from('lavori_registro').select('id,iniziata_il,ok,errore,dettagli').eq('lavoro', a?.registro || '-')
         .order('id', { ascending: false }).limit(8).then(chk),
     ])
-    return { richieste, giri }
+    return { richieste: richieste.reverse(), giri }
   }, [codice])
+  const sez = useSezioni('agente:' + codice, dati?.richieste)
+
+  // Si apre in fondo, sull'ultimo messaggio.
+  useEffect(() => {
+    if (!dati || !primoGiro.current) return
+    primoGiro.current = false
+    vaiInFondo()
+  }, [dati])
+
+  function continua(id) {
+    sez.continuaQui(id)
+    scrivi.current?.focus({ preventScroll: true })
+    vaiInFondo()
+  }
 
   // Le risposte che vedi qui contano come lette.
   useEffect(() => {
@@ -118,7 +135,7 @@ export function Agente({ codice }) {
     if (!t) return avvisa('Scrivi cosa deve fare')
     setLavoro(true)
     try {
-      const r = chk(await sb.from('richieste_agenti').insert({ agente: codice, testo: t }).select('id').single())
+      const r = chk(await sb.from('richieste_agenti').insert({ agente: codice, testo: t, sezione_id: sez.sezioneId }).select('id').single())
       setTesto('')
       if (!subito) {
         avvisa('La fa la prossima volta che lavora')
@@ -128,7 +145,9 @@ export function Agente({ codice }) {
           : esito.motivo === 'senza_pulsante' ? 'Questo agente non si può far partire subito: la fa la prossima volta che lavora'
             : 'Non è partito subito: la fa la prossima volta che lavora')
       }
-      ricarica()
+      await ricarica()
+      sez.inviato()
+      vaiInFondo()
     } catch (e) {
       avvisa(messaggioErrore(e))
     } finally {
@@ -142,55 +161,98 @@ export function Agente({ codice }) {
       <p className="nota-piccola">{a.cosa}. Lavora {a.orari}.</p>
 
       {a.codice === 'archiviazione' && <p className="nota-piccola">Per dirgli cosa fare di una mail precisa usa "Scrivi all'agente" nella segnalazione del gestionale G&C (Anomalie → Da controllare).</p>}
-      {a.senzaRichieste ? <p className="nota-piccola">Questo agente fa solo il suo lavoro: per chiedergli qualcosa scrivi all'agente {a.aree.includes('G') ? 'G&C' : 'Bozze mail Ceramex'}.</p> : <div className="scrivi-agente">
-        <textarea value={testo} onChange={(e) => setTesto(e.target.value)} rows={3}
-          placeholder={'Scrivi all\'agente cosa deve fare o cosa vuoi sapere…'} />
-        <div className="azioni">
-          <button type="button" className="tasto-grande" onClick={() => invia(true)} disabled={lavoro}>
-            {lavoro ? 'Invio…' : 'Fallo adesso'}
-          </button>
-          <button type="button" className="tasto-link" onClick={() => invia(false)} disabled={lavoro}>Senza fretta (quando lavora)</button>
-        </div>
-        <p className="nota-piccola">Fa solo quello che le sue regole permettono: non manda mail e non cancella niente.</p>
-      </div>}
+      {a.senzaRichieste
+        ? <p className="nota-piccola">Questo agente fa solo il suo lavoro: per chiedergli qualcosa scrivi all'agente {a.aree.includes('G') ? 'G&C' : 'Bozze mail Ceramex'}.</p>
+        : <p className="nota-piccola">Fa solo quello che le sue regole permettono: non manda mail e non cancella niente.</p>}
 
       <Stato carica={carica} errore={errore}>
         {dati && (
           <>
-            {dati.richieste.length > 0 && (
-              <>
-                <h2>Le tue richieste</h2>
-                <div className="richieste">
-                  {dati.richieste.map((r) => (
-                    <section key={r.id} className={'richiesta' + (IN_ATTESA.includes(r.stato) ? ' in-attesa' : '')}>
-                      <p className="riga-meta">{quando(r.creata_il, true)} · {r.da === 'smistatore' ? 'passata da un altro agente · ' : ''}{STATI[r.stato]}</p>
-                      {/* Risposte dal Riordino: si vedono solo le parole di Giovanni (la prima riga), non le istruzioni per l'agente. */}
-                      <p className="richiesta-testo">{r.riordino_id ? `Riordino: ${r.testo.split('\n')[0]}` : r.testo}</p>
-                      {r.risposta && <p className="richiesta-risposta">{r.risposta}</p>}
-                      {r.errore && IN_ATTESA.includes(r.stato) && <p className="nota-piccola rosso">{r.errore}</p>}
-                      {r.sessione_url && <a className="nota-piccola" href={r.sessione_url} target="_blank" rel="noreferrer">Vedi il lavoro su claude.ai</a>}
-                    </section>
+            {/* In alto e chiuso (15.10.2026): si apre con un tocco. */}
+            <details className="giri-agente">
+              <summary>Le ultime volte che ha lavorato{dati.giri[0] && ` · ${quando(dati.giri[0].iniziata_il, true)}`}</summary>
+              {dati.giri.length === 0 ? <p className="msg">Non ha ancora lavorato.</p> : (
+                <div className="elenco">
+                  {dati.giri.map((g) => (
+                    <div key={g.id} className="riga">
+                      <span className="pallino" style={{ background: g.ok ? 'var(--verde-gc)' : 'var(--rosso, #ff6b6b)' }} />
+                      <span className="riga-corpo">
+                        <span className="riga-testo">{quando(g.iniziata_il, true)}</span>
+                        <span className="riga-meta">{g.ok ? riepilogo(g) : g.errore}</span>
+                      </span>
+                    </div>
                   ))}
                 </div>
-              </>
-            )}
-            <h2>Le ultime volte che ha lavorato</h2>
-            {dati.giri.length === 0 ? <p className="msg">Non ha ancora lavorato.</p> : (
-              <div className="elenco">
-                {dati.giri.map((g) => (
-                  <div key={g.id} className="riga">
-                    <span className="pallino" style={{ background: g.ok ? 'var(--verde-gc)' : 'var(--rosso, #ff6b6b)' }} />
-                    <span className="riga-corpo">
-                      <span className="riga-testo">{quando(g.iniziata_il, true)}</span>
-                      <span className="riga-meta">{g.ok ? riepilogo(g) : g.errore}</span>
-                    </span>
+              )}
+            </details>
+
+            {dati.richieste.length === 0 ? (!a.senzaRichieste && <p className="msg">Ancora niente: scrivi qui sotto la prima cosa.</p>) : (
+              <>
+                {sez.altre.length > 0 && (
+                  <div className="sezioni">
+                    {sez.altre.map((s) => (
+                      <Sezione key={s.id} s={s} sez={sez} titolo={titoloAgente} onContinua={a.senzaRichieste ? null : continua}>
+                        <div className="chat-capo">{s.righe.map((r) => <ScambioAgente key={r.id} r={r} />)}</div>
+                      </Sezione>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+                {sez.attiva
+                  ? <div className="chat-capo">{sez.attiva.righe.map((r) => <ScambioAgente key={r.id} r={r} />)}</div>
+                  : !a.senzaRichieste && <p className="nota-piccola sezione-nuova">Nuovo argomento: scrivi qui sotto.</p>}
+              </>
             )}
           </>
         )}
       </Stato>
+
+      {!a.senzaRichieste && (
+        <div className="scrivi-capo scrivi-agente">
+          {sez.attiva && (
+            <div className="scrivi-sopra">
+              <span className="nota-piccola">Continui: {titoloAgente(sez.attiva.righe[0])}</span>
+              <button type="button" className="tasto-link" onClick={() => { sez.nuovoArgomento(); vaiInFondo() }}>Nuovo argomento</button>
+            </div>
+          )}
+          <textarea ref={scrivi} value={testo} onChange={(e) => setTesto(e.target.value)} rows={2}
+            placeholder={sez.attiva ? 'Scrivi all\'agente…' : 'Nuovo argomento: scrivi all\'agente cosa deve fare o cosa vuoi sapere…'} />
+          <div className="azioni">
+            <button type="button" className="tasto-grande" onClick={() => invia(true)} disabled={lavoro || !testo.trim()}>
+              {lavoro ? 'Invio…' : 'Fallo adesso'}
+            </button>
+            <button type="button" className="tasto-link" onClick={() => invia(false)} disabled={lavoro || !testo.trim()}>Senza fretta</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Il titolo di una sezione: le parole con cui è cominciata.
+function titoloAgente(r) {
+  return r.riordino_id ? `Riordino: ${r.testo.split('\n')[0]}` : r.testo
+}
+
+// Un messaggio all'agente (di Giovanni o passato da un altro agente) con la sua risposta.
+function ScambioAgente({ r }) {
+  const da = r.da === 'smistatore' ? 'Passata da un altro agente' : r.da === 'capo' ? 'Passata dal Capo' : r.da && r.da !== 'giovanni' ? `Da ${r.da}` : null
+  return (
+    <div className="scambio">
+      <p className="fumetto fumetto-mio">
+        {da && <span className="riga-meta">{da}</span>}
+        {/* Risposte dal Riordino: si vedono solo le parole di Giovanni (la prima riga), non le istruzioni per l'agente. */}
+        {r.riordino_id ? `Riordino: ${r.testo.split('\n')[0]}` : r.testo}
+        <span className="ora">{quando(r.creata_il, true)}</span>
+      </p>
+      {r.risposta ? (
+        <p className="fumetto fumetto-capo">{r.risposta}<span className="ora">{quando(r.risposta_il, true)}{r.stato === 'non_fatta' && ' · non fatto'}</span></p>
+      ) : (
+        <p className="fumetto fumetto-capo in-attesa">
+          {STATI[r.stato] ? STATI[r.stato].charAt(0).toUpperCase() + STATI[r.stato].slice(1) : r.stato}
+          {r.errore && <span className="ora rosso">{r.errore}</span>}
+        </p>
+      )}
+      {r.sessione_url && <a className="nota-piccola link-lavoro" href={r.sessione_url} target="_blank" rel="noreferrer">Vedi il lavoro su claude.ai</a>}
     </div>
   )
 }

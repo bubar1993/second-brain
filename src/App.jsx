@@ -116,8 +116,10 @@ function Guscio({ utente, condiviso }) {
       passi.current++
       const nuova = !history.state?.k
       attuale = nuova ? segna() : history.state.k
-      setRotta(leggiRotta())
-      if (nuova) { fino = 0; window.scrollTo(0, 0) } else ritorna(posizioni[attuale] || 0)
+      const r = leggiRotta()
+      setRotta(r)
+      // Le chat del Capo e degli agenti si aprono sempre in fondo, anche tornando indietro (ci pensano loro: sezioni.jsx).
+      if (nuova || ['capo', 'agente'].includes(r.parti[0])) { fino = 0; window.scrollTo(0, 0) } else ritorna(posizioni[attuale] || 0)
     }
     window.addEventListener('scroll', ricorda, { passive: true })
     window.addEventListener('touchstart', ferma, { passive: true })

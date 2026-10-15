@@ -39,7 +39,7 @@ Giovanni può chiedere da qui anche i cambi alle app Ceramex e G&C (15.10.2026).
 | App | Codice sul PC | GitHub (privato) | Da leggere |
 | --- | --- | --- | --- |
 | Ceramex | `Documenti\ceramex-app` | `bubar1993/ceramex-app`: il push su `main` pubblica da solo | `CLAUDE.md` → `docs/` |
-| G&C | `Documenti\gestionale-gc` | `bubar1993/gestionale-gc`: il push su `main` pubblica da solo; ci lavora anche Cowork, quindi `git pull` prima di cominciare e `git fetch` prima del push | `CLAUDE.md` (rimanda a `claude/leggimi.md` del Progetto Claude "Gestionale G&C", che da qui non si vede) |
+| G&C | `Documenti\gestionale-gc` | `bubar1993/gestionale-gc`: il push su `main` pubblica da solo; ci lavora anche Cowork, quindi `git pull` prima di cominciare e `git fetch` prima del push | `CLAUDE.md` → `docs/leggimi.md` (regole e stato dei lavori; lo tiene aggiornato anche Cowork) |
 | Brain | qui | `bubar1993/second-brain` (dal 15.10.2026): si pubblica con `npm run deploy`, non col push | questo file → `docs/` |
 
 ## Accesso alla nuova organizzazione Supabase

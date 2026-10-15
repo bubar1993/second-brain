@@ -1,6 +1,6 @@
 # Second Brain GF
 
-Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo aggiornamento: 14.10.2026 sera (inviti a call nelle mail, pianoforte e figli di Lady di Blackwood, ordine delle Persone, attrezzi in `scripts/`).
+Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo aggiornamento: 15.10.2026 (chat del Capo e degli agenti a sezioni, le altre due app, Brain su GitHub).
 
 I dettagli stanno in `docs/` (indice in fondo): prima di lavorare su un argomento leggi il file giusto. Le cose aperte sono nella memoria "Cose in sospeso".
 
@@ -24,7 +24,7 @@ I dettagli stanno in `docs/` (indice in fondo): prima di lavorare su un argoment
 ## ATTENZIONE: cose da non rompere
 - Il connettore Supabase di claude.ai vede solo l'organizzazione "G&C Home Concepts & Ceramex". **Non va spostato.** Le routine "Bozze mail Ceramex" (ore piene, mezz'ora, weekend) lo usano sul progetto Ceramex: se cambia, smettono di funzionare.
 - Gestionale Ceramex: progetto Supabase `nouxqowregwnyqlrvqqo`, cartella `Documenti\ceramex` (solo `reader`). Il codice dell'app Ceramex è in `Documenti\ceramex-app` (clone del repo GitHub `bubar1993/ceramex-app`, scaricato il 13.10.2026 con l'accesso GitHub di Giovanni): si cambia solo con il suo ok. Nel gestionale c'è l'utente di sola lettura `brain_lettore` (creato l'11.10.2026 con l'ok di Giovanni): legge solo `clienti`, `note_clienti`, `note_regole`, `note_mail_viste` per la copia automatica. Non dargli altri permessi.
-- Gestionale G&C: progetto Supabase `hnpesqsteytwfgrsrygn`, cartella `Documenti\gchomeconcepts`. Anche qui c'è l'utente di sola lettura `brain_lettore` (creato l'11.10.2026 con l'ok di Giovanni): legge solo `clients`, `sites`, `price_list_suppliers`, `email_messages`. Non dargli altri permessi.
+- Gestionale G&C: progetto Supabase `hnpesqsteytwfgrsrygn`, cartella `Documenti\gestionale-gc` (copia di GitHub, 15.10.2026; `Documenti\gchomeconcepts` è la vecchia versione Base44, superata). Anche qui c'è l'utente di sola lettura `brain_lettore` (creato l'11.10.2026 con l'ok di Giovanni): legge solo `clients`, `sites`, `price_list_suppliers`, `email_messages`. Non dargli altri permessi.
 - I gestionali si **leggono** soltanto. Non si modificano senza l'ok di Giovanni.
 - Sul PC girano programmi che non vanno toccati: il lettore mail e il portale Marazzi (`lettore.mjs`, `portale.mjs` del gestionale Ceramex).
 - Lexy (vecchio assistente su Telegram) non si usa più. Non va ripresa.
@@ -34,12 +34,20 @@ I dettagli stanno in `docs/` (indice in fondo): prima di lavorare su un argoment
 - **Lavoro e Privato separati:** gli agenti di lavoro non leggono il Privato; le note private non finiscono mai nelle schede clienti.
 - Le routine vecchie si spengono, non si cancellano.
 
+## Le altre due app (Ceramex e G&C)
+Giovanni può chiedere da qui anche i cambi alle app Ceramex e G&C (15.10.2026). **Prima di cambiare qualcosa lì: spiega e aspetta il suo ok, ogni volta.** Prima di lavorarci leggi il loro CLAUDE.md corto e poi solo il file dell'argomento.
+| App | Codice sul PC | GitHub (privato) | Da leggere |
+| --- | --- | --- | --- |
+| Ceramex | `Documenti\ceramex-app` | `bubar1993/ceramex-app`: il push su `main` pubblica da solo | `CLAUDE.md` → `docs/` |
+| G&C | `Documenti\gestionale-gc` | `bubar1993/gestionale-gc`: il push su `main` pubblica da solo; ci lavora anche Cowork, quindi `git pull` prima di cominciare e `git fetch` prima del push | `CLAUDE.md` (rimanda a `claude/leggimi.md` del Progetto Claude "Gestionale G&C", che da qui non si vede) |
+| Brain | qui | `bubar1993/second-brain` (dal 15.10.2026): si pubblica con `npm run deploy`, non col push | questo file → `docs/` |
+
 ## Accesso alla nuova organizzazione Supabase
 - Organizzazione nuova: **"Second Brain GF"**, piano Pro. Progetto **second-brain** (`vgurncqvgulldolhetyr`, Zurigo), creato l'11.10.2026.
 - App pubblicata come Worker Cloudflare `second-brain`: https://second-brain.aged-king-4bbd.workers.dev (pubblicare con `npm run deploy`). L'accesso con impronta è legato a questo indirizzo: se cambia, Giovanni deve registrare di nuovo l'impronta.
 - Accesso tramite **token personale di Supabase** (supabase.com → Account → Access Tokens), che vede tutte le organizzazioni.
 - Il token si salva solo come variabile d'ambiente di Windows (`SUPABASE_ACCESS_TOKEN`) o con `supabase login`. **Mai** nella chat, mai in file del progetto, mai su git.
-- Per Cloudflare si usa lo stesso metodo delle altre due app (guarda come sono pubblicate in `Documenti\ceramex` e `Documenti\gchomeconcepts`).
+- Per Cloudflare si usa lo stesso metodo delle altre due app (guarda come sono pubblicate in `Documenti\ceramex-app` e `Documenti\gestionale-gc`).
 - Attrezzi di Claude (14.10.2026): `scripts/sql.ps1 -File x.sql [-Nome migrazione]` per eseguire SQL o registrare una migrazione; `scripts/routine-prompt.mjs estrai|confronta` per cambiare i prompt delle routine senza errori (i file col prompt contengono token: solo nella cartella temporanea).
 
 ## Il progetto

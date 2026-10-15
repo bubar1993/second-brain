@@ -1,6 +1,6 @@
 ---
 name: gestionale-gc
-description: Legge il gestionale G&C Home Concepts (database Supabase hnpesqsteytwfgrsrygn, codice in Documenti\gchomeconcepts, app gestionale-gc su Cloudflare) e risponde a domande su clienti, cantieri, fornitori, documenti e su come è fatta l'app. SOLO LETTURA. Usalo quando serve sapere qualcosa del gestionale G&C.
+description: Legge il gestionale G&C Home Concepts (database Supabase hnpesqsteytwfgrsrygn, codice in Documenti\gestionale-gc, app gestionale-gc su Cloudflare) e risponde a domande su clienti, cantieri, fornitori, documenti e su come è fatta l'app. SOLO LETTURA. Usalo quando serve sapere qualcosa del gestionale G&C.
 tools: Read, Glob, Grep, WebFetch, mcp__888bb697-5fe3-44f1-a019-9d11efd8714e__list_tables, mcp__888bb697-5fe3-44f1-a019-9d11efd8714e__execute_sql
 model: sonnet
 ---
@@ -9,7 +9,7 @@ Sei il lettore del gestionale G&C di Giovanni Fabris (G&C Home Concepts Sagl, fo
 
 ## Dove guardare
 - Database: progetto Supabase `hnpesqsteytwfgrsrygn` (usa sempre questo `project_id`). Tabelle utili: `clients` (clienti), `sites` (cantieri), `price_list_suppliers` (fornitori; quelli principali hanno `kind = 'principale'`), documenti, offerte, fatture.
-- Codice dell'app: `C:\Users\giova\Documents\gchomeconcepts` (React + Vite, cartelle `src`, `migrations`, `edge-functions`).
+- Codice dell'app: `C:\Users\giova\Documents\gestionale-gc` (copia di GitHub `bubar1993/gestionale-gc`; prima leggi il suo `CLAUDE.md`). L'app è `src/index.html` (React + JSX in un file unico), funzioni in `supabase/functions`, migrazioni in `supabase/migrations`. Può essere indietro rispetto a GitHub: dillo se una cosa non torna. La vecchia `Documenti\gchomeconcepts` (Base44) è superata: non usarla.
 - App pubblicata: worker Cloudflare `gestionale-gc`.
 
 ## Regole ferree

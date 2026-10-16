@@ -77,14 +77,16 @@ export function Capo() {
     vaiInFondo()
   }
 
-  // Finché il capo (o un agente a cui ha passato il lavoro) ci lavora, la pagina si aggiorna da sola.
+  // Finché il capo (o un agente a cui ha passato il lavoro) ci lavora, la pagina si aggiorna da sola:
+  // ogni 2 secondi mentre la risposta veloce ci pensa, poi ogni 10.
   const attesa = dati && ([...dati.richieste, ...dati.passate].some((r) => IN_ATTESA.includes(r.stato))
     || dati.conferme.some((c) => c.stato === 'confermata'))
+  const pensaVeloce = dati && dati.richieste.some((r) => r.veloce && r.stato === 'in_corso')
   useEffect(() => {
     if (!attesa) return
-    const t = setInterval(() => { if (document.visibilityState === 'visible') ricarica() }, 10000)
+    const t = setInterval(() => { if (document.visibilityState === 'visible') ricarica() }, pensaVeloce ? 2000 : 10000)
     return () => clearInterval(t)
-  }, [attesa, ricarica])
+  }, [attesa, pensaVeloce, ricarica])
 
   async function invia() {
     const t = testo.trim()
@@ -94,10 +96,16 @@ export function Capo() {
     try {
       const r = chk(await sb.from('richieste_agenti').insert({ agente: 'capo', testo: t, sezione_id: sez.sezioneId }).select('id').single())
       setTesto('')
-      const esito = await chiama('agente-subito', { id: r.id }).catch((e) => ({ ok: false, errore: messaggioErrore(e) }))
+      // Prima la risposta veloce (capo-veloce, 16.10.2026): le domande semplici in pochi secondi, il resto lo passa
+      // lei alla routine del Capo. Se non risponde, si fa partire il Capo come prima.
+      const esito = await chiama('capo-veloce', { id: r.id })
+        .catch(() => chiama('agente-subito', { id: r.id }))
+        .catch((e) => ({ ok: false, errore: messaggioErrore(e) }))
       // Il Capo non ha orari: parte solo così. Se non parte, lo dice (non c'è un "prossimo giro" che lo legga).
-      avvisa(esito.ok ? 'Il Capo ci pensa: risponde tra 1–2 minuti'
-        : 'Il Capo non è partito. Riprova tra un minuto; se succede ancora, dillo a Claude')
+      if (!esito.veloce) {
+        avvisa(esito.ok ? 'Il Capo ci pensa: risponde tra 1–2 minuti'
+          : 'Il Capo non è partito. Riprova tra un minuto; se succede ancora, dillo a Claude')
+      }
       await ricarica()
       sez.inviato()
       vaiInFondo()
@@ -189,10 +197,14 @@ function Scambio({ r, conferme, passate, dopo }) {
         <p className="fumetto fumetto-mio">{r.riordino_id ? `${r.testo.split('\n')[0]} · dal Riordino` : r.testo}<span className="ora">{quando(r.creata_il, true)}</span></p>
       )}
       {r.risposta ? (
-        <p className="fumetto fumetto-capo">{r.risposta}<span className="ora">{quando(r.risposta_il, true)}</span></p>
+        <div className="fumetto fumetto-capo">
+          {r.veloce && <span className="riga-meta">Risposta veloce</span>}
+          {r.risposta}<span className="ora">{quando(r.risposta_il, true)}</span>
+          {r.veloce && <ChiediAlCapo r={r} dopo={dopo} />}
+        </div>
       ) : (
         <p className="fumetto fumetto-capo in-attesa">
-          {r.stato === 'in_corso' ? 'Ci sto lavorando…' : r.stato === 'avviata' ? 'Arrivo…' : 'In attesa: non sono ancora partito.'}
+          {r.stato === 'in_corso' ? (r.veloce ? 'Ci penso…' : 'Ci sto lavorando…') : r.stato === 'avviata' ? 'Arrivo…' : 'In attesa: non sono ancora partito.'}
           {r.errore && <span className="ora rosso">{r.errore}</span>}
         </p>
       )}
@@ -204,6 +216,31 @@ function Scambio({ r, conferme, passate, dopo }) {
         </div>
       ))}
     </div>
+  )
+}
+
+// Sotto una risposta veloce: la stessa domanda al Capo vero (routine), se la risposta non basta.
+function ChiediAlCapo({ r, dopo }) {
+  const { avvisa } = useApp()
+  const [lavoro, setLavoro] = useState(false)
+  async function passa() {
+    setLavoro(true)
+    try {
+      chk(await sb.from('richieste_agenti').update({ stato: 'nuova', risposta: null, risposta_il: null, presa_il: null, vista_il: null, veloce: false })
+        .eq('id', r.id).eq('stato', 'fatta'))
+      const esito = await chiama('agente-subito', { id: r.id }).catch(() => ({ ok: false }))
+      avvisa(esito.ok ? 'Il Capo ci pensa: risponde tra 1–2 minuti' : 'Il Capo non è partito. Riprova tra un minuto; se succede ancora, dillo a Claude')
+      dopo()
+    } catch (e) {
+      avvisa(messaggioErrore(e))
+    } finally {
+      setLavoro(false)
+    }
+  }
+  return (
+    <button type="button" className="tasto-link veloce-capo" disabled={lavoro} onClick={passa}>
+      {lavoro ? 'Un attimo…' : 'Non basta: chiedi al Capo'}
+    </button>
   )
 }
 

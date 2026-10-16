@@ -19,7 +19,8 @@ Ricerca per parole e per significato, connettore "Second Brain" (mcp), risposta 
 - Strumenti di SOLA LETTURA in `supabase/functions/_shared/strumenti.ts` (cerca per parole + per significato, agenda, azienda, persona, leggi): l'**area la impone il server** (quella scelta in alto), mai il modello; con un'area scelta non escono note, riassunti, ditte o mail delle altre. Ogni cosa trovata ha un numero [n]; la risposta è testo semplice e i link li fa il server dalle fonti citate. È la fonte unica da ora: il connettore `mcp` ha ancora la sua copia vecchia (da passare a questo file con l'ok di Giovanni; lì l'area non serve, l'app Claude non ne sceglie una).
 - Spesa: `ai_uso` (una riga per chiamata, costo dai token), `ai_spesa(da)`, tetti in `ai_impostazioni` (`inizio_ciclo` = giorno del mese in cui arrivano i crediti, da correggere se serve; oltre 70 $ nel ciclo passa a Haiku 5.5 con la riga "Risposta veloce", oltre 90 $ si ferma; 15 $ al giorno solo contro errori). Prezzi in `chiedi-ai` (pagina prezzi del 14.10.2026).
 - Prove senza Giovanni: col copia_token `{ prova: 'strumento', nome, argomenti, area }` (non chiama Claude) o `{ domanda, prova: true }` (riga segnata `prova`). Migrazioni `chiedi_ai`, `chiedi_ai_spesa`.
-- Prossime idee proposte (non fatte): "Prima della visita" sull'appuntamento in Oggi; foto cercabili; una prima risposta veloce del Capo via API per le domande semplici.
+- Gli stessi crediti li usa anche la risposta veloce del Capo (16.10.2026, `capo-veloce`, vedi `docs/capo.md`): prezzi, spesa e tetti comuni in `_shared/ai.ts`.
+- Prossime idee proposte (non fatte): "Prima della visita" sull'appuntamento in Oggi; foto cercabili.
 
 ### Intelligenza artificiale: idea di partenza (11.10.2026)
 

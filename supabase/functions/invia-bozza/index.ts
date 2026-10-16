@@ -82,13 +82,30 @@ Deno.serve(async (req: Request) => {
 
   const riferimenti = originale ? [...(originale.riferimenti || []), originale.message_id] : []
   const messageId = `${crypto.randomUUID()}@homeconcepts.ch`
-  const mail = {
-    from: MITTENTE, to: destinatari, cc: copia.length ? copia : undefined, subject: ogg, text: corpo,
-    messageId: conParentesi(messageId), date: new Date(),
-    ...(originale ? { inReplyTo: conParentesi(originale.message_id), references: riferimenti.map(conParentesi).join(' ') } : {}),
-  }
 
   try {
+    // Allegati (16.10.2026): file caricati da Giovanni nella bozza, nel bucket "allegati" sotto <utente>/bozze/<id>/.
+    const elenco: Record<string, any>[] = Array.isArray(b.allegati) ? b.allegati : []
+    const allegati = []
+    let totale = 0
+    for (const f of elenco) {
+      const percorso = String(f.percorso || '')
+      if (!percorso.startsWith(`${UTENTE}/bozze/${id}/`)) throw new Error(`Allegato non valido: ${f.nome}`)
+      const r = await fetch(`${SUPABASE_URL}/storage/v1/object/allegati/${percorso.split('/').map(encodeURIComponent).join('/')}`,
+        { headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` } })
+      if (!r.ok) throw new Error(`Allegato "${f.nome}" non trovato`)
+      const contenuto = new Uint8Array(await r.arrayBuffer())
+      totale += contenuto.length
+      if (totale > 20 * 1024 * 1024) throw new Error('Allegati troppo grandi (massimo 20 MB in tutto)')
+      allegati.push({ filename: String(f.nome || 'allegato'), content: contenuto, contentType: f.tipo || 'application/octet-stream' })
+    }
+
+    const mail = {
+      from: MITTENTE, to: destinatari, cc: copia.length ? copia : undefined, subject: ogg, text: corpo,
+      messageId: conParentesi(messageId), date: new Date(),
+      ...(originale ? { inReplyTo: conParentesi(originale.message_id), references: riferimenti.map(conParentesi).join(' ') } : {}),
+      ...(allegati.length ? { attachments: allegati } : {}),
+    }
     const grezza: Uint8Array = await new MailComposer(mail).compile().build()
     const smtp = nodemailer.createTransport({
       host: 'asmtp.mail.hostpoint.ch', port: 465, secure: true,
@@ -110,7 +127,8 @@ Deno.serve(async (req: Request) => {
     await rest('posta?on_conflict=message_id', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
       body: JSON.stringify({ message_id: messageId, utente_id: UTENTE, area: 'G', cartella: 'inviata', thread_key: b.thread_key || messageId,
         in_reply_to: originale?.message_id || null, riferimenti, da: IO, da_nome: MITTENTE.name, a: destinatari, cc: copia,
-        oggetto: ogg, data: ora, testo: corpo, azienda_id: b.azienda_id, fonte: 'imap', vista_il: ora, esito: 'niente', motivo: 'risposta approvata da Giovanni' }) })
+        oggetto: ogg, data: ora, testo: corpo, azienda_id: b.azienda_id, fonte: 'imap', vista_il: ora, esito: 'niente', motivo: 'risposta approvata da Giovanni',
+        ...(allegati.length ? { allegati: allegati.map((x) => ({ nome: x.filename, tipo: x.contentType, kb: Math.round(x.content.length / 1024) })) } : {}) }) })
     return risposta({ ok: true, inviata_il: ora })
   } catch (e) {
     const errore = String((e as Error)?.message || e).slice(0, 300)

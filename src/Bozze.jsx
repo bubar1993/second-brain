@@ -221,6 +221,7 @@ export function Bozza({ id }) {
             <label>Oggetto<input type="text" value={campi.oggetto} onChange={cambia('oggetto')} disabled={!aperta || senzaGmail} /></label>
           </div>
           <textarea className="testo-bozza" value={campi.testo} onChange={cambia('testo')} rows={8} disabled={!aperta || senzaGmail} />
+          {!gmail && <AllegatiBozza b={b} modificabile={aperta && !lavoro} />}
         </>
       )}
 
@@ -238,6 +239,76 @@ export function Bozza({ id }) {
       )}
       {(b.perche?.fonti || []).length > 0 && (
         <p className="nota-piccola">Fonti: {b.perche.fonti.join(' · ')}</p>
+      )}
+    </div>
+  )
+}
+
+// Allegati di una bozza G&C (16.10.2026): Giovanni aggiunge o toglie file, partono con la risposta (invia-bozza).
+// I file stanno nel bucket "allegati" sotto <utente>/bozze/<id>/; l'elenco in bozze.allegati.
+const MAX_ALLEGATI = 20 * 1024 * 1024
+function AllegatiBozza({ b, modificabile }) {
+  const { avvisa, utente } = useApp()
+  const [lista, setLista] = useState(b.allegati || [])
+  const [carico, setCarico] = useState(false)
+  const salva = async (nuova) => {
+    chk(await sb.from('bozze').update({ allegati: nuova }).eq('id', b.id))
+    setLista(nuova)
+  }
+  async function aggiungi(e) {
+    const files = [...(e.target.files || [])]
+    e.target.value = ''
+    if (!files.length) return
+    const totale = [...lista, ...files].reduce((s, f) => s + (f.dimensione ?? f.size ?? 0), 0)
+    if (totale > MAX_ALLEGATI) return avvisa('Troppo grandi: al massimo 20 MB di allegati in tutto.')
+    setCarico(true)
+    try {
+      let nuova = lista
+      for (const f of files) {
+        const percorso = `${utente.id}/bozze/${b.id}/${Date.now()}-${f.name.replace(/[^\w.\-]+/g, '_')}`
+        chk(await sb.storage.from('allegati').upload(percorso, f, { contentType: f.type || 'application/octet-stream' }))
+        nuova = [...nuova, { nome: f.name, percorso, tipo: f.type || 'application/octet-stream', dimensione: f.size }]
+        await salva(nuova)
+      }
+    } catch (err) {
+      avvisa(messaggioErrore(err))
+    } finally {
+      setCarico(false)
+    }
+  }
+  async function togli(a) {
+    try {
+      await salva(lista.filter((x) => x.percorso !== a.percorso))
+      await sb.storage.from('allegati').remove([a.percorso])
+    } catch (err) {
+      avvisa(messaggioErrore(err))
+    }
+  }
+  async function apri(a) {
+    const w = window.open('', '_blank')
+    const { data, error } = await sb.storage.from('allegati').createSignedUrl(a.percorso, 600)
+    if (error || !data) { w?.close(); return avvisa('Allegato non trovato') }
+    if (w) w.location = data.signedUrl
+    else location.href = data.signedUrl
+  }
+  if (!modificabile && !lista.length) return null
+  return (
+    <div className="allegati-bozza">
+      {lista.length > 0 && (
+        <div className="chips">
+          {lista.map((a) => (
+            <span key={a.percorso} className="chip piccolo">
+              <button type="button" className="chip-testo" onClick={() => apri(a)}>📎 {a.nome} · {Math.max(1, Math.round((a.dimensione || 0) / 1024))} KB</button>
+              {modificabile && <button type="button" className="chip-togli" aria-label={`Togli ${a.nome}`} onClick={() => togli(a)}>✕</button>}
+            </span>
+          ))}
+        </div>
+      )}
+      {modificabile && (
+        <label className="tasto-piccolo">
+          {carico ? 'Carico…' : '📎 Allega file'}
+          <input type="file" multiple hidden onChange={aggiungi} disabled={carico} />
+        </label>
       )}
     </div>
   )

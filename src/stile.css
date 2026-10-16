@@ -990,3 +990,9 @@ a.cita::after { content: ''; position: absolute; inset: -11px -6px; } /* area di
 .cita.fermo { flex: none; align-self: center; }
 .fonti-ai .riga { min-height: 46px; }
 @media (prefers-reduced-motion: reduce) { .risposta-attesa { animation: none; } }
+/* Bozze G&C: allegati della risposta (16.10.2026). */
+.allegati-bozza { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-top: 10px; }
+.allegati-bozza .chip { padding: 0 6px 0 4px; max-width: 100%; }
+.allegati-bozza .chip .chip-testo { margin: 0; padding: 8px 10px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70vw; display: block; }
+.allegati-bozza .chip .chip-togli { margin: 0; padding: 8px 10px; color: var(--tenue); }
+.allegati-bozza label.tasto-piccolo { cursor: pointer; }

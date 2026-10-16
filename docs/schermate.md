@@ -85,6 +85,7 @@ Stile, Oggi, Aggiungi, Chiedi, Dentro, schede persona, Quaderno, Bozze, Riordino
 
 ### Bozze nell'app (12.10.2026 sera, ok di Giovanni)
 
+- **Allegati nelle bozze G&C (16.10.2026, ok di Giovanni):** nella bozza aperta "📎 Allega file" (più file, max 20 MB in tutto), ✕ per togliere, tocco per aprire. File nel bucket `allegati` sotto `<utente>/bozze/<id>/`, elenco in `bozze.allegati` (`[{nome, percorso, tipo, dimensione}]`, migrazione `bozze_allegati`); `invia-bozza` li scarica e li manda con la risposta (anche nella copia in "Sent" e in `posta.allegati`). Solo G&C (le Ceramex sono bozze Gmail). Gli agenti NON allegano niente da soli: scelta di Giovanni, niente bozze automatiche per le quietanze.
 - **Bozze nell'app:** una schermata "Bozze" per G&C e Ceramex (pallino dell'area, conto per area). Le Ceramex: funzione `gmail-bozza` (leggi/invia/scarta) con la Gmail di Giovanni: mostra la mail del cliente, aggiorna la bozza Gmail con le correzioni e la manda (drafts.send, stessa conversazione); prima ricontrolla se nella conversazione è arrivato altro (allora annulla). "Scarta" cancella la bozza da Gmail. Gruppo "Da rispondere tu" = mail Ceramex 'da_imparare' (ultimi 7 giorni). L'app Ceramex continua a mostrare le sue bozze come prima.
 
 ### Riordino casella (12–13.10.2026, ok di Giovanni)

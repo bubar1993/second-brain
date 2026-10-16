@@ -4,6 +4,10 @@
       "PowerShell(node scripts/agente-sql.mjs:*)",
       "Bash(node scripts/agente-sql.mjs:*)",
       "Read(./agenti/**)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\giova\\Documents\\ceramex-app",
+      "C:\\Users\\giova\\Documents\\gestionale-gc"
     ]
   }
 }

@@ -35,7 +35,7 @@ I dettagli stanno in `docs/` (indice in fondo): prima di lavorare su un argoment
 - Le routine vecchie si spengono, non si cancellano.
 
 ## Le altre due app (Ceramex e G&C)
-Giovanni può chiedere da qui anche i cambi alle app Ceramex e G&C (15.10.2026). **Prima di cambiare qualcosa lì: spiega e aspetta il suo ok, ogni volta.** Prima di lavorarci leggi il loro CLAUDE.md corto e poi solo il file dell'argomento.
+Giovanni può chiedere da qui anche i cambi alle app Ceramex e G&C (15.10.2026). **Prima di cambiare qualcosa lì: spiega e aspetta il suo ok, ogni volta.** **Quale app:** se Giovanni la dice (Ceramex, G&C o Brain), procedi su quella; se non la dice o c'è il minimo dubbio, chiedigli prima quale (16.10.2026). Le cartelle `ceramex-app` e `gestionale-gc` sono cartelle di lavoro di questo progetto (`.claude/settings.json`). Prima di lavorarci leggi il loro CLAUDE.md corto e poi solo il file dell'argomento.
 | App | Codice sul PC | GitHub (privato) | Da leggere |
 | --- | --- | --- | --- |
 | Ceramex | `Documenti\ceramex-app` | `bubar1993/ceramex-app`: il push su `main` pubblica da solo | `CLAUDE.md` → `docs/` |

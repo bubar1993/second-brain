@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { sb, quando } from './supabase'
-import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, useModifiche, useDueTocchi } from './componenti'
+import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, useModifiche, useDueTocchi, Icona } from './componenti'
 
 // Riordino delle caselle (ok di Giovanni): info@ G&C dal 12.10.2026 sera (l'agente "Archiviazione email G&C" propone la
 // cartella di Hostpoint per Posta in arrivo e Posta inviata) e Gmail Ceramex dal 12.10 notte (l'agente "Bozze mail Ceramex"
@@ -63,7 +63,6 @@ const FIRMA = {
   gc: 'Saluti\nGiovanni',
   ceramex: 'Saluti\nGiovanni\n_________________________\nGiovanni Fabris\nSales Agent\nVia Cantonale 4 Centro galleria 3\n6928 Manno',
 }
-const mailValide = (s) => (s.match(/[^\s<>",;]+@[^\s<>",;]+\.[^\s<>",;]+/g) || [])
 
 function testoRichiesta(r, parole) {
   const oggi = new Date().toLocaleDateString('it-CH', { day: '2-digit', month: '2-digit' })
@@ -104,7 +103,7 @@ export function Riordino() {
   const [risponde, setRisponde] = useState(null) // riga con il campo "Rispondi all'agente" aperto
   const [letta, setLetta] = useState(null)       // { id, dati | errore } della mail aperta con "Leggi email"
   const [parole, setParole] = useState('')
-  const [scrive, setScrive] = useState(null)     // { id, tipo: 'rispondi'|'inoltra', testo, a, tutti, prima: {a, cc}, conferma }
+  const [scrive, setScrive] = useState(null)     // { id, tipo: 'rispondi'|'inoltra', testo, a, cc, ccn: [{ mail, nome }], copie, tutti, prima: {a, cc} }
   const quante = Object.values(scelte).filter(Boolean).length
   useModifiche(quante > 0 || Object.keys(cambi).length > 0 || !!parole.trim() || !!scrive?.cambiato)
 
@@ -173,29 +172,45 @@ export function Riordino() {
     if (scrive?.id === r.id && scrive.tipo === tipo) { setScrive(null); return }
     const casella = r.casella || 'gc'
     const testo = `\n\n${FIRMA[casella]}`
-    setScrive({ id: r.id, tipo, testo, a: '', tutti: false, prima: null })
+    setScrive({ id: r.id, tipo, testo, a: [], cc: [], ccn: [], copie: false, tutti: false, prima: null })
     setRisponde(null)
     setAperta(null)
     if (tipo !== 'rispondi') return
     try {
+      // Chi ti ha scritto entra già in A; chi era in copia si aggiunge con "Rispondi a tutti". Si può togliere e aggiungere.
       const p = await chiama('riordino-mail', { azione: 'rispondi', id: r.id, testo: FIRMA[casella], tutti: true, prova: true })
-      setScrive((s) => (s?.id === r.id && s.tipo === tipo ? { ...s, prima: { a: p.a, cc: p.cc } } : s))
+      setScrive((s) => (s?.id === r.id && s.tipo === tipo
+        ? { ...s, prima: { a: p.a, cc: p.cc }, a: [...p.a.map((mail) => ({ mail })), ...s.a.filter((x) => !p.a.includes(x.mail))] } : s))
     } catch (e) {
       setScrive((s) => (s?.id === r.id ? { ...s, prima: { errore: messaggioErrore(e) } } : s))
     }
+  }
+  const cambiaDest = (campo, v) => { due.disarma(); setScrive((s) => ({ ...s, [campo]: v, cambiato: true })) }
+  function rispondiATutti(si) {
+    due.disarma()
+    setScrive((s) => {
+      const altri = s.prima.cc.filter((m) => !s.a.some((x) => x.mail === m) && !s.ccn.some((x) => x.mail === m))
+      const cc = si ? [...s.cc, ...altri.filter((m) => !s.cc.some((x) => x.mail === m)).map((mail) => ({ mail }))]
+        : s.cc.filter((x) => !s.prima.cc.includes(x.mail))
+      return { ...s, tutti: si, cc }
+    })
+  }
+  const destinatari = (s) => ({ a: s.a.map((x) => x.mail), cc: s.cc.map((x) => x.mail), ccn: s.ccn.map((x) => x.mail) })
+  const elencoDest = (s) => {
+    const d = destinatari(s)
+    return [d.a.join(', '), d.cc.length && `Cc ${d.cc.join(', ')}`, d.ccn.length && `Ccn ${d.ccn.join(', ')}`].filter(Boolean).join(' · ')
   }
 
   async function manda(r) {
     const s = scrive
     if (!s.testo.trim() || s.testo.trim() === FIRMA[r.casella || 'gc']) return avvisa('Scrivi il testo')
-    const a = mailValide(s.a)
-    if (s.tipo === 'inoltra' && !a.length) return avvisa('Scrivi a chi inoltrarla (indirizzo mail)')
-    due.tocca(`manda-${r.id}`, () => mandaDavvero(r, s, a))
+    if (!s.a.length) return avvisa(s.tipo === 'inoltra' ? 'Scrivi a chi inoltrarla (nome o indirizzo mail)' : 'Metti almeno un indirizzo in A')
+    due.tocca(`manda-${r.id}`, () => mandaDavvero(r, s))
   }
-  async function mandaDavvero(r, s, a) {
+  async function mandaDavvero(r, s) {
     setLavoro(true)
     try {
-      const esito = await chiama('riordino-mail', { azione: s.tipo, id: r.id, testo: s.testo, tutti: s.tutti, a })
+      const esito = await chiama('riordino-mail', { azione: s.tipo, id: r.id, testo: s.testo, ...destinatari(s) })
       setScrive(null)
       avvisa(esito.esito || (s.tipo === 'rispondi' ? 'Risposta mandata' : 'Inoltrata'))
       ricarica()
@@ -408,26 +423,26 @@ export function Riordino() {
         )}
         {scrive?.id === r.id && (
           <div className="scelta-cartella rispondi-agente scrivi-mail">
-            {scrive.tipo === 'rispondi' ? (
-              !scrive.prima ? <p className="riga-meta">Cerco a chi rispondere…</p>
-                : scrive.prima.errore ? <p className="msg errore">{scrive.prima.errore}</p>
-                  : (
-                    <>
-                      <p className="riga-meta">A: {scrive.prima.a.join(', ')}</p>
-                      {scrive.prima.cc.length > 0 && (
-                        <label className="riga-meta scelta-tutti">
-                          <input type="checkbox" checked={scrive.tutti}
-                            onChange={(e) => { due.disarma(); setScrive({ ...scrive, tutti: e.target.checked }) }} />
-                          {' '}Rispondi a tutti (anche {scrive.prima.cc.join(', ')})
-                        </label>
-                      )}
-                    </>
-                  )
-            ) : (
-              <input type="email" inputMode="email" multiple value={scrive.a} placeholder="A chi (indirizzo mail)"
-                onChange={(e) => { due.disarma(); setScrive({ ...scrive, a: e.target.value, cambiato: true }) }} />
+            {scrive.tipo === 'rispondi' && !scrive.prima && <p className="riga-meta">Cerco a chi rispondere…</p>}
+            {scrive.prima?.errore && <p className="msg errore">{scrive.prima.errore}</p>}
+            <CampoIndirizzi etichetta="A" valore={scrive.a} onChange={(v) => cambiaDest('a', v)}
+              escludi={[...scrive.cc, ...scrive.ccn]} autoFocus={scrive.tipo === 'inoltra'} />
+            {(scrive.copie || scrive.cc.length > 0) && (
+              <CampoIndirizzi etichetta="Cc" valore={scrive.cc} onChange={(v) => cambiaDest('cc', v)} escludi={[...scrive.a, ...scrive.ccn]} />
             )}
-            <textarea rows={6} value={scrive.testo} autoFocus
+            {(scrive.copie || scrive.ccn.length > 0) && (
+              <CampoIndirizzi etichetta="Ccn" valore={scrive.ccn} onChange={(v) => cambiaDest('ccn', v)} escludi={[...scrive.a, ...scrive.cc]} />
+            )}
+            {scrive.prima?.cc?.length > 0 && (
+              <label className="riga-meta scelta-tutti">
+                <input type="checkbox" checked={scrive.tutti} onChange={(e) => rispondiATutti(e.target.checked)} />
+                {' '}Rispondi a tutti (in Cc anche {scrive.prima.cc.join(', ')})
+              </label>
+            )}
+            {!scrive.copie
+              ? <button type="button" className="tasto-link" onClick={() => setScrive({ ...scrive, copie: true })}>+ Cc / Ccn</button>
+              : <p className="nota-piccola">Ccn: ricevono la mail ma gli altri non li vedono.</p>}
+            <textarea rows={6} value={scrive.testo} autoFocus={scrive.tipo === 'rispondi'}
               onFocus={(e) => { if (!scrive.cambiato) e.target.setSelectionRange(0, 0) }}
               onChange={(e) => { due.disarma(); setScrive({ ...scrive, testo: e.target.value, cambiato: true }) }}
               placeholder={scrive.tipo === 'rispondi' ? 'Scrivi la risposta' : 'Scrivi due righe (facoltativo) sopra la mail inoltrata'} />
@@ -437,9 +452,9 @@ export function Riordino() {
             </p>
             <div className="azioni">
               <button type="button" className={'tasto-grande tasto-manda' + (due.armato === `manda-${r.id}` ? ' conferma' : '')} onClick={() => manda(r)}
-                disabled={lavoro || (scrive.tipo === 'rispondi' && !scrive.prima?.a?.length)}>
+                disabled={lavoro || (scrive.tipo === 'rispondi' && !scrive.prima)}>
                 {lavoro ? 'Mando…' : due.armato === `manda-${r.id}`
-                  ? `Tocca ancora: manda a ${scrive.tipo === 'rispondi' ? scrive.prima.a.join(', ') + (scrive.tutti ? ' e altri' : '') : mailValide(scrive.a).join(', ')}`
+                  ? `Tocca ancora: manda a ${elencoDest(scrive)}`
                   : scrive.tipo === 'rispondi' ? 'Manda la risposta' : 'Inoltra'}
               </button>
               <button type="button" className="tasto-link" onClick={() => setScrive(null)}>Annulla</button>
@@ -560,6 +575,107 @@ export function Riordino() {
             <button type="button" className="tasto-link" onClick={tieni} disabled={lavoro}>Lascia in casella</button>
             <button type="button" className="tasto-link" onClick={() => { setScelte({}); setConferma(false) }} disabled={lavoro}>Annulla la scelta</button>
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Indirizzi di Rispondi e Inoltra (17.10.2026, richiesta di Giovanni): più indirizzi in A, Cc e Ccn; dalla seconda lettera
+// propone le persone del brain e i contatti della Rubrica che hanno una mail. Si può sempre scrivere un indirizzo a mano.
+const unaMail = (s) => /^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$/.test(s)
+const pulisciCerca = (s) => s.replace(/[,()%*\\:]/g, '')
+
+async function cercaIndirizzi(testo) {
+  const parole = testo.trim().split(/\s+/).map(pulisciCerca).filter(Boolean)
+  if (!parole.length) return []
+  let qp = sb.from('persone').select('nome,cognome,email,email_altre').is('eliminata_il', null).not('email', 'is', null).limit(12)
+  let qr = sb.from('rubrica').select('nome,cognome,ditta,email').is('eliminata_il', null).neq('email', '[]').limit(20)
+  for (const p of parole) {
+    qp = qp.or(`nome.ilike.%${p}%,cognome.ilike.%${p}%,email.ilike.%${p}%`)
+    qr = qr.or(`nome.ilike.%${p}%,cognome.ilike.%${p}%,ditta.ilike.%${p}%`)
+  }
+  const [persone, rubrica] = await Promise.all([qp, qr])
+  const nome = (x) => [x.nome, x.cognome].filter(Boolean).join(' ') || x.ditta || ''
+  const tutte = [
+    ...(persone.data || []).flatMap((x) => [x.email, ...(x.email_altre || [])].map((mail) => ({ nome: nome(x), mail }))),
+    ...(rubrica.data || []).flatMap((x) => (x.email || []).map((e) => ({ nome: nome(x), mail: e?.valore }))),
+  ]
+  // Prima chi comincia con quello che hai scritto ("sil" → Silvia…), poi gli altri.
+  const inizio = parole[0].toLowerCase()
+  const viste = new Set()
+  return tutte
+    .map((x) => ({ nome: x.nome, mail: String(x.mail || '').trim().toLowerCase() }))
+    .filter((x) => unaMail(x.mail) && !viste.has(x.mail) && viste.add(x.mail))
+    .sort((x, y) => Number(!x.nome.toLowerCase().startsWith(inizio)) - Number(!y.nome.toLowerCase().startsWith(inizio)))
+}
+
+function CampoIndirizzi({ etichetta, valore, onChange, escludi = [], autoFocus = false }) {
+  const [testo, setTesto] = useState('')
+  const [trovate, setTrovate] = useState([])
+  useEffect(() => {
+    if (testo.trim().length < 2) { setTrovate([]); return }
+    let annullato = false
+    const t = setTimeout(async () => {
+      const r = await cercaIndirizzi(testo).catch(() => [])
+      if (!annullato) setTrovate(r)
+    }, 200)
+    return () => { annullato = true; clearTimeout(t) }
+  }, [testo])
+
+  const gia = new Set([...valore, ...escludi].map((x) => x.mail))
+  const proposte = trovate.filter((x) => !gia.has(x.mail)).slice(0, 6)
+  const metti = (voci) => {
+    const nuove = voci.filter((x, i) => !gia.has(x.mail) && voci.findIndex((y) => y.mail === x.mail) === i)
+    if (nuove.length) onChange([...valore, ...nuove])
+  }
+  // Un indirizzo scritto a mano diventa una pastiglia con virgola, spazio, Invio o uscendo dal campo.
+  function scrivi(v) {
+    const pezzi = v.split(/[\s,;]+/)
+    const resto = pezzi.pop()
+    const finiti = pezzi.filter(Boolean)
+    if (finiti.length && finiti.every(unaMail)) {
+      metti(finiti.map((m) => ({ mail: m.toLowerCase() })))
+      setTesto(resto)
+    } else setTesto(v)
+  }
+  function chiudiTesto() {
+    const t = testo.trim().toLowerCase()
+    if (unaMail(t)) { metti([{ mail: t }]); setTesto('') }
+  }
+
+  return (
+    <div className="campo-indirizzi">
+      <div className="riga-indirizzi">
+        <span className="etichetta-indirizzi">{etichetta}</span>
+        {valore.map((x) => (
+          <span key={x.mail} className="chip attivo chip-indirizzo" title={x.mail}>
+            <span className="chip-testo">{x.nome || x.mail}</span>
+            <button type="button" aria-label={`Togli ${x.nome || x.mail}`} onClick={() => onChange(valore.filter((v) => v.mail !== x.mail))}>
+              <Icona nome="x" size={14} />
+            </button>
+          </span>
+        ))}
+        <input type="text" inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="off"
+          value={testo} autoFocus={autoFocus} placeholder={valore.length ? 'Aggiungi…' : 'Nome o indirizzo mail'}
+          aria-label={`Destinatari ${etichetta}`}
+          onChange={(e) => scrivi(e.target.value)}
+          onBlur={chiudiTesto}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              if (unaMail(testo.trim())) chiudiTesto()
+              else if (proposte[0]) { metti([proposte[0]]); setTesto('') }
+            } else if (e.key === 'Backspace' && !testo && valore.length) onChange(valore.slice(0, -1))
+          }} />
+      </div>
+      {proposte.length > 0 && (
+        <div className="tendina">
+          {proposte.map((x) => (
+            <button key={x.mail} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { metti([x]); setTesto('') }}>
+              <strong>{x.nome || x.mail}</strong>{x.nome && <span className="riga-meta">{x.mail}</span>}
+            </button>
+          ))}
         </div>
       )}
     </div>

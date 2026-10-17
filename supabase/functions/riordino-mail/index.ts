@@ -11,6 +11,7 @@
 //         { azione: 'allegato', id, rif } → un allegato in base64 (13.10.2026, richiesta di Giovanni). Solo lettura: non segna come letta.
 //         { azione: 'rispondi', id, testo, tutti? }  → risposta nella stessa conversazione (13.10.2026 sera, "via di mezzo" scelta da Giovanni);
 //         { azione: 'inoltra', id, testo, a: [mail] } → inoltro con gli allegati.
+//         Tutte e due accettano a, cc, ccn: [mail] scelti da Giovanni (17.10.2026); i Ccn non si vedono nella mail.
 //         info@ parte da SMTP Hostpoint con la copia in "Sent"; Ceramex dalla Gmail (stessa conversazione). L'app chiede due tocchi.
 //         Con prova: true (anche col token della copia, per i controlli) prepara la mail e dice cosa manderebbe, senza mandarla.
 import { ImapFlow } from 'npm:imapflow@1.0.171'
@@ -237,19 +238,23 @@ async function originaleCeramex(token: string, r: Record<string, any>, conAllega
   }
 }
 
-function prepara(o: Originale, io: string, tipo: 'rispondi' | 'inoltra', corpo: { testo?: string, tutti?: boolean, a?: unknown[] }) {
+// A, Cc e Ccn (17.10.2026, richiesta di Giovanni): se l'app li manda, valgono quelli scelti da lui (anche per la risposta);
+// senza, la risposta va a chi ha scritto (e con "tutti" in copia a chi era in A/Cc).
+function prepara(o: Originale, io: string, tipo: 'rispondi' | 'inoltra', corpo: { testo?: string, tutti?: boolean, a?: unknown[], cc?: unknown[], ccn?: unknown[] }) {
   const testo = String(corpo.testo || '').trim()
   if (!testo) throw new Error('Scrivi il testo')
   let a: string[], cc: string[] = []
-  if (tipo === 'rispondi') {
+  if (Array.isArray(corpo.a)) {
+    a = pulisciIndirizzi(corpo.a)
+    cc = pulisciIndirizzi(Array.isArray(corpo.cc) ? corpo.cc : []).filter((x) => !a.includes(x))
+    if (!a.length) throw new Error(tipo === 'inoltra' ? 'Scrivi a chi inoltrarla' : 'Metti almeno un indirizzo in A')
+  } else if (tipo === 'rispondi') {
     const daLui = o.daIndirizzo.toLowerCase() === io
     a = pulisciIndirizzi(daLui ? o.a : (o.rispondiA.length ? o.rispondiA : [o.daIndirizzo])).filter((x) => x !== io)
     if (corpo.tutti) cc = pulisciIndirizzi([...o.a, ...o.cc]).filter((x) => x !== io && !a.includes(x))
-  } else {
-    a = pulisciIndirizzi(Array.isArray(corpo.a) ? corpo.a : [])
-    if (!a.length) throw new Error('Scrivi a chi inoltrarla')
-  }
+  } else throw new Error('Scrivi a chi inoltrarla')
   if (!a.length) throw new Error('Non trovo a chi rispondere')
+  const ccn = pulisciIndirizzi(Array.isArray(corpo.ccn) ? corpo.ccn : []).filter((x) => !a.includes(x) && !cc.includes(x))
   const sotto = tipo === 'rispondi'
     ? `Il ${quandoMail(o.data)}, ${o.da} ha scritto:\n${o.testo.split('\n').map((l) => `> ${l}`).join('\n')}`
     : ['---------- Messaggio inoltrato ----------', `Da: ${o.da}`, `Data: ${quandoMail(o.data)}`, `Oggetto: ${o.oggetto}`,
@@ -258,7 +263,7 @@ function prepara(o: Originale, io: string, tipo: 'rispondi' | 'inoltra', corpo: 
   if (allegati.reduce((s, x) => s + x.content.byteLength, 0) > MAX_ALLEGATI) throw new Error('Allegati troppo grandi (oltre 20 MB): inoltrala dalla casella')
   const riferimenti = o.messageId ? [...o.references, conParentesi(o.messageId)] : o.references
   return {
-    a, cc, oggetto: conPrefisso(o.oggetto, tipo), testo: `${testo}\n\n${sotto}`, allegati,
+    a, cc, ccn, oggetto: conPrefisso(o.oggetto, tipo), testo: `${testo}\n\n${sotto}`, allegati,
     ...(tipo === 'rispondi' && o.messageId ? { inReplyTo: conParentesi(o.messageId), references: riferimenti.join(' ') } : {}),
   }
 }
@@ -266,6 +271,7 @@ function prepara(o: Originale, io: string, tipo: 'rispondi' | 'inoltra', corpo: 
 async function mandaGC(m: ReturnType<typeof prepara>) {
   const password = Deno.env.get('GC_MAIL_PASSWORD')
   if (!password) throw new Error('manca la password della casella (GC_MAIL_PASSWORD)')
+  // I Ccn non vanno nella mail (li vedrebbero tutti): solo nella busta SMTP.
   const grezza: Uint8Array = await new MailComposer({
     from: { name: 'G&C Home concepts', address: IO }, to: m.a, cc: m.cc.length ? m.cc : undefined, subject: m.oggetto, text: m.testo,
     messageId: `<${crypto.randomUUID()}@homeconcepts.ch>`, date: new Date(), inReplyTo: m.inReplyTo, references: m.references,
@@ -273,7 +279,7 @@ async function mandaGC(m: ReturnType<typeof prepara>) {
   }).compile().build()
   const smtp = nodemailer.createTransport({ host: 'asmtp.mail.hostpoint.ch', port: 465, secure: true,
     auth: { user: IO, pass: password }, connectionTimeout: 20000, socketTimeout: 60000 })
-  await smtp.sendMail({ envelope: { from: IO, to: [...m.a, ...m.cc] }, raw: grezza })
+  await smtp.sendMail({ envelope: { from: IO, to: [...m.a, ...m.cc, ...m.ccn] }, raw: grezza })
   // Copia in "Sent" (se non riesce, la mail è comunque partita): la legge poi posta-gc.
   try {
     const imap = new ImapFlow({ host: 'imap.mail.hostpoint.ch', port: 993, secure: true, auth: { user: IO, pass: password }, logger: false })
@@ -285,11 +291,15 @@ async function mandaGC(m: ReturnType<typeof prepara>) {
 }
 
 async function mandaCeramex(token: string, m: ReturnType<typeof prepara>, threadId?: string) {
-  const grezza: Uint8Array = await new MailComposer({
-    from: { name: 'Giovanni Fabris', address: IO_CERAMEX }, to: m.a, cc: m.cc.length ? m.cc : undefined, subject: m.oggetto, text: m.testo,
+  // Gmail legge i Ccn dall'intestazione Bcc (e la toglie prima di mandare): per questo keepBcc.
+  const nodo = new MailComposer({
+    from: { name: 'Giovanni Fabris', address: IO_CERAMEX }, to: m.a, cc: m.cc.length ? m.cc : undefined,
+    bcc: m.ccn.length ? m.ccn : undefined, subject: m.oggetto, text: m.testo,
     date: new Date(), inReplyTo: m.inReplyTo, references: m.references,
     attachments: m.allegati.map((x) => ({ filename: x.filename, contentType: x.contentType, content: x.content })),
-  }).compile().build()
+  }).compile()
+  nodo.keepBcc = true
+  const grezza: Uint8Array = await nodo.build()
   // Caricamento "multipart": regge anche gli allegati grandi e tiene la risposta nella stessa conversazione.
   const confine = `sb${crypto.randomUUID()}`
   const enc = new TextEncoder()
@@ -311,7 +321,7 @@ async function rispondiOInoltra(r: Record<string, any>, tipo: 'rispondi' | 'inol
   const o = ceramex ? await originaleCeramex(token, r, conAllegati) : await originaleGC(r, conAllegati)
   if (!o) throw new Error(ceramex ? 'La conversazione non c\'è più in Gmail' : 'La mail non è più in questa cartella')
   const m = prepara(o, ceramex ? IO_CERAMEX : IO, tipo, corpo)
-  const riassunto = { a: m.a, cc: m.cc, oggetto: m.oggetto, allegati: m.allegati.map((x) => x.filename) }
+  const riassunto = { a: m.a, cc: m.cc, ccn: m.ccn, oggetto: m.oggetto, allegati: m.allegati.map((x) => x.filename) }
   if (corpo.prova) return { prova: true, ...riassunto, testo: m.testo.slice(0, 1500) }
 
   // Blocco: niente doppio invio se si tocca due volte (2 minuti).

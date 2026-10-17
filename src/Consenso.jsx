@@ -51,6 +51,7 @@ export default function Consenso() {
             note, schede di ditte e persone, appuntamenti, promemoria, mail G&C e WhatsApp.</p>
           <p className="nota-piccola">Solo lettura: non può scrivere, cambiare o cancellare niente. Puoi scollegarlo quando vuoi dalle impostazioni dell'app Claude.</p>
           <p className="nota-piccola">Torna a: {new URL(dati.redirect_uri).hostname}</p>
+          <p className="msg">Consenti solo se l'hai appena chiesto tu dall'app Claude. Se ti è arrivato un link da qualcuno: Rifiuta.</p>
           {!fidato && <p className="msg rosso">Questo indirizzo non è claude.ai: la richiesta non si può accettare.</p>}
           <div className="consenso-tasti">
             <button type="button" className="tasto-grande" disabled={occupato || !fidato} onClick={() => decidi(true)}>Consenti</button>

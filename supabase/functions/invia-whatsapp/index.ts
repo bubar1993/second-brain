@@ -4,6 +4,8 @@
 // ricevuto da quel contatto. Fuori finestra serve un modello approvato (a pagamento): qui si ferma e lo dice.
 // Il messaggio mandato si salva in wa_messaggi (fonte 'app'); lo stato (consegnato, letto) lo aggiorna il webhook.
 
+import { daConnettore } from '../_shared/accesso.ts'
+
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const UTENTE = 'f220cb9e-6628-4fd4-b2ef-f7e5f49d9a54'
@@ -33,7 +35,7 @@ Deno.serve(async (req: Request) => {
   const jwt = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
   const u = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${jwt}` } })
   const utente = u.ok ? await u.json() : null
-  if (utente?.id !== UTENTE) return risposta({ errore: 'Non autorizzato' }, 401)
+  if (utente?.id !== UTENTE || daConnettore(jwt)) return risposta({ errore: 'Non autorizzato' }, 401)
 
   const { wa_id, testo, bozza_id, risponde_a } = await req.json().catch(() => ({}))
   const corpo = String(testo || '').trim()

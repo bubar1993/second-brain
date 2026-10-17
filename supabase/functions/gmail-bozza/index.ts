@@ -8,6 +8,8 @@
 // Collegamento Google: client OAuth "Second Brain Gmail" (pubblico Interno), segreti GMAIL_CLIENT_ID/SECRET/REFRESH_TOKEN
 // messi da scripts/collega-gmail.mjs.
 
+import { daConnettore } from '../_shared/accesso.ts'
+
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const UTENTE = 'f220cb9e-6628-4fd4-b2ef-f7e5f49d9a54'
@@ -152,7 +154,7 @@ Deno.serve(async (req: Request) => {
   const jwt = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
   const u = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${jwt}` } })
   const utente = u.ok ? await u.json() : null
-  if (utente?.id !== UTENTE) return risposta({ errore: 'Non autorizzato' }, 401)
+  if (utente?.id !== UTENTE || daConnettore(jwt)) return risposta({ errore: 'Non autorizzato' }, 401)
 
   const { azione, id, testo, a, cc, oggetto } = await req.json().catch(() => ({}))
   if (!id) return risposta({ errore: 'Manca la bozza' }, 400)

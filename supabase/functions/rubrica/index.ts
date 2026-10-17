@@ -11,6 +11,8 @@
 // Collegamento: client "Second Brain Gmail" (GMAIL_CLIENT_ID/SECRET) con un permesso a parte solo per i contatti
 // (CONTATTI_REFRESH_TOKEN, `node scripts/collega-contatti.mjs`). Non tocca la Gmail.
 
+import { daConnettore } from '../_shared/accesso.ts'
+
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const COPIA_TOKEN = Deno.env.get('COPIA_TOKEN')
@@ -480,7 +482,7 @@ Deno.serve(async (req: Request) => {
     const jwt = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
     const u = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${jwt}` } })
     const utente = u.ok ? await u.json() : null
-    if (utente?.id !== UTENTE) return risposta({ errore: 'Non autorizzato' }, 401)
+    if (utente?.id !== UTENTE || daConnettore(jwt)) return risposta({ errore: 'Non autorizzato' }, 401)
   } else if (azione !== 'sincronizza' && azione !== 'pulisci') return risposta({ errore: 'Non autorizzato' }, 401)
 
   const uuid = (x: unknown) => /^[0-9a-f-]{36}$/.test(String(x))

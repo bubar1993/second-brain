@@ -5,6 +5,8 @@
 // - POST { nome, categoria, testo }: crea un modello in italiano (Meta lo controlla, di solito in pochi minuti).
 // Creare un modello è gratis; si paga solo quando lo si manda fuori dalle 24 ore.
 
+import { daConnettore } from '../_shared/accesso.ts'
+
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const UTENTE = 'f220cb9e-6628-4fd4-b2ef-f7e5f49d9a54'
@@ -27,7 +29,7 @@ Deno.serve(async (req: Request) => {
   const jwt = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
   const u = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${jwt}` } })
   const utente = u.ok ? await u.json() : null
-  if (utente?.id !== UTENTE) return risposta({ errore: 'Non autorizzato' }, 401)
+  if (utente?.id !== UTENTE || daConnettore(jwt)) return risposta({ errore: 'Non autorizzato' }, 401)
 
   const r0 = await fetch(`${SUPABASE_URL}/rest/v1/wa_collegamento?id=eq.1&select=token,waba_id`, { headers: sbHeaders })
   const [col] = r0.ok ? await r0.json() : []

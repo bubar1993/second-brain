@@ -12,6 +12,7 @@ Valgono quando cambi le regole degli agenti. I dettagli stanno in `docs/agenti-r
 - Posta: gli agenti leggono e propongono (anche il Cestino, solo come proposta). Nessuna mail si sposta, etichetta o cestina se Giovanni non l'ha scelta nell'app. Unica eccezione: le liste di carico.
 - Gestionali: si leggono; scrivono solo le routine che lo facevano già, e solo nelle tabelle indicate nelle loro regole.
 - Cose rischiose del Capo → `capo_conferme` (due tocchi di Giovanni).
+- `agente-sql` rifiuta `net.http_*`, blocchi DO, `plpgsql` e `create function` (18.10.2026): niente di questo nelle regole degli agenti del second brain.
 - Niente mail o notifiche di prova. Una prova che fa partire un agente può mandare una notifica al telefono di Giovanni: farla di giorno e dirglielo prima.
 - Routine create via API: passare sempre `mcp_connections`, se no prendono TUTTI i connettori dell'account.
 

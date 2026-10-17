@@ -16,6 +16,7 @@ Per leggere i gestionali dal second brain si usa una chiave di sola lettura per 
 
 - Sicurezza (migrazione `sicurezza_funzioni`): le 4 funzioni "security definer" non rispondono più ad anon. Per funzioni nuove dello stesso tipo: revoke da public/anon, grant ad authenticated, service_role e ai ruoli agente_*.
 - Token dei connettori (18.10.2026, controllo di sicurezza, ok di Giovanni): l'app Claude collegata (OAuth, token con `client_id`) può solo leggere con `mcp`. Le funzioni chiamate dall'app con l'accesso di Giovanni (invia-bozza, gmail-bozza, riordino-mail, invia-whatsapp, rubrica, agente-subito, whatsapp-modelli, significato; chiedi-ai e capo-veloce lo facevano già) rifiutano quei token con `daConnettore` di `_shared/accesso.ts`. La pagina di consenso dice di consentire solo se la richiesta l'ha appena fatta Giovanni. La registrazione dei connettori resta aperta: chiuderla bloccherebbe il ricollegamento dell'app Claude.
+- Agenti senza internet dal database (18.10.2026, ok di Giovanni): `net.http_*` (pg_net) Supabase lo dà a PUBLIC e il nostro utente postgres non può toglierlo (provato). Quindi `agente-sql` rifiuta le istruzioni con `net.`, `http_*`, blocchi DO, `plpgsql`, `create function`, `pg_temp`, `query_to_xml`, `ts_stat`, `ts_rewrite`, `U&"…"` (risposta 403). Controllato prima su 2892 istruzioni vere degli agenti: nessuna fermata. I giri programmati (pg_cron, utente postgres) non passano da lì e funzionano come prima.
 
 ### Fase 1 e backup (dalla lista delle fasi)
 

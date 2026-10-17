@@ -16,6 +16,11 @@ const PORTE = ['', '_LAVORO', '_PRIVATO', '_CALENDARIO', '_CERAMEX', '_SMISTATOR
   .map((s) => ({ token: Deno.env.get(`AGENTE_TOKEN${s}`), url: Deno.env.get(`AGENTE_DB_URL${s}`) }))
   .filter((p) => p.token && p.url)
 const MASSIMO = 300000 // caratteri di risposta
+// Niente chiamate a internet dal database (pg_net, 18.10.2026, ok di Giovanni): il permesso lo dà Supabase a tutti e
+// non si può togliere, quindi si fermano qui le istruzioni che le usano e i modi per costruirle "a pezzi"
+// (blocchi DO, funzioni plpgsql temporanee, query_to_xml/ts_stat/ts_rewrite, nomi scritti con U&"…").
+// Nessun agente le usa sul second brain (l'archiviazione G&C le usa sul gestionale G&C, con il suo connettore).
+const VIETATO = /http_(post|get|delete|request|collect)|_http_response|\bnet\s*\.|"net"|\bU&\s*["']|(^|[;\n]|\*\/)\s*do\s*(\$|'|e'|language\b)|plpgsql|\bcreate\s+(or\s+replace\s+)?(function|procedure)\b|pg_temp|query_to_xml|cursor_to_xml|\bts_stat\b|\bts_rewrite\b/i
 
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return new Response('Usa POST', { status: 405 })
@@ -28,6 +33,10 @@ Deno.serve(async (req: Request) => {
     try { query = JSON.parse(corpo).sql } catch { return new Response('JSON non valido', { status: 400 }) }
   }
   if (!query?.trim()) return new Response('SQL vuoto', { status: 400 })
+  if (VIETATO.test(query)) {
+    return new Response(JSON.stringify({ errore: 'Non permesso agli agenti: chiamate a internet dal database e blocchi DO/funzioni.' }),
+      { status: 403, headers: { 'Content-Type': 'application/json' } })
+  }
 
   const sql = postgres(porta.url!, { prepare: false, max: 1, connect_timeout: 15, idle_timeout: 5 })
   try {

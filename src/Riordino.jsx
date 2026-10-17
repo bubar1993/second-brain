@@ -15,6 +15,8 @@ const CASELLE = [['gc', 'INBOX', 'Posta in arrivo info@'], ['gc', 'Sent', 'Posta
 // "Cestino" (13.10.2026, richiesta di Giovanni) è una cartella speciale: con "Sposta" la mail va nel Cestino della casella
 // (Gmail la tiene 30 giorni, Hostpoint finché non lo svuoti). Lo sceglie Giovanni col tasto o lo propone l'agente.
 const CESTINO = 'Cestino'
+// Allegati che si aprono dentro l'app (18.10.2026): il resto si scarica (vedi apriAllegato).
+const TIPI_DA_APRIRE = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif', 'text/plain']
 const corta = (c) => (c === CESTINO ? '🗑 Cestino' : c ? c.replace(/^Archive\//, '').replace(/^INBOX\/\d{4}\//, '') : '')
 const caselleDi = (area) => (area === 'C' ? ['ceramex'] : area === 'G' ? ['gc'] : ['gc', 'ceramex'])
 const nomeBreve = (da) => (da || '').replace(/\s*<[^>]+>\s*/, '').replace(/^"|"$/g, '') || da || ''
@@ -152,13 +154,19 @@ export function Riordino() {
       avvisa(`Apro ${a.nome}…`)
       const f = await chiama('riordino-mail', { azione: 'allegato', id: r.id, rif: a.rif })
       const bytes = Uint8Array.from(atob(f.dati), (c) => c.charCodeAt(0))
-      const url = URL.createObjectURL(new Blob([bytes], { type: f.tipo }))
-      if (finestra) finestra.location.href = url
+      // Sicurezza (18.10.2026): il file aperto qui conta come l'app. Si aprono solo PDF, foto e testo semplice;
+      // il resto (pagine HTML, disegni SVG, …) si scarica e basta, così niente di nascosto parte dentro l'app.
+      const tipo = String(f.tipo || '').toLowerCase().split(';')[0].trim()
+      const daAprire = TIPI_DA_APRIRE.includes(tipo)
+      const url = URL.createObjectURL(new Blob([bytes], { type: daAprire ? tipo : 'application/octet-stream' }))
+      if (finestra && daAprire) finestra.location.href = url
       else {
+        finestra?.close()
         const link = document.createElement('a')
         link.href = url
         link.download = f.nome
         link.click()
+        if (!daAprire) avvisa(`${f.nome}: scaricato, aprilo dai Download`)
       }
       setTimeout(() => URL.revokeObjectURL(url), 120000)
     } catch (e) {

@@ -460,8 +460,9 @@ a.riga:active, button.riga:active { background: rgba(255, 255, 255, 0.04); }
   background: var(--vuoto); color: var(--testo); font-weight: 700;
 }
 
-/* Con la tastiera aperta (telefono) i 3 tasti spariscono: non coprono quello che scrivi. */
-@media (max-width: 1023px) {
+/* Con la tastiera aperta (telefono) i 3 tasti spariscono: non coprono quello che scrivi.
+   Solo sugli schermi a tocco (18.10.2026): sul PC con la finestra stretta restavano nascosti senza tastiera. */
+@media (hover: none) and (pointer: coarse) {
   body:has(input:focus, textarea:focus) .tasti { display: none; }
 }
 

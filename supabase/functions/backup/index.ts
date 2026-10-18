@@ -2,7 +2,7 @@
 //
 // Backup settimanale su Google Drive, cartella BRAIN/Backup. Chiamata la domenica notte da pg_cron
 // con l'intestazione "x-backup-token" (chiave nel Vault del database e nel segreto BACKUP_TOKEN).
-//   brain-dati-AAAA-MM-GG.json.gz   → tutti i dati
+//   brain-dati-AAAA-MM-GG.json.gz   → tutti i dati (tranne "vettori", che si ricalcolano), letti a pezzi
 //   brain-struttura-AAAA-MM-GG.sql  → la struttura (per ricostruire il database da zero)
 //   Foto/                           → solo le foto nuove, una volta sola ciascuna
 // Dati e struttura si tengono 90 giorni (poi nel cestino di Drive). Le foto restano.
@@ -23,6 +23,10 @@ const GDRIVE_REFRESH_TOKEN = Deno.env.get('GDRIVE_REFRESH_TOKEN')
 const GDRIVE_FOLDER_ID = Deno.env.get('GDRIVE_FOLDER_ID')
 
 const GIORNI_DA_TENERE = 90
+// Dati letti tabella per tabella, 500 righe alla volta (18.10.2026): tutto in una volta superava gli 8 s del database.
+const RIGHE_PER_PEZZO = 500
+// "vettori" (ricerca per significato) non va nel backup: si ricalcola dalle note ed è la tabella più pesante.
+const TABELLE_ESCLUSE = ['vettori']
 const FOTO_PER_GIRO = 200
 const CARTELLA_MIME = 'application/vnd.google-apps.folder'
 const TUTTI_I_DRIVE = 'supportsAllDrives=true&includeItemsFromAllDrives=true'
@@ -33,8 +37,8 @@ function json(body: unknown, status = 200) {
 
 const sbHeaders = { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json' }
 
-async function rpc(fn: string) {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, { method: 'POST', headers: sbHeaders, body: '{}' })
+async function rpc(fn: string, args: Record<string, unknown> = {}) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, { method: 'POST', headers: sbHeaders, body: JSON.stringify(args) })
   if (!r.ok) throw new Error(`${fn} ${r.status}: ${(await r.text()).slice(0, 200)}`)
   return await r.json()
 }
@@ -201,9 +205,20 @@ Deno.serve(async (req: Request) => {
     const token = await tokenGoogle()
 
     // 1. Dati
-    const tabelle = await rpc('backup_export')
+    const tabelle: Record<string, unknown[]> = {}
+    for (const t of (await rpc('backup_tabelle')) as string[]) {
+      if (TABELLE_ESCLUSE.includes(t)) continue
+      const righe: unknown[] = []
+      for (let da = 0; ; da += RIGHE_PER_PEZZO) {
+        const pezzo = (await rpc('backup_export_pezzo', { p_tabella: t, p_da: da, p_quanti: RIGHE_PER_PEZZO })) as unknown[]
+        righe.push(...pezzo)
+        if (pezzo.length < RIGHE_PER_PEZZO) break
+      }
+      tabelle[t] = righe
+    }
+    dettagli.escluse = TABELLE_ESCLUSE
     const conteggi: Record<string, number> = {}
-    for (const [t, righe] of Object.entries(tabelle || {})) conteggi[t] = Array.isArray(righe) ? righe.length : 0
+    for (const [t, righe] of Object.entries(tabelle)) conteggi[t] = righe.length
     const dati = await gzip(JSON.stringify({ creato_il: ora.toISOString(), fonte: 'Second Brain (Supabase vgurncqvgulldolhetyr)', conteggi, tabelle }))
     const nomeDati = `brain-dati-${giorno}.json.gz`
     await sostituisci(token, GDRIVE_FOLDER_ID, nomeDati, dati, 'application/gzip')

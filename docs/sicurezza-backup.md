@@ -25,6 +25,7 @@ Per leggere i gestionali dal second brain si usa una chiave di sola lettura per 
 1. **Base** — FATTA (11.10.2026): progetto Supabase, app installabile, 3 tasti, tre aree, Inbox, Persone, accesso con volto/impronta. Il backup su Drive è stato spostato a inizio fase 2 (decisione di Giovanni): finora bastano i backup giornalieri di Supabase Pro (7 giorni, senza foto).
 
 Il backup su Drive (funzione `backup`, ogni domenica notte, cartella BRAIN/Backup) è descritto nella fase 2 in `ceramex.md`.
+Dal 18.10.2026 i dati si leggono tabella per tabella, 500 righe alla volta (`backup_tabelle()` + `backup_export_pezzo()`, migrazione `backup_a_pezzi`): il 18.10 `backup_export()` in un colpo solo era stato fermato dal limite di 8 s. La tabella `vettori` (ricerca per significato) non va nel backup: si ricalcola dalle note. Rifatto a mano il 18.10 alle 18:58: ok, 3,6 MB.
 
 ## Primo passo
 

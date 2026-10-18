@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { sb, areaDa, leggi, scrivi } from './supabase'
 import {
-  useApp, chk, messaggioErrore, SceltaArea, SceltaPersone, Icona,
+  useApp, chk, chiama, messaggioErrore, SceltaArea, SceltaPersone, Icona,
   useDettatura, caricaFoto, aggiungiAreaPersone, perCampo,
 } from './componenti'
 import { capisciLista, capisciGaranzia, durata } from './capisci'
@@ -70,6 +70,26 @@ export function quandoRicordare(testo, adesso = new Date()) {
   return d
 }
 
+// Un solo posto per scrivere (18.10.2026, proposta accettata da Giovanni): dal "+" una richiesta va al Capo.
+// Regole semplici, gratis: una domanda ("…?") oppure un ordine che comincia con uno di questi verbi.
+// "chiamare Mario" (infinito) resta una nota; "ricordami…" resta un promemoria. Sotto il testo l'app dice
+// cosa farà e con un tocco si cambia.
+const VERBI_CAPO = new Set([
+  'prepara', 'preparami', 'manda', 'mandami', 'invia', 'inviami', 'inoltra', 'scrivi', 'scrivimi', 'rispondi',
+  'sposta', 'archivia', 'cancella', 'elimina', 'togli', 'chiedi', 'controlla', 'controllami', 'verifica',
+  'cerca', 'cercami', 'trova', 'trovami', 'fammi', 'fai', 'organizza', 'prenota', 'ordina', 'aggiorna',
+  'crea', 'dimmi', 'spiegami', 'calcola', 'confronta', 'riassumi', 'riassumimi', 'traduci', 'traducimi',
+])
+export function perIlCapo(testo) {
+  let t = testo.trim().toLowerCase().replace(/^((capo|ehi|ciao)[,:!]?\s+|per favore[,]?\s+)+/, '')
+  // "puoi cercare…", "mi potresti mandare…": una richiesta gentile è sempre una richiesta.
+  if (/^(mi\s+|ci\s+)?(puoi|potresti|riesci a)\s+\S/.test(t)) return true
+  t = t.trim()
+  if (!t) return false
+  if (/\?\s*$/.test(t)) return true
+  return VERBI_CAPO.has(t.split(/[\s,.:;!]+/)[0])
+}
+
 // "oggi alle 19:30", "domani alle 10:00", "venerdì 23.10 alle 9:00": per farlo vedere prima di salvare.
 function quandoDetto(d, adesso = new Date()) {
   const giorni = Math.round((new Date(d).setHours(0, 0, 0, 0) - new Date(adesso).setHours(0, 0, 0, 0)) / 864e5)
@@ -103,6 +123,9 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
   const [salvo, setSalvo] = useState(false)
   // "No, è una nota": il testo non va nella lista / non diventa una garanzia.
   const [soloNota, setSoloNota] = useState(false)
+  // Nota o Capo scelto a mano (sotto il testo); null = lo decide l'app (perIlCapo).
+  const [scelta, setScelta] = useState(null)
+  useEffect(() => { if (!testo.trim()) setScelta(null) }, [testo])
   const scattaRif = useRef(null)
   const testoRif = useRef(null)
   // Nota già creata ma foto non tutte caricate: "Salva" riprova solo le foto (niente note doppie).
@@ -171,6 +194,7 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
     setConPromemoria(false)
     setFonte('scritta')
     setSoloNota(false)
+    setScelta(null)
     notaFatta.current = null
     scrivi(chiave, '')
     testoRif.current?.focus()
@@ -184,10 +208,34 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
   // Con un'ora ma senza "ricordami" non diventa un promemoria: lo dico, invece di lasciarlo indovinare.
   const dettoOra = !conPromemoria && testo.trim() ? quandoRicordare(testo) : null
   const oraSenzaRicorda = !dettoOra && !conPromemoria && /\balle\s+\d{1,2}(?:[:.]\d{2})?\b/i.test(testo)
+  // Al Capo solo testo semplice: niente foto, promemoria, liste, garanzie, né note aperte da una scheda.
+  const capoPossibile = !!testo.trim() && !foto.length && !conPromemoria && !lista && !garanzia && !dettoOra
+    && !personaId && !aziendaId && !cantiereId && !temaId && !chiamata
+  const alCapo = capoPossibile && (scelta === 'capo' || (scelta !== 'nota' && perIlCapo(testo)))
+
+  // Richiesta al Capo: come la chat del Capo (nuovo argomento), poi si va lì a vedere la risposta.
+  async function mandaAlCapo(pulito) {
+    if (dettatura.attiva) dettatura.ferma()
+    setSalvo(true)
+    try {
+      const r = chk(await sb.from('richieste_agenti').insert({ agente: 'capo', testo: pulito }).select('id').single())
+      svuota()
+      const esito = await chiama('capo-veloce', { id: r.id })
+        .catch(() => chiama('agente-subito', { id: r.id }))
+        .catch((e) => ({ ok: false, errore: messaggioErrore(e) }))
+      avvisa(esito.veloce || esito.ok ? 'Passato al Capo' : 'Il Capo non è partito. Riprova tra un minuto; se succede ancora, dillo a Claude')
+      vai('/capo')
+    } catch (e) {
+      avvisa(messaggioErrore(e))
+    } finally {
+      setSalvo(false)
+    }
+  }
 
   async function salva() {
     const pulito = testo.trim()
     if (!pulito && !foto.length) return avvisa('Scrivi qualcosa o aggiungi una foto')
+    if (alCapo) return mandaAlCapo(pulito)
     if (conPromemoria && !ricorda) return avvisa('Scegli quando ricordartelo')
     setSalvo(true)
     const avvisaDetto = (detto) => (detto ? `. Te lo ricordo ${detto.toLocaleDateString('it-CH', { weekday: 'long' })} alle ${detto.toLocaleTimeString('it-CH', { hour: '2-digit', minute: '2-digit' })}` : '')
@@ -260,7 +308,7 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
   return (
     <div className="schermata aggiungi-schermata">
       <textarea ref={testoRif} value={testo} onChange={(e) => setTesto(e.target.value)}
-        placeholder="Cosa vuoi ricordare?" rows={5} autoFocus={!condiviso} />
+        placeholder="Cosa vuoi ricordare o chiedere?" rows={5} autoFocus={!condiviso} />
       {ripresa?.testo && testo === ripresa.testo && (
         <p className="nota-piccola">
           Ho ripreso il testo che stavi scrivendo.{' '}
@@ -324,7 +372,17 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
         </div>
       )}
 
-      {ditta && (
+      {/* Nota o Capo: si vede prima di salvare, un tocco per cambiare (18.10.2026). */}
+      {capoPossibile && (
+        <div className="capito" role="status">
+          <span>{alCapo ? <>Lo passo al <b>Capo</b></> : <>Salvo come <b>nota</b></>}</span>
+          <button type="button" className="tasto-link" onClick={() => setScelta(alCapo ? 'nota' : 'capo')}>
+            {alCapo ? 'No, è una nota' : 'Passalo al Capo'}
+          </button>
+        </div>
+      )}
+
+      {ditta && !alCapo && (
         <div className="campo">
           <span>Nella scheda</span>
           <div className="chips">
@@ -339,19 +397,24 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
         </div>
       )}
 
-      <div className="campo">
-        <span>Area</span>
-        <SceltaArea valore={areaNota} onChange={setAreaNota} />
-      </div>
+      {/* Area e persone servono alla nota, non al Capo. */}
+      {!alCapo && (
+        <>
+          <div className="campo">
+            <span>Area</span>
+            <SceltaArea valore={areaNota} onChange={setAreaNota} />
+          </div>
 
-      <div className="campo">
-        <span>Persone</span>
-        <SceltaPersone valore={persone} onChange={setPersone} />
-      </div>
+          <div className="campo">
+            <span>Persone</span>
+            <SceltaPersone valore={persone} onChange={setPersone} />
+          </div>
+        </>
+      )}
 
       {/* Salva resta in fondo allo schermo anche con la tastiera aperta (14.10.2026). */}
       <button type="button" className="tasto-grande tasto-salva-fisso" onClick={salva} disabled={salvo}>
-        {salvo ? 'Salvo…' : 'Salva'}
+        {salvo ? (alCapo ? 'Invio…' : 'Salvo…') : alCapo ? 'Manda al Capo' : 'Salva'}
       </button>
     </div>
   )

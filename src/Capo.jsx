@@ -21,7 +21,7 @@ export async function contaConferme() {
 }
 
 export function Capo() {
-  const { avvisa } = useApp()
+  const { avvisa, vai } = useApp()
   const [testo, setTesto] = useState('')
   const [invio, setInvio] = useState(false)
   const scrivi = useRef(null)
@@ -127,7 +127,8 @@ export function Capo() {
     <div className="schermata capo">
       <div className="testata"><h1>Capo</h1></div>
       <LinguetteCapo attiva="capo" />
-      <p className="nota-piccola">Scrivimi o dettami cosa ti serve: lo faccio io o lo passo all'agente giusto. Mail, messaggi, cancellazioni e gestionali solo dopo i tuoi due tocchi.</p>
+      {/* Un solo posto per scrivere (18.10.2026): le richieste nuove partono dal "+"; qui si leggono e si risponde. */}
+      <p className="nota-piccola">Qui leggi le risposte e rispondi al Capo. Una richiesta nuova la scrivi dal +. Mail, messaggi, cancellazioni e gestionali solo dopo i tuoi due tocchi.</p>
 
       <Stato carica={carica} errore={errore}>
         {dati && (
@@ -138,7 +139,7 @@ export function Capo() {
                 {senzaRichiesta.map((c) => <Conferma key={c.id} c={c} dopo={ricarica} />)}
               </div>
             )}
-            {dati.richieste.length === 0 ? <p className="msg">Ancora niente: scrivi qui sotto la prima cosa.</p> : (
+            {dati.richieste.length === 0 ? <p className="msg">Ancora niente: scrivi la prima richiesta dal +.</p> : (
               <>
                 {sez.altre.length > 0 && (
                   <div className="sezioni">
@@ -147,22 +148,26 @@ export function Capo() {
                     ))}
                   </div>
                 )}
-                {sez.attiva ? scambi(sez.attiva.righe) : <p className="nota-piccola sezione-nuova">Nuovo argomento: scrivi qui sotto.</p>}
+                {sez.attiva && scambi(sez.attiva.righe)}
               </>
             )}
           </>
         )}
       </Stato>
 
+      {/* Il riquadro per scrivere c'è solo dentro un argomento aperto (per rispondere); "Nuovo argomento" porta al "+". */}
+      {!sez.attiva ? (
+        <div className="scrivi-capo">
+          <button type="button" className="tasto-grande" onClick={() => vai('/aggiungi')}>Nuova richiesta</button>
+        </div>
+      ) : (
       <div className="scrivi-capo">
-        {sez.attiva && (
-          <div className="scrivi-sopra">
-            <span className="nota-piccola">Continui: {titoloCapo(sez.attiva.righe[0])}</span>
-            <button type="button" className="tasto-link" onClick={() => { sez.nuovoArgomento(); vaiInFondo() }}>Nuovo argomento</button>
-          </div>
-        )}
+        <div className="scrivi-sopra">
+          <span className="nota-piccola">Continui: {titoloCapo(sez.attiva.righe[0])}</span>
+          <button type="button" className="tasto-link" onClick={() => { sez.nuovoArgomento(); vai('/aggiungi') }}>Nuovo argomento</button>
+        </div>
         <textarea ref={scrivi} value={testo} onChange={(e) => setTesto(e.target.value)} rows={2}
-          placeholder={dettatura.attiva ? 'Ti ascolto…' : sez.attiva ? 'Scrivi al Capo…' : 'Nuovo argomento: scrivi al Capo…'} />
+          placeholder={dettatura.attiva ? 'Ti ascolto…' : 'Rispondi al Capo…'} />
         <div className="azioni">
           {dettatura.supportata && (
             <button type="button" className={'tasto-mic' + (dettatura.attiva ? ' attivo' : '')}
@@ -175,6 +180,7 @@ export function Capo() {
           </button>
         </div>
       </div>
+      )}
     </div>
   )
 }

@@ -70,6 +70,14 @@ export function quandoRicordare(testo, adesso = new Date()) {
   return d
 }
 
+// "oggi alle 19:30", "domani alle 10:00", "venerdì 23.10 alle 9:00": per farlo vedere prima di salvare.
+function quandoDetto(d, adesso = new Date()) {
+  const giorni = Math.round((new Date(d).setHours(0, 0, 0, 0) - new Date(adesso).setHours(0, 0, 0, 0)) / 864e5)
+  const giorno = giorni === 0 ? 'oggi' : giorni === 1 ? 'domani'
+    : `${d.toLocaleDateString('it-CH', { weekday: 'long' })} ${d.toLocaleDateString('it-CH', { day: 'numeric', month: 'numeric' })}`
+  return `${giorno} alle ${d.toLocaleTimeString('it-CH', { hour: '2-digit', minute: '2-digit' })}`
+}
+
 // Il testo che stai scrivendo resta sul telefono finché non salvi (anche se Android chiude l'app).
 const chiaveBozza = (personaId, aziendaId, cantiereId, temaId) =>
   `aggiungi:${personaId || ''}:${aziendaId || ''}${cantiereId || temaId ? `:${cantiereId || ''}:${temaId || ''}` : ''}`
@@ -172,6 +180,10 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
   // si vede subito sotto il testo, e con "No, è una nota" resta una nota normale.
   const lista = !soloNota && !ditta ? capisciLista(testo) : null
   const garanzia = !soloNota && !ditta && !lista && (foto.length || /^\s*garanzi/i.test(testo)) ? capisciGaranzia(testo) : null
+  // Promemoria detto nella nota (18.10.2026, prova "utente nuovo"): si vede subito quando lo creerò.
+  // Con un'ora ma senza "ricordami" non diventa un promemoria: lo dico, invece di lasciarlo indovinare.
+  const dettoOra = !conPromemoria && testo.trim() ? quandoRicordare(testo) : null
+  const oraSenzaRicorda = !dettoOra && !conPromemoria && /\balle\s+\d{1,2}(?:[:.]\d{2})?\b/i.test(testo)
 
   async function salva() {
     const pulito = testo.trim()
@@ -291,6 +303,15 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
       )}
 
       {conPromemoria && <QuandoRicordare valore={ricorda} onChange={setRicorda} />}
+
+      {dettoOra && (
+        <div className="capito" role="status">
+          <span>Te lo ricordo <b>{quandoDetto(dettoOra)}</b></span>
+        </div>
+      )}
+      {oraSenzaRicorda && (
+        <p className="nota-piccola">Vuoi un promemoria? Scrivi «ricordami…» oppure tocca Ricordamelo.</p>
+      )}
 
       {(lista || garanzia) && (
         <div className="capito" role="status">

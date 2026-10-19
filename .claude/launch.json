@@ -6,6 +6,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["vite", "--port", "5174", "--strictPort"],
       "port": 5174
+    },
+    {
+      "name": "gc-prova",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["C:/Users/giova/Documents/gestionale-gc/test/prova-locale/server.mjs", "5178"],
+      "port": 5178
     }
   ]
 }

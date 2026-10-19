@@ -1,6 +1,7 @@
 // Copia dal gestionale G&C al second brain (fase 5). La chiama pg_cron ogni ora.
 // Legge G&C con l'utente di sola lettura "brain_lettore": clienti, cantieri, fornitori principali
-// e le mail salvate nel gestionale (con cliente, cantiere e fornitore già assegnati).
+// e le mail salvate nel gestionale (con cliente, cantiere e fornitore già assegnati); dal 19.10.2026 anche i
+// riassunti della "Copia AbaNinja serale" (solo quelle righe di modifiche_da_controllare), che vanno in Agenti.
 // Gli id restano gli stessi del gestionale: niente doppioni. Non scrive mai nel gestionale.
 import postgres from 'npm:postgres@3.4.5'
 
@@ -55,11 +56,14 @@ async function copia() {
                        attachments, client_id, site_id, supplier_id, note
                   from email_messages where removed_at is null and coalesce(saved_at, sent_at) > ${da}
                  order by sent_at`,
+      // Riassunti della "Copia AbaNinja serale" (19.10.2026, ok di Giovanni): brain_lettore vede solo queste righe.
+      await sql`select id, titolo, dettaglio, creato_il from modifiche_da_controllare
+                 where fonte = 'abaninja' and tipo = 'completato' and creato_il > now() - interval '7 days'`,
     ])()])
   } finally {
     sql.end({ timeout: 2 }).catch(() => {})
   }
-  const [clienti, cantieri, fornitori, mail] = dati
+  const [clienti, cantieri, fornitori, mail, abaninja] = dati
 
   // Schede: nome e ragione sociale dal gestionale; email e domini si sommano a quelli imparati dall'agente.
   const esistenti = new Map(((await rest(`aziende?select=id,email,domini&area=eq.G&limit=5000`)) as { id: string, email: string[], domini: string[] }[])
@@ -118,7 +122,16 @@ async function copia() {
     })
   }
 
-  return { schede: clienti.length, cantieri: cantieri.length, fornitori: fornitori.length, mail: righe.length, mail_nuove: nuove.length }
+  // Ogni riassunto della Copia AbaNinja diventa un giro in Agenti ('agente-gc-abaninja'), una volta sola.
+  const giaRiassunti = new Set(((await rest(`lavori_registro?select=dettagli->>id&lavoro=eq.agente-gc-abaninja&iniziata_il=gte.${new Date(Date.now() - 8 * 864e5).toISOString()}`)) as { id: string }[])
+    .map((g) => g.id))
+  const riassunti = abaninja.filter((r) => !giaRiassunti.has(r.id)).map((r) => ({
+    lavoro: 'agente-gc-abaninja', iniziata_il: r.creato_il, ok: true,
+    dettagli: { id: r.id, riepilogo: `${r.titolo}. ${(r.dettaglio || '').replace(/\s*\n+\s*/g, ' · ')}`.slice(0, 2000) },
+  }))
+  if (riassunti.length) await rest('lavori_registro', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(riassunti) })
+
+  return { schede: clienti.length, cantieri: cantieri.length, fornitori: fornitori.length, mail: righe.length, mail_nuove: nuove.length, riassunti_abaninja: riassunti.length }
 }
 
 Deno.serve(async (req: Request) => {

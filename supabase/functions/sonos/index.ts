@@ -12,7 +12,9 @@
 //      { azione: 'sveglie' }            → giro di ogni minuto (pg_cron "sonos-sveglie", solo x-copia-token): suona le
 //        sveglie di sonos_sveglie arrivate all'ora (saluto + meteo scherzoso + battuta, per Giovanni anche 2-3 notizie
 //        di ieri cercate sul web; testo di Claude Haiku coi crediti del piano Max) e poi il Preferito Sonos;
-//      { azione: 'sveglia_prova', id, cassa?, musica? } → la stessa sveglia subito, senza segnarla fatta.
+//      { azione: 'sveglia_prova', id, cassa?, musica? } → la stessa sveglia subito, senza segnarla fatta;
+//      { azione: 'sveglie_elenco' | 'sveglia_cambia' | 'senza_alessia' } → pagina Sveglie dell'app;
+//      { azione: 'esegui_conferma', id } → solo Giovanni: fa una conferma 'sonos' del Capo dopo i due tocchi.
 // Chi può: Giovanni dall'app (non i connettori) oppure il giro programmato (x-copia-token).
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
@@ -326,7 +328,8 @@ async function vacanzaOggi() {
 // Una sveglia: (bambini: canzoncina) → testo → voce → annuncio sulla cassa → dopo la voce il Preferito Sonos a volume dolce.
 async function suona(sv: Record<string, any>, prova: { cassa?: string; musica?: boolean; canzone?: number } = {}) {
   // Eccezioni di un giorno (es. settimana senza Davide e Celeste): { "2026-10-22": "Buongiorno Leo e Jolie…" }.
-  sv = { ...sv, saluto: sv.eccezioni?.[oggiZurigo()] || sv.saluto }
+  const ecc = sv.eccezioni?.[oggiZurigo()]
+  sv = { ...sv, saluto: (typeof ecc === 'string' ? ecc : ecc?.saluto) || sv.saluto }
   let tempo = 'meteo non disponibile'
   try { tempo = await meteo() } catch { /* senza meteo si va avanti lo stesso */ }
   let resto: string | null = null
@@ -393,27 +396,144 @@ function settimana() {
 async function elencoSveglie() {
   const da = oggiZurigo(), a = dataTra(8)
   const [sveglie, speciali, vacanze] = await Promise.all([
-    rest('sonos_sveglie?select=id,nome,cassa,giorni,ora,saluto,per,preferito,attiva,salta_vacanze,ultima_il,ultimo_testo,errore&order=id') as Promise<Record<string, any>[]>,
+    rest('sonos_sveglie?select=id,nome,cassa,giorni,ora,saluto,per,preferito,attiva,salta_vacanze,eccezioni,ultima_il,ultimo_testo,errore&order=id') as Promise<Record<string, any>[]>,
     rest(`sonos_giorni?data=gte.${da}&data=lte.${a}&select=data,come,nota`) as Promise<Record<string, any>[]>,
     rest(`eventi?titolo=ilike.Scuola%20chiusa*&inizio=gte.${da}T00:00:00Z&inizio=lte.${a}T23:59:59Z&select=inizio`) as Promise<Record<string, any>[]>,
   ])
   const chiusa = new Set(vacanze.map((v) => String(v.inizio).slice(0, 10)))
   const ora = new Date().toLocaleTimeString('sv-SE', { timeZone: 'Europe/Zurich' }).slice(0, 5)
   let prossima = null
+  // Giorno per giorno quali sveglie suonano davvero (giorni speciali, eccezioni e vacanze compresi): serve al Capo
+  // per cambiare la sveglia giusta (es. venerdì senza Alessia suona quella di lunedì–mercoledì).
+  const prossimi_giorni: Record<string, unknown>[] = []
+  for (let i = 0; i <= 7; i++) {
+    const data = dataTra(i)
+    const giorno = speciali.find((s) => s.data === data)?.come || giornoDi(data)
+    const lista = sveglie.filter((s) => s.attiva && s.giorni.includes(giorno) && !(s.salta_vacanze && chiusa.has(data)))
+      .map((s) => {
+        const e = s.eccezioni?.[data]
+        return { id: s.id, nome: s.nome, cassa: s.cassa, ora: (typeof e === 'object' && e?.ora) || s.ora.slice(0, 5), spenta: typeof e === 'object' && !!e?.spenta }
+      })
+    prossimi_giorni.push({ data, giorno_settimana: giornoDi(data), come_giorno: giorno, scuola_chiusa: chiusa.has(data), sveglie: lista })
+  }
   for (let i = 0; i <= 8 && !prossima; i++) {
     const data = dataTra(i)
     const giorno = speciali.find((s) => s.data === data)?.come || giornoDi(data)
-    const candidate = sveglie
-      .filter((s) => s.attiva && s.giorni.includes(giorno) && !(s.salta_vacanze && chiusa.has(data)))
-      .filter((s) => i > 0 || (s.ora.slice(0, 5) > ora && s.ultima_il !== data))
+    // Eccezioni di un giorno: altra ora o spenta solo quel giorno.
+    const delGiorno = (s: Record<string, any>) => {
+      const e = s.eccezioni?.[data]
+      return { ...s, ora: (typeof e === 'object' && e?.ora) || s.ora.slice(0, 5), spenta: typeof e === 'object' && !!e?.spenta }
+    }
+    const candidate = sveglie.map(delGiorno)
+      .filter((s) => s.attiva && !s.spenta && s.giorni.includes(giorno) && !(s.salta_vacanze && chiusa.has(data)))
+      .filter((s) => i > 0 || (s.ora > ora && s.ultima_il !== data))
       .sort((x, y) => x.ora.localeCompare(y.ora))
-    if (candidate[0]) prossima = { data, ora: candidate[0].ora.slice(0, 5), cassa: candidate[0].cassa, nome: candidate[0].nome }
+    if (candidate[0]) prossima = { data, ora: candidate[0].ora, cassa: candidate[0].cassa, nome: candidate[0].nome }
   }
   const gioVen = settimana().filter((x) => x.giorno >= 4 && x.giorno <= 5 && x.data >= da)
   return {
-    sveglie, prossima,
+    sveglie, prossima, prossimi_giorni,
     senza_alessia: gioVen.length > 0 && gioVen.every((x) => speciali.some((s) => s.data === x.data && s.come === 1)),
     senza_alessia_possibile: gioVen.length > 0,
+  }
+}
+
+// Giovedì e venerdì di questa settimana (da oggi in avanti) come lunedì, o di nuovo normali.
+async function senzaAlessia(attiva: boolean) {
+  const g = settimana().filter((x) => x.giorno >= 4 && x.giorno <= 5 && x.data >= oggiZurigo()).map((x) => x.data)
+  if (!g.length) return
+  if (attiva) {
+    await rest('sonos_giorni', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(g.map((data) => ({ data, come: 1, nota: 'Senza Alessia' }))) })
+  } else await rest(`sonos_giorni?data=in.(${g.join(',')})`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } })
+}
+
+// Annuncio su una cassa: la frase detta da Laomedeia (senza frase: il din-don di Sonos).
+async function annuncia(token: string, cassa: unknown, testo: unknown, volume?: unknown, stile?: unknown) {
+  const tutte = await casse(token)
+  const scelta = tutte.find((c: any) => c.id === cassa || c.nome.toLowerCase() === String(cassa || '').toLowerCase())
+  if (!scelta) throw new Error(`Cassa non trovata: ${cassa} (ci sono ${tutte.map((c: any) => c.nome).join(', ')})`)
+  if (!scelta.annunci) throw new Error(`${scelta.nome} non fa gli annunci`)
+  const frase = String(testo || '').trim().slice(0, 500)
+  const clip: Record<string, unknown> = { name: 'Second Brain', appId: 'ch.ceramex.secondbrain', priority: 'HIGH' }
+  let nuova = false
+  if (frase) {
+    const v = await voce(frase, stile ? String(stile).slice(0, 200) : undefined)
+    clip.streamUrl = v.url
+    nuova = v.nuova
+  } else clip.clipType = 'CHIME'
+  if (volume != null) clip.volume = Math.max(5, Math.min(80, Number(volume) || 30))
+  const r = await sonos(token, `players/${scelta.id}/audioClip`, clip)
+  return { cassa: scelta.nome, clip: r?.id, voce_nuova: nuova }
+}
+
+// Una cosa preparata dal Capo (capo_conferme tipo 'sonos') e confermata da Giovanni con i due tocchi.
+// I dati li ha scritti il Capo, che legge anche mail di estranei: qui si accetta SOLO questo elenco chiuso, controllato.
+//   { tipo: 'annuncio', cassa, testo }                       → annuncio (al massimo 300 caratteri)
+//   { tipo: 'sveglia', id, ora?, attiva? }                    → cambio per sempre
+//   { tipo: 'sveglia_giorno', id, data, ora?, spenta? }       → solo quel giorno (da oggi a 30 giorni)
+//   { tipo: 'giorno', data, come }                            → quel giorno fa come un altro (come null = normale)
+//   { tipo: 'senza_alessia', attiva }                         → giovedì e venerdì di questa settimana come lunedì
+async function eseguiConferma(id: string) {
+  if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error('Conferma non valida')
+  const [c] = await rest(`capo_conferme?id=eq.${id}&select=id,tipo,stato,dati`) as Record<string, any>[]
+  if (!c || c.tipo !== 'sonos') throw new Error('Conferma non trovata')
+  if (c.stato !== 'confermata') throw new Error('Questa cosa non è confermata')
+  const chiudi = (stato: string, esito: string) => rest(`capo_conferme?id=eq.${id}&stato=eq.confermata`, {
+    method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ stato, esito, fatta_il: new Date().toISOString() }) })
+  const d = c.dati || {}
+  const ORA = /^([01]\d|2[0-3]):[0-5]\d$/
+  const dataOk = (x: unknown) => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x) && x >= oggiZurigo() && x <= dataTra(30)
+  const sveglia = async (x: unknown) => {
+    const [s] = await rest(`sonos_sveglie?id=eq.${Number(x) || 0}&select=id,nome,eccezioni`) as Record<string, any>[]
+    if (!s) throw new Error('Sveglia non trovata')
+    return s
+  }
+  try {
+    let esito = ''
+    if (d.tipo === 'annuncio') {
+      const frase = String(d.testo || '').trim()
+      if (!frase || frase.length > 300) throw new Error('Testo dell\'annuncio vuoto o troppo lungo')
+      const fatto = await annuncia(await accesso(), d.cassa, frase)
+      esito = `Detto in ${fatto.cassa}`
+    } else if (d.tipo === 'sveglia') {
+      const s = await sveglia(d.id)
+      const campi: Record<string, unknown> = {}
+      if (d.ora != null) { if (!ORA.test(String(d.ora))) throw new Error('Ora non valida'); campi.ora = d.ora }
+      if (d.attiva != null) campi.attiva = !!d.attiva
+      if (!Object.keys(campi).length) throw new Error('Niente da cambiare')
+      await rest(`sonos_sveglie?id=eq.${s.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(campi) })
+      esito = `Sveglia cambiata: ${s.nome}`
+    } else if (d.tipo === 'sveglia_giorno') {
+      const s = await sveglia(d.id)
+      if (!dataOk(d.data)) throw new Error('Giorno non valido')
+      const prima = s.eccezioni?.[d.data]
+      const e: Record<string, unknown> = typeof prima === 'string' ? { saluto: prima } : { ...(prima || {}) }
+      if (d.ora != null) { if (!ORA.test(String(d.ora))) throw new Error('Ora non valida'); e.ora = d.ora }
+      if (d.spenta != null) e.spenta = !!d.spenta
+      await rest(`sonos_sveglie?id=eq.${s.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ eccezioni: { ...(s.eccezioni || {}), [d.data]: e } }) })
+      esito = `Solo il ${d.data}: ${s.nome}`
+    } else if (d.tipo === 'giorno') {
+      if (!dataOk(d.data)) throw new Error('Giorno non valido')
+      if (d.come == null) await rest(`sonos_giorni?data=eq.${d.data}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } })
+      else {
+        const come = Number(d.come)
+        if (!(come >= 1 && come <= 7)) throw new Error('Giorno della settimana non valido')
+        await rest('sonos_giorni', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+          body: JSON.stringify({ data: d.data, come, nota: 'Dal Capo' }) })
+      }
+      esito = `Giorno ${d.data} sistemato`
+    } else if (d.tipo === 'senza_alessia') {
+      await senzaAlessia(!!d.attiva)
+      esito = d.attiva ? 'Giovedì e venerdì come lunedì–mercoledì' : 'Giovedì e venerdì di nuovo normali'
+    } else throw new Error('Cosa da fare sconosciuta')
+    await chiudi('fatta', esito)
+    return { ok: true, esito }
+  } catch (e) {
+    const errore = String((e as Error)?.message || e).slice(0, 300)
+    await chiudi('non_fatta', errore).catch(() => {})
+    throw e
   }
 }
 
@@ -515,16 +635,13 @@ Deno.serve(async (req: Request) => {
       return risposta(await elencoSveglie())
     }
     if (azione === 'senza_alessia') {
-      // Giovedì e venerdì di questa settimana (da oggi in avanti) come lunedì, o di nuovo normali.
-      const { attiva } = corpoJson
-      const g = settimana().filter((x) => x.giorno >= 4 && x.giorno <= 5 && x.data >= oggiZurigo()).map((x) => x.data)
-      if (g.length) {
-        if (attiva) {
-          await rest('sonos_giorni', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-            body: JSON.stringify(g.map((data) => ({ data, come: 1, nota: 'Senza Alessia' }))) })
-        } else await rest(`sonos_giorni?data=in.(${g.join(',')})`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } })
-      }
+      await senzaAlessia(!!corpoJson.attiva)
       return risposta(await elencoSveglie())
+    }
+    if (azione === 'esegui_conferma') {
+      // Solo Giovanni dall'app, subito dopo i suoi due tocchi su una conferma 'sonos' preparata dal Capo.
+      if (programmato) return risposta({ errore: 'Non autorizzato' }, 401)
+      return risposta(await eseguiConferma(String(id || '')))
     }
     if (azione === 'sveglia_prova') {
       const [sv] = await rest(`sonos_sveglie?id=eq.${Number(id) || 0}&select=*`) as Record<string, any>[]
@@ -549,23 +666,7 @@ Deno.serve(async (req: Request) => {
       const { items } = await sonos(token, `households/${await casa(token)}/favorites`)
       return risposta({ preferiti: (items || []).map((f: any) => ({ id: f.id, nome: f.name, servizio: f.service?.name })) })
     }
-    if (azione === 'annuncio') {
-      const tutte = await casse(token)
-      const scelta = tutte.find((c: any) => c.id === cassa || c.nome.toLowerCase() === String(cassa || '').toLowerCase())
-      if (!scelta) return risposta({ errore: `Cassa non trovata: ${cassa}`, casse: tutte.map((c: any) => c.nome) }, 400)
-      if (!scelta.annunci) return risposta({ errore: `${scelta.nome} non fa gli annunci` }, 400)
-      const frase = String(testo || '').trim().slice(0, 500)
-      const clip: Record<string, unknown> = { name: 'Second Brain', appId: 'ch.ceramex.secondbrain', priority: 'HIGH' }
-      let nuova = false
-      if (frase) {
-        const v = await voce(frase, stile ? String(stile).slice(0, 200) : undefined)
-        clip.streamUrl = v.url
-        nuova = v.nuova
-      } else clip.clipType = 'CHIME'
-      if (volume != null) clip.volume = Math.max(5, Math.min(80, Number(volume) || 30))
-      const r = await sonos(token, `players/${scelta.id}/audioClip`, clip)
-      return risposta({ ok: true, cassa: scelta.nome, clip: r?.id, voce_nuova: nuova })
-    }
+    if (azione === 'annuncio') return risposta({ ok: true, ...(await annuncia(token, cassa, testo, volume, stile)) })
     return risposta({ errore: 'Azione sconosciuta' }, 400)
   } catch (e) {
     const errore = String((e as Error)?.message || e).slice(0, 300)

@@ -11,7 +11,7 @@ import { IN_ATTESA, useSezioni, Sezione, vaiInFondo } from './sezioni'
 // La chat è divisa in sezioni, una per argomento (15.10.2026): sezioni.jsx.
 
 const NOME_AGENTE = Object.fromEntries(AGENTI.map((a) => [a.codice, a.nome]))
-const TIPO = { mail: 'Mail', messaggio: 'Messaggio', cancella: 'Cancellare', gestionale: 'Gestionale', sposta_mail: 'Spostare mail', calendario: 'Calendario', altro: 'Da confermare' }
+const TIPO = { mail: 'Mail', messaggio: 'Messaggio', cancella: 'Cancellare', gestionale: 'Gestionale', sposta_mail: 'Spostare mail', calendario: 'Calendario', sonos: 'Casse Sonos e sveglie', altro: 'Da confermare' }
 const APP = { brain: 'Brain', ceramex: 'App Ceramex', gc: 'App G&C' }
 
 // Cose che il Capo chiede di confermare (nel numero del tasto Capo, insieme a risposte e domande: App.jsx).
@@ -264,7 +264,15 @@ function Conferma({ c, dopo }) {
       const ora = new Date().toISOString()
       chk(await sb.from('capo_conferme').update(si ? { stato: 'confermata', confermata_il: ora } : { stato: 'rifiutata', rifiutata_il: ora })
         .eq('id', c.id).eq('stato', 'da_confermare'))
-      if (si) {
+      if (si && c.tipo === 'sonos') {
+        // Casse e sveglie (22.10.2026): le fa subito la funzione sonos, che ricontrolla i dati preparati dal Capo.
+        try {
+          const fatto = await chiama('sonos', { azione: 'esegui_conferma', id: c.id })
+          avvisa(fatto.esito || 'Fatto')
+        } catch (e) {
+          avvisa(`Non riuscito: ${messaggioErrore(e)}`)
+        }
+      } else if (si) {
         const esito = await chiama('agente-subito', { sveglia: 'capo' }).catch(() => ({ ok: false }))
         avvisa(esito.ok || esito.gia ? 'Confermato: il Capo lo fa adesso' : 'Confermato, ma il Capo non è partito: lo fa appena gli scrivi di nuovo')
       } else avvisa('Ok, non lo fa')

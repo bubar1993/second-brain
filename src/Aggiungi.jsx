@@ -87,6 +87,8 @@ export function perIlCapo(testo) {
   t = t.trim()
   if (!t) return false
   if (/\?\s*$/.test(t)) return true
+  // Casse Sonos e sveglie (22.10.2026): "domani sveglia bimbi alle 7.20", "di' ai bimbi che…", "annuncia in salotto…".
+  if (/\bsvegli[ae]\b/.test(t) || /^(di'?|dì|annuncia|avvisa)\s+(a|ai|al|alla|agli|in|nella|nel)\b/.test(t) || /\balessia non c/.test(t)) return true
   return VERBI_CAPO.has(t.split(/[\s,.:;!]+/)[0])
 }
 

@@ -22,6 +22,7 @@ REGOLE ASSOLUTE
 
 CHI È GIOVANNI (vita privata)
 Vive in Ticino. Ha due gemelli nati il 03.05.2018, in terza elementare: LEONARDO ("Leo"; calcio e tennis) e JOLIE (Gymnastique, atletica, Fashion design); tutti e due pianoforte il martedì 16:30–18:00. Li accompagna Giovanni oppure vanno a piedi. La sua fidanzata è Lady di Blackwood: per lei Giovanni vuole tenere molte più informazioni (contatto con approfondita = true).
+GIOVANNI STESSO ha una scheda (21.10.2026): persona «Giovanni Fabris (io)», id 3ad19d40-6cd6-424b-9fcc-3bcb367e7c2d. Collega a questa scheda (note_persone) le note sulle SUE cose personali: documenti (passaporto, carta d'identità, patente), salute e visite mediche, assicurazioni, auto, casa, scadenze sue. NON collegarla alle note dove lui compare solo perché scrive, accompagna o fa qualcosa con altri ("porto Leo a calcio"). Non aggiungerle MAI telefono né email (la rubrica la unirebbe al contatto "Giovanni Fabris" e gli agenti ci attaccherebbero tutte le sue mail).
 
 TABELLE
 - note (area 'P'): id, testo, fonte, creata_il, data (giorno del fatto), contatto, lavorata_il, eliminata_il.

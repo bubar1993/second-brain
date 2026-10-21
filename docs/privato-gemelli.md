@@ -43,6 +43,10 @@ Area Privato: gemelli, figli di Lady di Blackwood, scadenze, liste, garanzie, va
   - Giovanni lun–mer 06:50, Camera Mia, "Buongiorno Giovanni!" + notizie → Preferito "Worakls".
   - Giovanni gio–ven 07:00, Camera Mia, "Buongiorno Amore!" + notizie → Preferito "Blink-182".
   - Volumi: voce 25, musica 15.
+  - Bimbi: prima una canzoncina (8 scritte apposta in `CANZONI`, una al giorno a giro, cantate da Laomedeia e salvate in `voci/canzoni/`), poi il saluto. Battuta = indovinello/gioco di parole per 8 anni.
+  - Giovanni: meteo + battuta + 1-2 fatti che hanno mosso la borsa (non l'elenco degli indici) + highlight AI/tech di ieri (max 5 ricerche).
+  - `eccezioni` (jsonb data → saluto): 22 e 23.10.2026 solo "Leo e Jolie" (settimana senza Davide e Celeste).
+  - Quota gratuita Gemini TTS: limite al minuto e al giorno (il giorno di Google riparte alle 9 di Zurigo). Se la voce non va: din-don di Sonos e poi la musica; il motivo in `errore`. Il 21.10 sera la quota è finita con le prove.
 - Da fare: comando dal + ("annuncio bambini: a tavola!"); accendere/spegnere le sveglie dall'app.
 
 ### Idee parcheggiate

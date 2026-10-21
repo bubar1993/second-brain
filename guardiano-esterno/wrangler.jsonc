@@ -1,0 +1,14 @@
+{
+  // Guardiano esterno (passo 2, 21.10.2026, ok di Giovanni): un piccolo Worker separato dal Brain che ogni
+  // 5 minuti controlla che il Brain risponda e che il suo guardiano e le notifiche girino. Se no, avvisa
+  // Giovanni su WhatsApp scrivendo direttamente a Meta. Pubblicare da questa cartella: npx wrangler deploy
+  // Segreti (li mette scripts/salva-avvisi-whatsapp.mjs): ESTERNO_TOKEN, WA_AVVISI_TOKEN, WA_AVVISI_PHONE_ID, WA_AVVISI_A.
+  "name": "guardiano-esterno",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-01",
+  // Serve per poter chiamare l'app second-brain, che sta sullo stesso account (workers.dev).
+  "compatibility_flags": ["global_fetch_strictly_public"],
+  "workers_dev": false,
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "kv_namespaces": [{ "binding": "STATO", "id": "db0d6e2c0e674791bfefe3855dc0dd2d" }]
+}

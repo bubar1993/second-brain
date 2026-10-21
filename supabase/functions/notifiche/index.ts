@@ -84,6 +84,28 @@ async function manda(i: Iscrizione, messaggio: Record<string, unknown>) {
   return { stato: r.status, testo: r.ok ? '' : (await r.text()).slice(0, 200) }
 }
 
+// ---------- WhatsApp per i guasti (21.10.2026, ok di Giovanni) ----------
+// Dal numero di prova di Meta al numero di Giovanni (tra i 5 destinatari di prova), con il modello approvato
+// "avviso_guasto" (fuori dalle 24 ore si possono mandare solo modelli). Gratis per i numeri di prova.
+// Segreti messi da scripts/salva-avvisi-whatsapp.mjs; senza, niente WhatsApp.
+const WA_TOKEN = Deno.env.get('WA_AVVISI_TOKEN')
+const WA_DA = Deno.env.get('WA_AVVISI_PHONE_ID')
+const WA_A = Deno.env.get('WA_AVVISI_A')
+async function whatsapp(titolo: string, corpo: string) {
+  // Nei parametri dei modelli Meta non vuole a capo né tanti spazi di fila.
+  const pulisci = (s: string) => s.replace(/\s+/g, ' ').trim().slice(0, 500) || '-'
+  const r = await fetch(`https://graph.facebook.com/v26.0/${WA_DA}/messages`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${WA_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp', to: WA_A, type: 'template',
+      template: { name: 'avviso_guasto', language: { code: 'it' },
+        components: [{ type: 'body', parameters: [{ type: 'text', text: pulisci(titolo) }, { type: 'text', text: pulisci(corpo) }] }] },
+    }),
+  })
+  if (!r.ok) throw new Error(`${r.status} ${(await r.text()).slice(0, 200)}`)
+}
+
 // ---------- Cosa avvisare ----------
 const oraZurigo = (iso: string) => new Date(iso).toLocaleTimeString('it-CH', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Zurich' })
 const corto = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s)
@@ -167,10 +189,11 @@ Deno.serve(async (req) => {
   const errori: string[] = []
   try {
     const iscrizioni: Iscrizione[] = await rest('push_iscrizioni?select=id,endpoint,p256dh,auth')
-    // Nessun telefono iscritto: non segno niente come mandato.
-    if (!iscrizioni.length) return Response.json({ ok: true, iscrizioni: 0 })
+    // Nessun telefono iscritto (e niente WhatsApp per i guasti): non segno niente come mandato.
+    if (!iscrizioni.length && !WA_TOKEN) return Response.json({ ok: true, iscrizioni: 0 })
 
     for (const a of await daAvvisare()) {
+      if (!iscrizioni.length && !a.tipo.startsWith('guasto')) continue
       // Segno prima di mandare: se due giri si sovrappongono, solo uno lo manda.
       const nuova = await rest('notifiche_inviate?on_conflict=tipo,rif_id,chiave', {
         method: 'POST',
@@ -178,6 +201,10 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ tipo: a.tipo, rif_id: a.rif_id, chiave: a.chiave, titolo: a.titolo }),
       })
       if (!nuova?.length) continue
+      // Guasti anche su WhatsApp, dal numero di prova di Meta (passo 2 del guardiano).
+      if (a.tipo.startsWith('guasto') && WA_TOKEN) {
+        await whatsapp(a.titolo, a.corpo).catch((e) => errori.push(`whatsapp: ${(e as Error).message}`))
+      }
       for (const i of iscrizioni) {
         try {
           // "Risolto" prende il posto della notifica del guasto sul telefono (stesso tag).

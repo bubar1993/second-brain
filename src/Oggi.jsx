@@ -340,9 +340,6 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
 
         <AttivaImpronta />
         <AttivaNotifiche />
-        <AvvisoBackup />
-        <AvvisoCopia />
-        <AvvisoLavoriGC />
         <AvvisoGuasti />
 
         {/* Una scheda sola con tutto quello che aspetta te (14.10.2026, prima erano fino a 7 schede una sotto l'altra). */}
@@ -701,102 +698,50 @@ function ModificaPromemoria({ p, cambia, chiudi }) {
   )
 }
 
-// Avviso se l'ultimo backup su Drive non è riuscito o è troppo vecchio (si fa ogni domenica).
-function AvvisoBackup() {
-  const [ultimo, setUltimo] = useState(null)
-
-  useEffect(() => {
-    sb.from('backup_registro').select('eseguito_il,ok').order('id', { ascending: false }).limit(1)
-      .then(({ data }) => setUltimo(data?.[0] || null))
-  }, [])
-
-  if (!ultimo) return null
-  const vecchio = giorniDaOggi(ultimo.eseguito_il) < -9
-  if (ultimo.ok && !vecchio) return null
-  return (
-    <div className="scheda scheda-allarme">
-      <p>
-        {ultimo.ok
-          ? `Il backup su Drive non parte da più di una settimana (ultimo: ${quando(ultimo.eseguito_il)}).`
-          : `Il backup su Drive non è riuscito (${quando(ultimo.eseguito_il)}).`}
-        {' '}Dillo a Claude.
-      </p>
-    </div>
-  )
-}
-
-// Avviso se la copia automatica delle note da Ceramex (ogni 10 minuti) non va o è ferma da più di un'ora.
-function AvvisoCopia() {
-  const [ultima, setUltima] = useState(null)
-
-  useEffect(() => {
-    sb.from('copia_registro').select('iniziata_il,ok').order('id', { ascending: false }).limit(1)
-      .then(({ data }) => setUltima(data?.[0] || null))
-  }, [])
-
-  if (!ultima) return null
-  const ferma = Date.now() - new Date(ultima.iniziata_il).getTime() > 3600000
-  if (ultima.ok && !ferma) return null
-  return (
-    <div className="scheda scheda-allarme">
-      <p>
-        {ultima.ok
-          ? `Le note da Ceramex non arrivano da più di un'ora (ultima copia: ${quando(ultima.iniziata_il, true)}).`
-          : `La copia delle note da Ceramex non è riuscita (${quando(ultima.iniziata_il, true)}).`}
-        {' '}Dillo a Claude.
-      </p>
-    </div>
-  )
-}
-
-// Avviso se la posta di info@ o la copia dal gestionale G&C non vanno (posta ogni 5 minuti, copia ogni ora).
-const LAVORI_GC = [
-  ['posta-gc', 'La posta di info@homeconcepts.ch', 30 * 60000],
-  ['copia-gc', 'La copia di clienti e cantieri dal gestionale G&C', 3 * 3600000],
-]
-function AvvisoLavoriGC() {
-  const [ultimi, setUltimi] = useState([])
-
-  useEffect(() => {
-    Promise.all(LAVORI_GC.map(([lavoro]) => sb.from('lavori_registro').select('lavoro,iniziata_il,ok,errore')
-      .eq('lavoro', lavoro).order('id', { ascending: false }).limit(1)))
-      .then((r) => setUltimi(r.map(({ data }) => data?.[0]).filter(Boolean)))
-  }, [])
-
-  const problemi = ultimi.map((u) => {
-    const [, nome, massimo] = LAVORI_GC.find(([l]) => l === u.lavoro)
-    if (u.errore?.includes('GC_MAIL_PASSWORD')) return `${nome} non è ancora collegata: manca la password della casella.`
-    if (!u.ok) return `${nome} non è riuscita (${quando(u.iniziata_il, true)}).`
-    if (Date.now() - new Date(u.iniziata_il).getTime() > massimo) return `${nome} è ferma dal ${quando(u.iniziata_il, true)}.`
-    return null
-  }).filter(Boolean)
-
-  if (!problemi.length) return null
-  return (
-    <div className="scheda scheda-allarme">
-      <p>{problemi.join(' ')} Dillo a Claude.</p>
-    </div>
-  )
-}
-
-// Guasti aperti trovati dal guardiano (ogni 15 minuti). Backup, copia Ceramex, posta e copia G&C hanno già il loro
-// avviso qui sopra: non li ripeto.
-const GIA_AVVISATI = ['backup', 'giro:copia-ceramex', 'giro:posta-gc', 'giro:copia-gc']
+// Guasti aperti trovati dal guardiano (ogni 15 minuti), compresi backup, copie e posta (prima avevano un avviso
+// ciascuno). "Manda a Claude" (21.10.2026): il guasto va in modifiche_claude già con l'ok, Claude lo trova
+// all'inizio della sessione sul PC.
+const appDelGuasto = (chiave) => (/^(app|db):ceramex$/.test(chiave) ? 'ceramex' : /^(app|db):gc$/.test(chiave) ? 'gc' : 'brain')
 function AvvisoGuasti() {
+  const { avvisa } = useApp()
   const [guasti, setGuasti] = useState([])
+  const [mandati, setMandati] = useState(() => new Set())
 
-  useEffect(() => {
-    sb.from('guasti').select('id,chiave,titolo,dettaglio,aperto_il').is('chiuso_il', null).order('aperto_il')
-      .then(({ data }) => setGuasti((data || []).filter((g) => !GIA_AVVISATI.includes(g.chiave))))
+  const carica = useCallback(async () => {
+    const { data } = await sb.from('guasti').select('id,chiave,titolo,dettaglio,aperto_il').is('chiuso_il', null).order('aperto_il')
+    setGuasti(data || [])
+    if (data?.length) {
+      const { data: m } = await sb.from('modifiche_claude').select('guasto_id').in('guasto_id', data.map((g) => g.id))
+      setMandati(new Set((m || []).map((x) => x.guasto_id)))
+    }
   }, [])
+  useEffect(() => { carica() }, [carica])
+
+  async function manda(g) {
+    try {
+      chk(await sb.from('modifiche_claude').insert({
+        app: appDelGuasto(g.chiave), guasto_id: g.id, stato: 'ok', ok_il: new Date().toISOString(),
+        titolo: `Guasto: ${g.titolo}`,
+        testo: `Trovato dal guardiano il ${quando(g.aperto_il, true)} (${g.chiave}).\n${g.dettaglio || ''}\nGuarda cosa non va e sistemalo.`,
+      }))
+      setMandati((s) => new Set(s).add(g.id))
+      avvisa('Mandato a Claude: lo trova quando apri la sessione sul PC')
+    } catch (e) {
+      avvisa(messaggioErrore(e))
+    }
+  }
 
   if (!guasti.length) return null
   return (
     <div className="scheda scheda-allarme">
       {guasti.map((g) => (
-        <p key={g.id}>{g.titolo} (dal {quando(g.aperto_il, true)}). {g.dettaglio}</p>
+        <div key={g.id}>
+          <p>{g.titolo} (dal {quando(g.aperto_il, true)}). {g.dettaglio}</p>
+          {mandati.has(g.id)
+            ? <p className="piccolo">Mandato a Claude.</p>
+            : <button type="button" className="tasto-piccolo" onClick={() => manda(g)}>Manda a Claude</button>}
+        </div>
       ))}
-      <p>Dillo a Claude.</p>
     </div>
   )
 }

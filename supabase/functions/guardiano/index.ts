@@ -5,11 +5,14 @@
 // la riga si chiude. Le notifiche ("Guasto: …" / "Risolto: …") le manda la funzione "notifiche".
 // Non ripara niente da solo: segnala e basta.
 // Con { "prova": true } dice cosa ha trovato senza scrivere niente.
+// Con l'intestazione x-esterno-token (ESTERNO_TOKEN) risponde solo il "battito" per il guardiano esterno su
+// Cloudflare (cartella guardiano-esterno/): ultimo controllo, ultimo giro delle notifiche, guasti aperti.
 import postgres from 'npm:postgres@3.4.5'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const COPIA_TOKEN = Deno.env.get('COPIA_TOKEN')
+const ESTERNO_TOKEN = Deno.env.get('ESTERNO_TOKEN')
 
 const APP = [
   ['brain', 'L\'app Brain', 'https://second-brain.aged-king-4bbd.workers.dev/'],
@@ -201,6 +204,10 @@ function controllaCron(d: any): Problema[] {
 }
 
 Deno.serve(async (req) => {
+  // Battito per il guardiano esterno su Cloudflare (passo 2): chiave a parte, che serve solo a questo.
+  if (ESTERNO_TOKEN && req.headers.get('x-esterno-token') === ESTERNO_TOKEN) {
+    return Response.json(await rest('rpc/guardiano_battito', { method: 'POST', body: '{}' }))
+  }
   if (!COPIA_TOKEN || req.headers.get('x-copia-token') !== COPIA_TOKEN) return new Response('Non autorizzato', { status: 401 })
   const { prova } = await req.json().catch(() => ({}))
 
@@ -216,6 +223,7 @@ Deno.serve(async (req) => {
   }
   if (prova) return Response.json({ prova: true, problemi })
 
+  await rest('guardiano_stato?id=eq.1', { method: 'PATCH', body: JSON.stringify({ ultimo_controllo: new Date().toISOString() }) }).catch(() => {})
   const aperti: { id: string, chiave: string }[] = await rest('guasti?select=id,chiave&chiuso_il=is.null')
   const adessoIso = new Date().toISOString()
   const nuovi: string[] = []

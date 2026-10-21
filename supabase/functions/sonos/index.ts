@@ -128,6 +128,11 @@ async function parla(testo: string, stile: string) {
   throw new Error(motivo)
 }
 
+// Indicazioni di regia e testo separati, come nella guida di Google: con stile: testo alcuni modelli
+// leggevano ad alta voce anche le indicazioni (21.10.2026). v2 nelle impronte = voci rifatte con questo formato.
+const copione = (testo: string, stile: string) =>
+  `### DIRECTOR'S NOTES (non leggere)\n${stile}.\n\n### TRANSCRIPT (leggi solo questo)\n${testo}`
+
 // A volte Gemini risponde senza audio: si riprova fino a 3 volte.
 async function parlaCon(modello: string, testo: string, stile: string) {
   if (!GEMINI_API_KEY) throw new Error('Manca GEMINI_API_KEY')
@@ -137,7 +142,7 @@ async function parlaCon(modello: string, testo: string, stile: string) {
       method: 'POST',
       headers: { 'x-goog-api-key': GEMINI_API_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: `${stile}: ${testo}` }] }],
+        contents: [{ parts: [{ text: copione(testo, stile) }] }],
         generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: VOCE } } } },
       }),
     })
@@ -176,10 +181,11 @@ async function leggiVoce(nome: string) {
 
 // Link della frase detta da Laomedeia: quella salvata se c'è già, altrimenti la fa, la salva e la firma.
 async function voce(testo: string, stile = STILE) {
-  const nome = `${await impronta(`${MODELLO}|${VOCE}|${stile}|${testo}`)}.wav`
+  const nome = `${await impronta(`v2|${MODELLO}|${VOCE}|${stile}|${testo}`)}.wav`
   const gia = await firma(nome)
   if (gia) return { url: gia, nuova: false }
-  return { url: await salvaVoce(nome, await parla(testo, stile)), nuova: true }
+  const pcm = unisci(silenzio(0.4), sfuma(await parla(testo, stile)), silenzio(0.6))
+  return { url: await salvaVoce(nome, pcm), nuova: true }
 }
 
 const unisci = (...pezzi: Uint8Array[]) => {
@@ -189,27 +195,51 @@ const unisci = (...pezzi: Uint8Array[]) => {
 }
 const silenzio = (secondi: number) => new Uint8Array(Math.round(secondi * 24000) * 2)
 
-// Canzoncine della sveglia dei bambini (scritte apposta, una al giorno a giro), cantate da Laomedeia e salvate.
+// Dissolvenza di 60 ms all'inizio e alla fine: senza, Sonos fa un "bzz" quando il suono parte o finisce di colpo.
+function sfuma(pcm: Uint8Array) {
+  const fuori = pcm.slice(0, pcm.length - (pcm.length % 2))
+  const v = new DataView(fuori.buffer)
+  const n = fuori.length / 2, f = Math.min(1440, Math.floor(n / 2))
+  for (let i = 0; i < f; i++) {
+    const k = i / f
+    v.setInt16(i * 2, Math.round(v.getInt16(i * 2, true) * k), true)
+    v.setInt16((n - 1 - i) * 2, Math.round(v.getInt16((n - 1 - i) * 2, true) * k), true)
+  }
+  return fuori
+}
+
+// Canzoncine della sveglia dei bambini (scritte apposta, ~10 secondi, una al giorno a giro), cantate e salvate.
 const CANZONI = [
-  'Din don, din don, il sole fa capolino, apri gli occhietti, è già mattino! Din don, din don, stiracchia le braccia, e un bel sorriso sulla faccia!',
-  'Cucù, cucù, il gallo canta già, la notte se n\'è andata e il giorno arriva qua! Cucù, cucù, giù dal letto piano piano, un passettino e poi la mano.',
-  'Tic tac, tic tac, fa l\'orologio sul comò, svegliatevi bambini, io vi canto un po\'! Tic tac, tic tac, uno sbadiglio grande grande, e giù dal letto a passi da gigante!',
-  'Lalalà, lalalà, la luna è andata a letto, e adesso tocca al sole entrare dal tetto! Lalalà, lalalà, aprite le finestre, la giornata è pronta come una festa!',
-  'Brr brr brr, chi si nasconde nel piumone? Su su su, c\'è il sole sul balcone! Brr brr brr, un abbraccio e un bacino, e il sonno scappa via come un topolino!',
-  'Pim pum pam, chi dorme ancora qua? Un raggio di sole vi fa il solletico già! Pim pum pam, un salto e via, buongiorno a tutti con allegria!',
-  'Uccellini sul ramo cantano con me, cip cip cip, che bel giorno che c\'è! Uccellini sul ramo, su, venite a ballar, la colazione aspetta, è ora di alzar!',
-  'Dormi dormi? No no no! Adesso basta, ve lo dico io! Sveglia sveglia? Sì sì sì! Oggi è proprio un bellissimo dì!',
+  'Din don, din don, il sole fa capolino, apri gli occhietti, è già mattino!',
+  'Cucù, cucù, il gallo canta già, la notte se n\'è andata e il giorno arriva qua!',
+  'Tic tac, tic tac, fa l\'orologio sul comò, svegliatevi bambini, io vi canto un po\'!',
+  'Lalalà, lalalà, la luna è andata a letto, e adesso tocca al sole entrare dal tetto!',
+  'Brr brr brr, chi si nasconde nel piumone? Su su su, c\'è il sole sul balcone!',
+  'Pim pum pam, chi dorme ancora qua? Un raggio di sole vi fa il solletico già!',
+  'Uccellini sul ramo cantano con me, cip cip cip, che bel giorno che c\'è!',
+  'Dormi dormi? No no no! Sveglia sveglia? Sì sì sì! Oggi è proprio un bellissimo dì!',
 ]
-const STILE_CANTO = 'Canta, non leggere: canta piano questa canzoncina con una melodia semplice, dolce e allegra, a voce morbida, come per svegliare con delicatezza dei bambini'
+const STILE_CANTO = 'Canta piano questa canzoncina con una melodia semplice, dolce e allegra, a voce morbida, come per svegliare con delicatezza dei bambini'
+// Solo il modello principale canta bene: i modelli di riserva leggevano ad alta voce le indicazioni (21.10.2026).
+// Se oggi non si può fare quella del giorno, va una delle altre già salvate; se non ce n'è nessuna, niente canzoncina.
 async function canzone(numero?: number) {
-  const giorno = Math.floor(Date.now() / 86400e3)
-  const testo = CANZONI[(numero ?? giorno) % CANZONI.length]
-  const nome = `canzoni/${await impronta(`${MODELLO}|${VOCE}|${STILE_CANTO}|${testo}`)}.wav`
+  const giorno = numero ?? Math.floor(Date.now() / 86400e3)
+  const nomeDi = async (t: string) => `canzoni/${await impronta(`v3|${MODELLO}|${VOCE}|${STILE_CANTO}|${t}`)}.wav`
+  const testo = CANZONI[giorno % CANZONI.length]
+  const nome = await nomeDi(testo)
   const gia = await leggiVoce(nome)
   if (gia) return gia
-  const pcm = await parla(testo, STILE_CANTO)
-  await salvaVoce(nome, pcm)
-  return pcm
+  try {
+    const pcm = await parlaCon(MODELLO, testo, STILE_CANTO)
+    await salvaVoce(nome, pcm)
+    return pcm
+  } catch (e) {
+    for (let i = 1; i < CANZONI.length; i++) {
+      const altra = await leggiVoce(await nomeDi(CANZONI[(giorno + i) % CANZONI.length]))
+      if (altra) return altra
+    }
+    throw e
+  }
 }
 
 // --- Sveglie ---
@@ -239,6 +269,11 @@ async function meteo() {
     `massima ${Math.round(d.temperature_2m_max?.[0])} gradi, probabilità di pioggia ${d.precipitation_probability_max?.[0] ?? 0}%`
 }
 
+// Un tema al giorno per l'indovinello dei bimbi: senza, Claude ripeteva sempre lo stesso.
+const TEMI = ['animali della fattoria', 'dinosauri', 'la scuola', 'frutta e verdura', 'il calcio', 'il pianoforte', 'il mare',
+  'lo spazio e i pianeti', 'la ginnastica', 'i colori', 'la colazione', 'gli insetti', 'i mezzi di trasporto', 'la neve',
+  'gli animali della giungla', 'i numeri', 'le stagioni', 'i vestiti', 'il tennis', 'i pesci']
+
 // Il resto del testo dopo il saluto, scritto da Claude con i crediti del piano Max (spesa in ai_uso, tetti comuni).
 async function testoSveglia(sv: Record<string, any>, tempo: string) {
   const chiave = Deno.env.get('ANTHROPIC_API_KEY')
@@ -253,7 +288,8 @@ async function testoSveglia(sv: Record<string, any>, tempo: string) {
   const sistema = sv.per === 'bambini'
     ? `${comune} Stai svegliando dei bambini di circa 8 anni in Ticino. Racconta il meteo di oggi in modo scherzoso e affettuoso, ` +
       'con un consiglio pratico (giacca, ombrello, berretto…) e una battutina che faccia davvero ridere un bambino di 8 anni: ' +
-      'un indovinello o un gioco di parole semplice e sensato (tipo "Qual è il colmo per…?" con la risposta), sempre diverso. ' +
+      'un indovinello o un gioco di parole semplice e sensato con la risposta, sempre diverso. ' +
+      `Oggi l'indovinello parla di: ${TEMI[Math.floor(Date.now() / 86400e3) % TEMI.length]} (niente nuvole né pioggia). ` +
       'Chiudi invitandoli ad alzarsi con allegria. Al massimo 70 parole.'
     : `${comune} Stai svegliando Giovanni, un imprenditore ticinese. Dagli il meteo di oggi con un tocco di ironia, una battuta, ` +
       'poi 1 o 2 fatti di ieri che hanno davvero mosso la borsa o l\'economia (NON un elenco di indici: cosa è successo e perché ' +
@@ -305,8 +341,9 @@ async function suona(sv: Record<string, any>, prova: { cassa?: string; musica?: 
   if (sv.per === 'bambini') { try { canto = await canzone(prova.canzone) } catch (e) { errori.push(`canzone: ${msg(e)}`) } }
   let parlato: Uint8Array | null = null
   try { parlato = await parla(frase, stile) } catch (e) { errori.push(`voce: ${msg(e)}`) }
-  const pezzi = [canto, parlato].filter(Boolean) as Uint8Array[]
-  const pcm = pezzi.length === 2 ? unisci(pezzi[0], silenzio(0.8), pezzi[1]) : pezzi[0]
+  const pezzi = ([canto, parlato].filter(Boolean) as Uint8Array[]).map(sfuma)
+  const pcm = pezzi.length === 0 ? null
+    : unisci(silenzio(0.4), ...pezzi.flatMap((p, i) => (i ? [silenzio(0.8), p] : [p])), silenzio(0.6))
   const token = await accesso()
   const tutte = await casse(token)
   const nomeCassa = prova.cassa || sv.cassa

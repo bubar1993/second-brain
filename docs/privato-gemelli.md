@@ -33,10 +33,11 @@ Area Privato: gemelli, figli di Lady di Blackwood, scadenze, liste, garanzie, va
 
 ### Sonos: annunci e sveglie (21.10.2026, ok di Giovanni, in corso)
 - Integrazione "Second Brain" su developer.sonos.com (Direct Control, account Sonos di Giovanni), chiave e segreto nei segreti `SONOS_KEY` / `SONOS_SECRET`. Indirizzo di ritorno: la funzione `sonos`.
-- Funzione `sonos` (Giovanni dall'app o x-copia-token): `collega` (link di autorizzazione, 15 min), `casse`, `annuncio` (`cassa` nome o id, `volume`, `url` mp3 https; senza url il din-don di Sonos). Token solo in `sonos_collegamento` (nessun permesso a app, agenti, Capo: esclusa dal blocco "capo vede tutto"); l'app legge `sonos_stato`.
+- Funzione `sonos` (Giovanni dall'app o x-copia-token): `collega` (link di autorizzazione, 15 min), `casse`, `annuncio` (`cassa` nome o id, `volume`, `testo`, `stile`; senza testo il din-don di Sonos).
+- Voce (scelta di Giovanni): **Gemini 3.1 Flash TTS, voce Laomedeia**, chiave gratuita `GEMINI_API_KEY` (AI Studio, progetto "Second Brain", separato da "Gestionale"; Giovanni non vuole spendere e accetta che Google usi i testi). Frasi salvate nel bucket privato `voci` (nome = sha256 di modello|voce|stile|testo, WAV 24 kHz): la stessa frase non si rifà. Prima prova in Camera Mia il 21.10, ok. Token solo in `sonos_collegamento` (nessun permesso a app, agenti, Capo: esclusa dal blocco "capo vede tutto"); l'app legge `sonos_stato`.
 - Casse (tutte fanno gli annunci): Camera Mia, Corridoio, Bambini, Salotto. Collegato il 21.10, prova din-don in Camera Mia riuscita.
 - Prove da qui senza vedere il token: `net.http_post` dal database con `copia_token` del Vault, poi `net._http_response`.
-- Da fare: voce italiana (Google Chirp 3 HD o ElevenLabs, scelta di Giovanni) con le voci salvate e riusate (Storage privato, link temporaneo); comando dal + ("annuncio bambini: a tavola!"); poi sveglie con i Preferiti Sonos (playlist Spotify).
+- Da fare: comando dal + ("annuncio bambini: a tavola!"); poi sveglie con i Preferiti Sonos (playlist Spotify).
 
 ### Idee parcheggiate
 - ~~Risposta scritta dall'AI dentro l'app (Chiedi)~~: fatta il 14.10.2026 con i crediti API del piano Max (vedi "Risposta dell'AI in Chiedi").

@@ -4,7 +4,11 @@
 // GET ?code&state                       → ritorno da Sonos dopo l'autorizzazione di Giovanni: salva i token.
 // POST { azione: 'collega' }            → link per autorizzare (vale 15 minuti);
 //      { azione: 'casse' }              → casse con nome, id e se fanno gli annunci;
-//      { azione: 'annuncio', cassa, volume?, url? } → suona un annuncio (senza url: il din-don di Sonos).
+//      { azione: 'annuncio', cassa, volume?, testo?, stile? } → dice il testo con la voce Laomedeia
+//        (senza testo: il din-don di Sonos).
+// Voce: Gemini 3.1 Flash TTS (chiave gratuita GEMINI_API_KEY di AI Studio, progetto "Second Brain"). Ogni frase fatta
+// si salva nel bucket privato `voci` (nome = impronta di voce + stile + testo): la stessa frase non si rifà più.
+// Sonos la scarica con un link firmato che vale 10 minuti.
 // Chi può: Giovanni dall'app (non i connettori) oppure il giro programmato (x-copia-token).
 
 import { daConnettore } from '../_shared/accesso.ts'
@@ -76,6 +80,64 @@ async function sonos(token: string, percorso: string, corpo?: unknown) {
   return j
 }
 
+// --- Voce ---
+const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
+const MODELLO = 'gemini-3.1-flash-tts-preview'
+const VOCE = 'Laomedeia'
+const STILE = 'Leggi in italiano, con tono caldo, naturale e affettuoso'
+const archivio = (percorso: string) => `${SUPABASE_URL}/storage/v1/${percorso}`
+
+async function impronta(t: string) {
+  const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t))
+  return [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+// Gemini dà PCM 16 bit, mono, 24 kHz: Sonos vuole MP3 o WAV, quindi si aggiunge l'intestazione WAV.
+function wav(pcm: Uint8Array, hz = 24000) {
+  const b = new Uint8Array(44 + pcm.length), v = new DataView(b.buffer)
+  const s = (o: number, t: string) => [...t].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)))
+  s(0, 'RIFF'); v.setUint32(4, 36 + pcm.length, true); s(8, 'WAVE'); s(12, 'fmt ')
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true)
+  v.setUint32(24, hz, true); v.setUint32(28, hz * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true)
+  s(36, 'data'); v.setUint32(40, pcm.length, true); b.set(pcm, 44)
+  return b
+}
+
+async function firma(nome: string) {
+  const r = await fetch(archivio(`object/sign/voci/${nome}`), { method: 'POST', headers: sbHeaders, body: JSON.stringify({ expiresIn: 600 }) })
+  if (!r.ok) return null
+  const { signedURL } = await r.json()
+  return signedURL ? archivio(signedURL.replace(/^\//, '')) : null
+}
+
+// Link della frase detta da Laomedeia: quella salvata se c'è già, altrimenti la fa, la salva e la firma.
+async function voce(testo: string, stile = STILE) {
+  const nome = `${await impronta(`${MODELLO}|${VOCE}|${stile}|${testo}`)}.wav`
+  const gia = await firma(nome)
+  if (gia) return { url: gia, nuova: false }
+  if (!GEMINI_API_KEY) throw new Error('Manca GEMINI_API_KEY')
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODELLO}:generateContent`, {
+    method: 'POST',
+    headers: { 'x-goog-api-key': GEMINI_API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: `${stile}: ${testo}` }] }],
+      generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: VOCE } } } },
+    }),
+  })
+  const j = await r.json().catch(() => ({}))
+  const dati = j?.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData?.data
+  if (!dati) throw new Error(`Voce non fatta (${j?.error?.message || r.status})`.slice(0, 200))
+  const su = await fetch(archivio(`object/voci/${nome}`), {
+    method: 'POST',
+    headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}`, 'Content-Type': 'audio/wav', 'x-upsert': 'true' },
+    body: wav(Uint8Array.from(atob(dati), (c) => c.charCodeAt(0))),
+  })
+  if (!su.ok) throw new Error(`Voce non salvata (${su.status})`)
+  const url = await firma(nome)
+  if (!url) throw new Error('Voce salvata ma senza link')
+  return { url, nuova: true }
+}
+
 async function casa(token: string) {
   const c = await leggi()
   if (c.household_id) return c.household_id as string
@@ -127,7 +189,7 @@ Deno.serve(async (req: Request) => {
     if (utente?.id !== UTENTE || daConnettore(jwt)) return risposta({ errore: 'Non autorizzato' }, 401)
   }
 
-  const { azione, cassa, volume, url } = await req.json().catch(() => ({}))
+  const { azione, cassa, volume, testo, stile } = await req.json().catch(() => ({}))
   try {
     if (azione === 'collega') {
       const stato = crypto.randomUUID()
@@ -142,13 +204,17 @@ Deno.serve(async (req: Request) => {
       const scelta = tutte.find((c: any) => c.id === cassa || c.nome.toLowerCase() === String(cassa || '').toLowerCase())
       if (!scelta) return risposta({ errore: `Cassa non trovata: ${cassa}`, casse: tutte.map((c: any) => c.nome) }, 400)
       if (!scelta.annunci) return risposta({ errore: `${scelta.nome} non fa gli annunci` }, 400)
-      if (url && !/^https:\/\//.test(url)) return risposta({ errore: 'url deve essere https' }, 400)
+      const frase = String(testo || '').trim().slice(0, 500)
       const clip: Record<string, unknown> = { name: 'Second Brain', appId: 'ch.ceramex.secondbrain', priority: 'HIGH' }
-      if (url) clip.streamUrl = url
-      else clip.clipType = 'CHIME'
+      let nuova = false
+      if (frase) {
+        const v = await voce(frase, stile ? String(stile).slice(0, 200) : undefined)
+        clip.streamUrl = v.url
+        nuova = v.nuova
+      } else clip.clipType = 'CHIME'
       if (volume != null) clip.volume = Math.max(5, Math.min(80, Number(volume) || 30))
       const r = await sonos(token, `players/${scelta.id}/audioClip`, clip)
-      return risposta({ ok: true, cassa: scelta.nome, clip: r?.id })
+      return risposta({ ok: true, cassa: scelta.nome, clip: r?.id, voce_nuova: nuova })
     }
     return risposta({ errore: 'Azione sconosciuta' }, 400)
   } catch (e) {

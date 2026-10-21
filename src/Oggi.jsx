@@ -343,6 +343,7 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
         <AvvisoBackup />
         <AvvisoCopia />
         <AvvisoLavoriGC />
+        <AvvisoGuasti />
 
         {/* Una scheda sola con tutto quello che aspetta te (14.10.2026, prima erano fino a 7 schede una sotto l'altra). */}
         <CosePerTe voci={[
@@ -774,6 +775,28 @@ function AvvisoLavoriGC() {
   return (
     <div className="scheda scheda-allarme">
       <p>{problemi.join(' ')} Dillo a Claude.</p>
+    </div>
+  )
+}
+
+// Guasti aperti trovati dal guardiano (ogni 15 minuti). Backup, copia Ceramex, posta e copia G&C hanno già il loro
+// avviso qui sopra: non li ripeto.
+const GIA_AVVISATI = ['backup', 'giro:copia-ceramex', 'giro:posta-gc', 'giro:copia-gc']
+function AvvisoGuasti() {
+  const [guasti, setGuasti] = useState([])
+
+  useEffect(() => {
+    sb.from('guasti').select('id,chiave,titolo,dettaglio,aperto_il').is('chiuso_il', null).order('aperto_il')
+      .then(({ data }) => setGuasti((data || []).filter((g) => !GIA_AVVISATI.includes(g.chiave))))
+  }, [])
+
+  if (!guasti.length) return null
+  return (
+    <div className="scheda scheda-allarme">
+      {guasti.map((g) => (
+        <p key={g.id}>{g.titolo} (dal {quando(g.aperto_il, true)}). {g.dettaglio}</p>
+      ))}
+      <p>Dillo a Claude.</p>
     </div>
   )
 }

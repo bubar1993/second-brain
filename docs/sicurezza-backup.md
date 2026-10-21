@@ -27,6 +27,15 @@ Per leggere i gestionali dal second brain si usa una chiave di sola lettura per 
 Il backup su Drive (funzione `backup`, ogni domenica notte, cartella BRAIN/Backup) è descritto nella fase 2 in `ceramex.md`.
 Dal 18.10.2026 i dati si leggono tabella per tabella, 500 righe alla volta (`backup_tabelle()` + `backup_export_pezzo()`, migrazione `backup_a_pezzi`): il 18.10 `backup_export()` in un colpo solo era stato fermato dal limite di 8 s. La tabella `vettori` (ricerca per significato) non va nel backup: si ricalcola dalle note. Rifatto a mano il 18.10 alle 18:58: ok, 3,6 MB.
 
+## Guardiano (21.10.2026, ok di Giovanni)
+
+Prima del 21.10 nessuno avvisava se un'app, un gestionale o un agente si fermava. Piano in 3 passi: (1) guardiano nel Brain — FATTO; (2) controllo esterno su Cloudflare per quando è giù il Brain stesso — da fare; (3) "Medico" che legge gli errori e propone la soluzione (ripara da solo solo le cose sicure, il resto con l'ok di Giovanni) — da fare.
+- Funzione `guardiano`, pg_cron ai minuti 2/17/32/47 (copia_token; migrazioni `guardiano` e `guardiano_cron`). Controlla: le 3 app (risposta della pagina), i 2 gestionali (`select 1` con `brain_lettore`, segreti `CERAMEX_DB_URL`/`GC_DB_URL`), i giri in `lavori_registro` (elenco `GIRI` con orari di Zurigo: i minuti senza giri si contano solo nelle ore in cui il lavoro gira, così la notte non conta; più `GIORNALIERI` e `SETTIMANALI`), ultimo giro non riuscito, `copia_registro` (Ceramex, 40 min), backup (non riuscito o più di 8 giorni), richieste agli agenti ferme da più di 3 ore (6–23), lavori pg_cron falliti negli ultimi 30 minuti. Le app e i gestionali si riprovano una volta dopo 4 s prima di dire guasto. Non ripara niente.
+- Tabella `guasti` (una riga aperta per `chiave`, `chiuso_il` quando sparisce; l'app e il Capo la leggono, scrive solo il guardiano; i chiusi si cancellano dopo 60 giorni). `guardiano_dati()` (solo service_role) legge tutto il necessario in un colpo.
+- `notifiche` manda "Guasto: …" all'apertura e "Risolto: …" alla chiusura (solo se il guasto era stato avvisato; stesso tag, quindi sul telefono "Risolto" prende il posto del guasto). In Oggi il riquadro rosso `AvvisoGuasti` (senza ripetere backup, copia Ceramex, posta e copia G&C, che hanno già il loro avviso).
+- Prova: `{ "prova": true }` dice cosa trova senza scrivere né avvisare. Prima prova (21.10 sera): tutto a posto tranne "Archivia liste di carico Ceramex", che il 21.10 (e il 15.10) non ha lasciato il giro delle 6:52.
+- WhatsApp come canale di avviso: non adatto finché il Brain scrive dal numero di Giovanni stesso (non può scrivere a sé) e fuori dalle 24 h servono modelli a pagamento.
+
 ## Primo passo
 
 (Fatto l'11.10.2026: resta come storia.)

@@ -88,7 +88,7 @@ Agenti: routine claude.ai (ambiente "Second Brain"), ognuna col suo utente del d
 | `docs/whatsapp.md` | WhatsApp, Meta, note vocali, chiamate |
 | `docs/rubrica.md` | contatti, Google Contatti, funzione `rubrica` |
 | `docs/schermate.md` | cambi l'app (`src/`): Oggi, Aggiungi, Dentro, schede persona, Quaderno, Bozze, Riordino, notifiche |
-| `docs/sicurezza-backup.md` | accesso, permessi delle funzioni, backup |
+| `docs/sicurezza-backup.md` | accesso, permessi delle funzioni, backup, guardiano (avvisi di guasto) |
 | `docs/meta-analisi-app.md` | Meta chiede qualcosa sull'analisi dell'app |
 
 Promemoria vicino al lavoro: `agenti/CLAUDE.md` (regole degli agenti) e `supabase/CLAUDE.md` (funzioni e migrazioni).

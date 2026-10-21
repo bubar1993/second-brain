@@ -2,7 +2,8 @@
 // e lo manda ai telefoni iscritti (Web Push, gratis, niente servizi esterni a pagamento):
 // - appuntamenti di lavoro e privati 1 ora prima (non i giorni di scuola chiusa, non quelli "tutto il giorno");
 // - promemoria quando arriva l'ora (dal 14.10.2026 tutti, non solo gli urgenti);
-// - risposte del Capo e cose che il Capo chiede di confermare.
+// - risposte del Capo e cose che il Capo chiede di confermare;
+// - guasti trovati dal guardiano (all'apertura e quando sono risolti).
 // Ogni cosa si manda una volta sola (notifiche_inviate); se un appuntamento o promemoria viene spostato, si riavvisa.
 // Niente notifiche di prova verso Giovanni.
 
@@ -135,6 +136,22 @@ async function daAvvisare(): Promise<Avviso[]> {
   for (const c of conferme) {
     avvisi.push({ tipo: 'capo_conferma', rif_id: c.id, chiave: '', titolo: 'Il Capo chiede una conferma', corpo: corto(c.cosa, 160), url: '/#/capo' })
   }
+
+  // Guardiano (21.10.2026): un avviso quando un guasto si apre e uno quando si chiude,
+  // "Risolto" solo per i guasti già avvisati.
+  const guasti = await rest(`guasti?select=id,titolo,dettaglio,chiuso_il&or=(chiuso_il.is.null,chiuso_il.gte.${iso(adesso - 2 * 3600e3)})`
+    + `&aperto_il=gte.${iso(adesso - 2 * 864e5)}`)
+  const chiusi = guasti.filter((g: { chiuso_il: string | null }) => g.chiuso_il)
+  const avvisati = new Set(chiusi.length
+    ? (await rest(`notifiche_inviate?select=rif_id&tipo=eq.guasto&rif_id=in.(${chiusi.map((g: { id: string }) => g.id).join(',')})`)).map((n: { rif_id: string }) => n.rif_id)
+    : [])
+  for (const g of guasti) {
+    if (!g.chiuso_il) {
+      avvisi.push({ tipo: 'guasto', rif_id: g.id, chiave: '', titolo: `Guasto: ${corto(g.titolo, 80)}`, corpo: corto(g.dettaglio || '', 160), url: '/#/oggi' })
+    } else if (avvisati.has(g.id)) {
+      avvisi.push({ tipo: 'guasto_risolto', rif_id: g.id, chiave: '', titolo: `Risolto: ${corto(g.titolo, 80)}`, corpo: 'Il guardiano lo vede di nuovo a posto.', url: '/#/oggi' })
+    }
+  }
   return avvisi
 }
 
@@ -163,7 +180,9 @@ Deno.serve(async (req) => {
       if (!nuova?.length) continue
       for (const i of iscrizioni) {
         try {
-          const r = await manda(i, { titolo: a.titolo, corpo: a.corpo, url: a.url, tag: `${a.tipo}-${a.rif_id}` })
+          // "Risolto" prende il posto della notifica del guasto sul telefono (stesso tag).
+          const tag = `${a.tipo === 'guasto_risolto' ? 'guasto' : a.tipo}-${a.rif_id}`
+          const r = await manda(i, { titolo: a.titolo, corpo: a.corpo, url: a.url, tag })
           if (r.stato === 404 || r.stato === 410) {
             // Il telefono non è più iscritto (app tolta o permesso revocato).
             await rest(`push_iscrizioni?id=eq.${i.id}`, { method: 'DELETE' })

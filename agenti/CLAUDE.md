@@ -15,6 +15,7 @@ Valgono quando cambi le regole degli agenti. I dettagli stanno in `docs/agenti-r
 - `agente-sql` rifiuta `net.http_*`, blocchi DO, `plpgsql` e `create function` (18.10.2026): niente di questo nelle regole degli agenti del second brain.
 - Niente mail o notifiche di prova. Una prova che fa partire un agente può mandare una notifica al telefono di Giovanni: farla di giorno e dirglielo prima.
 - Routine create via API: passare sempre `mcp_connections`, se no prendono TUTTI i connettori dell'account.
+- Guardiano (21.10.2026): se aggiungi un agente, ne cambi gli orari o il nome nel registro (`lavori_registro.lavoro`), aggiorna `GIRI`/`GIORNALIERI`/`SETTIMANALI` in `supabase/functions/guardiano/index.ts`, se no dà falsi allarmi o non vede che è fermo.
 
 | File | Routine |
 | --- | --- |

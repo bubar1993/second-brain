@@ -40,8 +40,9 @@ Area Privato: gemelli, figli di Lady di Blackwood, scadenze, liste, garanzie, va
 - **Sveglie** (21.10.2026, scelte di Giovanni): tabella `sonos_sveglie` (nessun permesso all'app per ora), pg_cron `sonos-sveglie` ogni minuto chiama `sonos` {azione:'sveglie'} solo se `sonos_sveglie_da_fare()` ne trova una (da un minuto prima a 10 dopo l'ora di Zurigo, una volta al giorno: `ultima_il`). Flusso: meteo Open-Meteo (Torricella-Taverne) → testo di Claude Haiku (crediti Max, spesa in `ai_uso` + 0,01 $ a ricerca; per Giovanni 2-3 notizie di ieri, borsa/attualità, con la ricerca web) → voce Laomedeia (`voci/sveglie/<id>.wav`, riscritta ogni volta) → annuncio → finita la voce, Preferito Sonos a volume dolce, in ordine casuale. `salta_vacanze` = niente sveglia nei giorni "Scuola chiusa" (`eventi`). Esito in `ultimo_testo` / `errore`. Prova: {azione:'sveglia_prova', id, cassa, musica:false}.
   - Bimbi lun–mer 07:00, Bambini, "Buongiorno Leo e Jolie, dormito bene?" → Alternative; salta vacanze.
   - Bimbi gio–ven 07:10, Bambini, "Buongiorno Leo, Jolie, Davide e Celeste, dormito bene?" → Alternative; salta vacanze.
-  - Giovanni lun–mer 06:50, Camera Mia, "Buongiorno Giovanni!" + notizie → Preferito "Worakls".
-  - Giovanni gio–ven 07:00, Camera Mia, "Buongiorno Amore!" + notizie → Preferito "Blink-182".
+  - Giovanni lun–mer 06:50, Camera Mia, "Buongiorno Giovanni!" + notizie → Preferito "This Is Worakls"; salta vacanze.
+  - Giovanni gio–ven 07:00, Camera Mia, "Buongiorno Amore!" + notizie → Preferito "This Is blink-182"; salta vacanze.
+  - Gli artisti nei Preferiti Sonos non si vedono dall'API: servono playlist (es. "This Is …"). Il nome si confronta senza maiuscole/segni e anche "contenuto in".
   - Volumi: voce 25, musica 15.
   - Bimbi: prima una canzoncina (8 scritte apposta in `CANZONI`, una al giorno a giro, cantate da Laomedeia e salvate in `voci/canzoni/`), poi il saluto. Battuta = indovinello/gioco di parole per 8 anni.
   - Giovanni: meteo + battuta + 1-2 fatti che hanno mosso la borsa (non l'elenco degli indici) + highlight AI/tech di ieri (max 5 ricerche).

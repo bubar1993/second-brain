@@ -49,7 +49,9 @@ Area Privato: gemelli, figli di Lady di Blackwood, scadenze, liste, garanzie, va
   - Giovanni: meteo + battuta + 1-2 fatti che hanno mosso la borsa (non l'elenco degli indici) + highlight AI/tech di ieri (max 5 ricerche).
   - `eccezioni` (jsonb data → saluto): 22 e 23.10.2026 solo "Leo e Jolie" (settimana senza Davide e Celeste).
   - Quota gratuita Gemini TTS (AI Studio → Limitazione di frequenza, progetto Second Brain): **3 al minuto e 10 al giorno PER MODELLO** (il giorno di Google riparte alle 9 di Zurigo). `parla()` prova in ordine 3.1 Flash TTS → 3.8 Flash TTS → 2.5 Flash TTS, sempre Laomedeia. Se nessuno va: din-don di Sonos e poi la musica; il motivo in `errore`. Azione `modelli_voce` = elenco dei modelli TTS.
-- Da fare: comando dal + ("annuncio bambini: a tavola!"); accendere/spegnere le sveglie dall'app.
+- **Giorni speciali** (`sonos_giorni`: data → `come` = giorno della settimana da usare). Gio–ven Alessia ("Amore") dorme da Giovanni con Davide e Celeste; settimana senza di loro → gio e ven come lunedì.
+- **Pagina Sveglie nell'app** (22.10.2026, ok di Giovanni): `#/sveglie` (`src/Sveglie.jsx`, Dentro solo P, menu del PC). Prossima sveglia, tasto rapido **"Alessia non c'è questa settimana"** (`sonos` {azione:'senza_alessia', attiva}: giovedì e venerdì di questa settimana da oggi in avanti come lunedì; la settimana dopo torna normale da sé; ritoccando si annulla), per ogni sveglia l'ora (tocco → nuova ora) e Accesa/Spenta (`sveglia_cambia`). Tutto via `sveglie_elenco` (le tabelle restano chiuse all'app). In Oggi (P e Tutte) la riga "Sveglia domani alle 06:50 · Camera Mia" (`ProssimaSveglia` in `Oggi.jsx`).
+- Da fare: annunci e richieste al Capo (proposta: il Capo prepara, Giovanni conferma con i due tocchi, perché il Capo legge mail di estranei).
 
 ### Idee parcheggiate
 - ~~Risposta scritta dall'AI dentro l'app (Chiedi)~~: fatta il 14.10.2026 con i crediti API del piano Max (vedi "Risposta dell'AI in Chiedi").

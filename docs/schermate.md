@@ -45,6 +45,9 @@ Stile, Oggi, Aggiungi, Chiedi, Dentro, schede persona, Quaderno, Bozze, Riordino
 - **Chiedi:** i risultati per parole arrivano subito, "per significato" dopo ("Cerco anche per significato…"); microfono accanto alla ricerca (cerca da solo quando finisci di parlare).
 - **Grafica:** spunte e cerchi 34 px con area di tocco 46 px, chip e tasti ≥ 40 px, stelle 24 px, scritte piccole portate a 13–15 px, `--grigio` #8a90ad, Salva pieno, parole semplici (niente "giro", "Tieni in vista" → "Lascia in casella", "Modifiche per Claude Code" → "Cambi alle app").
 
+### Sveglie Sonos (22.10.2026, ok di Giovanni)
+- `#/sveglie` (`src/Sveglie.jsx`, Dentro solo Privato): orari, accese/spente e tasto "Alessia non c'è questa settimana"; in Oggi la riga della prossima sveglia. Dettagli in `docs/privato-gemelli.md` (Sonos).
+
 ### Comodità e correzioni (12.10.2026 pomeriggio, ok di Giovanni)
 - "In ritardo" solo dal giorno dopo (prima bastava passare l'ora).
 - Promemoria in Oggi: tocco → si apre sotto la riga: correggi testo e data, "Rimanda a" domani/lunedì/tra una settimana, "Elimina" (va nel Cestino), "Apri la nota". Ogni spunta, rimando, eliminazione o "No" alle proposte ha "Annulla" nell'avviso in basso (5 secondi).

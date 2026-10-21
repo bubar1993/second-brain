@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { sb, areaDa, quando, giorniDaOggi, leggi, scrivi } from './supabase'
-import { useApp, useCarica, chk, messaggioErrore, NotaRiga, Stato, Icona, useModifiche, perCampo, useScorriAree } from './componenti'
+import { useApp, useCarica, chk, messaggioErrore, NotaRiga, Stato, Icona, useModifiche, perCampo, useScorriAree, chiama } from './componenti'
 import Rete from './Rete'
 import { AttivaNotifiche } from './Notifiche'
 import { visiteAperte, valoriEvento, CAMPI_EVENTO, ModificaAppuntamento, linkCall } from './Visita'
@@ -280,6 +280,7 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
         )}
 
         <Adesso e={prossimo} />
+        <ProssimaSveglia />
 
         {dati?.riassunti.map((r) => (
           <section key={r.parte} className="riassunto-giorno">
@@ -782,5 +783,26 @@ function AttivaImpronta() {
         </button>
       </div>
     </div>
+  )
+}
+
+// Prossima sveglia Sonos (Privato e Tutte): una riga piccola, il tocco apre la pagina Sveglie. Senza Sonos o senza rete non c'è.
+function ProssimaSveglia() {
+  const { area } = useApp()
+  const [p, setP] = useState(null)
+  useEffect(() => {
+    if (area !== 'P' && area !== 'T') return
+    let vivo = true
+    chiama('sonos', { azione: 'sveglie_elenco' }).then((d) => { if (vivo) setP(d?.prossima || null) }).catch(() => {})
+    return () => { vivo = false }
+  }, [area])
+  if (!p || (area !== 'P' && area !== 'T')) return null
+  const g = giorniDaOggi(`${p.data}T12:00:00`)
+  const quale = g === 0 ? 'oggi' : g === 1 ? 'domani' : new Date(`${p.data}T12:00`).toLocaleDateString('it-CH', { weekday: 'long' })
+  return (
+    <a href="#/sveglie" className="riga-prossima-sveglia">
+      <Icona nome="sveglie" size={18} />
+      <span>Sveglia {quale} alle <b>{p.ora}</b> · {p.cassa}</span>
+    </a>
   )
 }

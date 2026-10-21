@@ -19,6 +19,7 @@ export const VOCI_DENTRO = [
   { chiave: 'gemelli', titolo: 'Gemelli', dettaglio: 'Leo e Jolie: settimana, vacanze, feste dei compagni, diario', aree: ['P'] },
   { chiave: 'liste', titolo: 'Liste', dettaglio: 'Spesa, ristoranti e posti', aree: ['P'] },
   { chiave: 'garanzie', titolo: 'Garanzie', dettaglio: 'Scontrini e fino a quando vale la garanzia', aree: ['P'] },
+  { chiave: 'sveglie', titolo: 'Sveglie', dettaglio: 'Sonos: orari, accese o spente, «Alessia non c\'è»', aree: ['P'] },
   // Domande per te e Agenti dal 14.10.2026 stanno sotto il tasto Capo (scelta di Giovanni).
   { chiave: 'whatsapp', titolo: 'WhatsApp', dettaglio: 'Chat del numero Business' },
   { chiave: 'note', titolo: 'Tutte le note' },

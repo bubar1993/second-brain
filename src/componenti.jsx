@@ -158,6 +158,7 @@ const PERCORSI = {
   liste: 'M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01',
   garanzie: 'M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6zM9 12l2 2 4-4',
   notifiche: 'M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zM10 21h4',
+  sveglie: 'M12 21a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM12 9v4l2.5 2M4 4.5 7 7M20 4.5 17 7',
 }
 
 export function Icona({ nome, size = 22 }) {

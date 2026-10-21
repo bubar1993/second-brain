@@ -1011,3 +1011,19 @@ a.cita::after { content: ''; position: absolute; inset: -11px -6px; } /* area di
 .allegati-bozza .chip .chip-testo { margin: 0; padding: 8px 10px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70vw; display: block; }
 .allegati-bozza .chip .chip-togli { margin: 0; padding: 8px 10px; color: var(--tenue); }
 .allegati-bozza label.tasto-piccolo { cursor: pointer; }
+
+/* Sveglie Sonos (21.10.2026): ora grande da toccare, acceso/spento, tasto rapido "Alessia non c'è". */
+.scheda-sveglie { gap: 8px; background: linear-gradient(90deg, rgba(255, 143, 69, 0.13), rgba(255, 143, 69, 0.02)); border-color: rgba(255, 143, 69, 0.3); }
+.scheda-sveglie .riga-meta { margin: 0; }
+.tasto-grande.tasto-attivo { background: #ff8f45; color: var(--vuoto); box-shadow: 0 0 20px rgba(255, 143, 69, 0.4); }
+.riga-sveglia { align-items: center; }
+.elenco > div:last-child > .riga-sveglia { border-bottom: 0; }
+.sveglia-ora { flex: none; min-width: 76px; min-height: 48px; padding: 0 10px; border-radius: 14px; border: 1px solid var(--bordo);
+  background: rgba(255, 255, 255, 0.04); color: var(--testo); font: 600 22px var(--sans); font-variant-numeric: tabular-nums; }
+.sveglia-ora:active { transform: scale(0.97); }
+.sveglia-accesa { flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 52px; font-size: 13px; color: var(--tenue); }
+.sveglia-accesa input { width: 24px; height: 24px; accent-color: #ff8f45; }
+.riga-sveglia.spenta .riga-corpo, .riga-sveglia.spenta .sveglia-ora { opacity: 0.45; }
+.riga-prossima-sveglia { display: flex; align-items: center; gap: 8px; min-height: 40px; color: var(--tenue); font-size: 14px; text-decoration: none; }
+.riga-prossima-sveglia b { color: #ff8f45; font-weight: 600; }
+.riga-prossima-sveglia svg { color: #ff8f45; flex: none; }

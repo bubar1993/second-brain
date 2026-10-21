@@ -379,6 +379,44 @@ async function suona(sv: Record<string, any>, prova: { cassa?: string; musica?: 
   return { testo: parlato ? frase : '(senza voce: din-don)', secondi: Math.round(v.secondi), musica, errori: errori.join(' | ') || undefined }
 }
 
+// --- Pagina Sveglie dell'app ---
+// Giorno della settimana (1 = lunedì) di una data 'YYYY-MM-DD'.
+const giornoDi = (d: string) => ((new Date(`${d}T12:00:00Z`).getUTCDay() + 6) % 7) + 1
+const dataTra = (giorni: number) => new Date(Date.now() + giorni * 86400e3).toLocaleDateString('sv-SE', { timeZone: 'Europe/Zurich' })
+// I 7 giorni della settimana di oggi, da lunedì a domenica.
+function settimana() {
+  const lun = -(giornoDi(oggiZurigo()) - 1)
+  return Array.from({ length: 7 }, (_, i) => ({ data: dataTra(lun + i), giorno: i + 1 }))
+}
+
+// Sveglie, stato di "senza Alessia" questa settimana e prossima sveglia (giorni speciali e vacanze compresi).
+async function elencoSveglie() {
+  const da = oggiZurigo(), a = dataTra(8)
+  const [sveglie, speciali, vacanze] = await Promise.all([
+    rest('sonos_sveglie?select=id,nome,cassa,giorni,ora,saluto,per,preferito,attiva,salta_vacanze,ultima_il,ultimo_testo,errore&order=id') as Promise<Record<string, any>[]>,
+    rest(`sonos_giorni?data=gte.${da}&data=lte.${a}&select=data,come,nota`) as Promise<Record<string, any>[]>,
+    rest(`eventi?titolo=ilike.Scuola%20chiusa*&inizio=gte.${da}T00:00:00Z&inizio=lte.${a}T23:59:59Z&select=inizio`) as Promise<Record<string, any>[]>,
+  ])
+  const chiusa = new Set(vacanze.map((v) => String(v.inizio).slice(0, 10)))
+  const ora = new Date().toLocaleTimeString('sv-SE', { timeZone: 'Europe/Zurich' }).slice(0, 5)
+  let prossima = null
+  for (let i = 0; i <= 8 && !prossima; i++) {
+    const data = dataTra(i)
+    const giorno = speciali.find((s) => s.data === data)?.come || giornoDi(data)
+    const candidate = sveglie
+      .filter((s) => s.attiva && s.giorni.includes(giorno) && !(s.salta_vacanze && chiusa.has(data)))
+      .filter((s) => i > 0 || (s.ora.slice(0, 5) > ora && s.ultima_il !== data))
+      .sort((x, y) => x.ora.localeCompare(y.ora))
+    if (candidate[0]) prossima = { data, ora: candidate[0].ora.slice(0, 5), cassa: candidate[0].cassa, nome: candidate[0].nome }
+  }
+  const gioVen = settimana().filter((x) => x.giorno >= 4 && x.giorno <= 5 && x.data >= da)
+  return {
+    sveglie, prossima,
+    senza_alessia: gioVen.length > 0 && gioVen.every((x) => speciali.some((s) => s.data === x.data && s.come === 1)),
+    senza_alessia_possibile: gioVen.length > 0,
+  }
+}
+
 // Giro di ogni minuto: prende le sveglie da fare (una volta sola al giorno ciascuna) e le suona in sottofondo.
 async function sveglie() {
   const ids = (await rest('rpc/sonos_sveglie_da_fare', { method: 'POST', body: '{}' }) as number[]) || []
@@ -454,7 +492,8 @@ Deno.serve(async (req: Request) => {
     if (utente?.id !== UTENTE || daConnettore(jwt)) return risposta({ errore: 'Non autorizzato' }, 401)
   }
 
-  const { azione, cassa, volume, testo, stile, id, musica, canzone: numeroCanzone } = await req.json().catch(() => ({}))
+  const corpoJson = await req.json().catch(() => ({}))
+  const { azione, cassa, volume, testo, stile, id, musica, canzone: numeroCanzone } = corpoJson
   if (azione === 'sveglie') {
     if (!programmato) return risposta({ errore: 'Non autorizzato' }, 401)
     // @ts-ignore EdgeRuntime c'è nelle funzioni Supabase: il lavoro continua dopo la risposta.
@@ -462,6 +501,31 @@ Deno.serve(async (req: Request) => {
     return risposta({ ok: true })
   }
   try {
+    if (azione === 'sveglie_elenco') return risposta(await elencoSveglie())
+    if (azione === 'sveglia_cambia') {
+      const campi: Record<string, unknown> = {}
+      const { ora, attiva } = corpoJson
+      if (ora != null) {
+        if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(ora))) return risposta({ errore: 'Ora non valida' }, 400)
+        campi.ora = ora
+      }
+      if (attiva != null) campi.attiva = !!attiva
+      if (!Object.keys(campi).length) return risposta({ errore: 'Niente da cambiare' }, 400)
+      await rest(`sonos_sveglie?id=eq.${Number(id) || 0}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(campi) })
+      return risposta(await elencoSveglie())
+    }
+    if (azione === 'senza_alessia') {
+      // Giovedì e venerdì di questa settimana (da oggi in avanti) come lunedì, o di nuovo normali.
+      const { attiva } = corpoJson
+      const g = settimana().filter((x) => x.giorno >= 4 && x.giorno <= 5 && x.data >= oggiZurigo()).map((x) => x.data)
+      if (g.length) {
+        if (attiva) {
+          await rest('sonos_giorni', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify(g.map((data) => ({ data, come: 1, nota: 'Senza Alessia' }))) })
+        } else await rest(`sonos_giorni?data=in.(${g.join(',')})`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } })
+      }
+      return risposta(await elencoSveglie())
+    }
     if (azione === 'sveglia_prova') {
       const [sv] = await rest(`sonos_sveglie?id=eq.${Number(id) || 0}&select=*`) as Record<string, any>[]
       if (!sv) return risposta({ errore: 'Sveglia non trovata' }, 400)

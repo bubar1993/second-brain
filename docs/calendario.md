@@ -31,4 +31,7 @@ Agente calendario, Google Calendar, spostare appuntamenti, inviti a call, appunt
 
 - Agente calendario: riconosce le ditte anche nei titoli scritti di corsa ("creaceram" = Crea Ceram), sceglie quella dell'area e la capogruppo, e ricontrolla gli eventi C/G senza ditta (punto 1b). Agente lavoro: se la nota ha già la ditta (scelta da Giovanni) la tiene.
 
+### Promemoria → calendario (21.10.2026, Giovanni)
+- Nella pagina di una nota (`src/Nota.jsx`), sotto ogni promemoria con data e non fatto: **"Metti in calendario"** → `eventi` 'da_creare' di mezz'ora all'ora del promemoria, stessa area, `proposto_da = 'giovanni'`, `nota_id` e `promemoria_id` (colonna nuova, migrazione `promemoria_in_calendario`); poi si legge "In calendario". L'agente calendario lo crea in Google al giro dopo (nessun limite di data nelle sue regole). Primi due: rinnovi del passaporto (7.12.2027 bimbi, 7.12.2032 Giovanni), messi da Claude il 21.10.
+
 Vedi anche: `privato-gemelli.md` (vacanze "Scuola chiusa", pianoforte), `schermate.md` (Oggi a lista unica, spunta sugli appuntamenti).

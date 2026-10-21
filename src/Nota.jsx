@@ -18,7 +18,7 @@ export default function Nota({ id }) {
 
   const { dati, errore, carica, ricarica } = useCarica(async () => chk(
     await sb.from('note')
-      .select('*,aziende(id,nome),note_persone(persone(id,nome,cognome)),allegati(id,percorso),promemoria(id,testo,scade_il,fatto_il,eliminata_il)')
+      .select('*,aziende(id,nome),note_persone(persone(id,nome,cognome)),allegati(id,percorso),promemoria(id,testo,scade_il,fatto_il,eliminata_il),eventi(id,promemoria_id,stato)')
       .eq('id', id).single(),
   ), [id])
   const risolvi = useRisolvi(ricarica)
@@ -93,6 +93,18 @@ export default function Nota({ id }) {
     }, 'Promemoria aggiunto')
   }
 
+  // "Metti in calendario" (21.10.2026): appuntamento di mezz'ora all'ora del promemoria, 'da_creare';
+  // l'agente calendario lo crea in Google al giro dopo (ogni ora, 6-23).
+  const inCalendario = (p) => dati.eventi.some((e) => e.promemoria_id === p.id && !['scartato', 'cancellato'].includes(e.stato))
+  const mettiInCalendario = (p) => esegui(async () => {
+    const inizio = new Date(p.scade_il)
+    chk(await sb.from('eventi').insert({
+      titolo: p.testo || testo.trim() || 'Promemoria', area: dati.area, stato: 'da_creare', proposto_da: 'giovanni',
+      inizio: inizio.toISOString(), fine: new Date(inizio.getTime() + 30 * 60000).toISOString(),
+      nota_id: id, promemoria_id: p.id, motivo: 'dal promemoria della nota',
+    }))
+  }, 'Va in calendario al prossimo giro (entro un\'ora)')
+
   const fatto = (p) => esegui(async () => {
     chk(await sb.from('promemoria').update({ fatto_il: p.fatto_il ? null : new Date().toISOString() }).eq('id', p.id))
   })
@@ -158,10 +170,15 @@ export default function Nota({ id }) {
       <div className="campo">
         <span>Promemoria</span>
         {promemoria.map((p) => (
-          <label key={p.id} className="promemoria-nota">
-            <input type="checkbox" checked={!!p.fatto_il} onChange={() => fatto(p)} />
-            <span className={p.fatto_il ? 'barrato' : ''}>{quando(p.scade_il, true) || 'senza data'}</span>
-          </label>
+          <div key={p.id} className="riga-campo">
+            <label className="promemoria-nota">
+              <input type="checkbox" checked={!!p.fatto_il} onChange={() => fatto(p)} />
+              <span className={p.fatto_il ? 'barrato' : ''}>{quando(p.scade_il, true) || 'senza data'}</span>
+            </label>
+            {p.scade_il && !p.fatto_il && (inCalendario(p)
+              ? <span className="nota-piccola">In calendario</span>
+              : <button type="button" className="tasto-piccolo" onClick={() => mettiInCalendario(p)} disabled={lavoro}>Metti in calendario</button>)}
+          </div>
         ))}
         <div className="riga-campo">
           <input type="datetime-local" value={nuovoPromemoria} onChange={(e) => setNuovoPromemoria(e.target.value)} />

@@ -425,6 +425,10 @@ Deno.serve(async (req: Request) => {
     }
     const token = await accesso()
     if (azione === 'casse') return risposta({ casse: await casse(token) })
+    if (azione === 'preferiti') {
+      const { items } = await sonos(token, `households/${await casa(token)}/favorites`)
+      return risposta({ preferiti: (items || []).map((f: any) => ({ id: f.id, nome: f.name, servizio: f.service?.name })) })
+    }
     if (azione === 'annuncio') {
       const tutte = await casse(token)
       const scelta = tutte.find((c: any) => c.id === cassa || c.nome.toLowerCase() === String(cassa || '').toLowerCase())

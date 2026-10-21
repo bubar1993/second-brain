@@ -116,25 +116,33 @@ async function firma(nome: string) {
   return signedURL ? archivio(signedURL.replace(/^\//, '')) : null
 }
 
-// Link della frase detta da Laomedeia: quella salvata se c'è già, altrimenti la fa, la salva e la firma.
-// Con `fisso` (le sveglie, testo nuovo ogni giorno) la rifà sempre e la scrive sopra la volta prima.
-async function voce(testo: string, stile = STILE, fisso?: string) {
-  const nome = fisso || `${await impronta(`${MODELLO}|${VOCE}|${stile}|${testo}`)}.wav`
-  const gia = fisso ? null : await firma(nome)
-  if (gia) return { url: gia, nuova: false, secondi: 0 }
+// Laomedeia dice (o canta) il testo: PCM 16 bit, mono, 24 kHz.
+// A volte Gemini risponde senza audio: si riprova fino a 3 volte.
+async function parla(testo: string, stile: string) {
   if (!GEMINI_API_KEY) throw new Error('Manca GEMINI_API_KEY')
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODELLO}:generateContent`, {
-    method: 'POST',
-    headers: { 'x-goog-api-key': GEMINI_API_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: `${stile}: ${testo}` }] }],
-      generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: VOCE } } } },
-    }),
-  })
-  const j = await r.json().catch(() => ({}))
-  const dati = j?.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData?.data
-  if (!dati) throw new Error(`Voce non fatta (${j?.error?.message || r.status})`.slice(0, 200))
-  const pcm = Uint8Array.from(atob(dati), (c) => c.charCodeAt(0))
+  let motivo = ''
+  for (let tentativo = 0; tentativo < 3; tentativo++) {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODELLO}:generateContent`, {
+      method: 'POST',
+      headers: { 'x-goog-api-key': GEMINI_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: `${stile}: ${testo}` }] }],
+        generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: VOCE } } } },
+      }),
+    })
+    const j = await r.json().catch(() => ({}))
+    const dati = j?.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData?.data
+    if (dati) return Uint8Array.from(atob(dati), (c) => c.charCodeAt(0))
+    motivo = j?.error?.message || j?.candidates?.[0]?.finishReason || j?.promptFeedback?.blockReason || String(r.status)
+    if (r.status === 400 || r.status === 403) break
+    // Quota gratuita: limite al minuto (si aspetta e si riprova una volta) o al giorno (si rinuncia).
+    if (r.status === 429) { if (tentativo > 0) break; await new Promise((ok) => setTimeout(ok, 30000)) }
+  }
+  throw new Error(`Voce non fatta (${motivo})`.slice(0, 200))
+}
+
+// Salva il PCM come WAV nel bucket `voci` (sopra quello di prima) e dà il link firmato.
+async function salvaVoce(nome: string, pcm: Uint8Array) {
   const su = await fetch(archivio(`object/voci/${nome}`), {
     method: 'POST',
     headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}`, 'Content-Type': 'audio/wav', 'x-upsert': 'true' },
@@ -143,7 +151,51 @@ async function voce(testo: string, stile = STILE, fisso?: string) {
   if (!su.ok) throw new Error(`Voce non salvata (${su.status})`)
   const url = await firma(nome)
   if (!url) throw new Error('Voce salvata ma senza link')
-  return { url, nuova: true, secondi: pcm.length / 48000 }
+  return url
+}
+
+// PCM di un WAV già salvato (senza i 44 byte dell'intestazione), o null se non c'è.
+async function leggiVoce(nome: string) {
+  const r = await fetch(archivio(`object/authenticated/voci/${nome}`), { headers: sbHeaders })
+  return r.ok ? new Uint8Array(await r.arrayBuffer()).slice(44) : null
+}
+
+// Link della frase detta da Laomedeia: quella salvata se c'è già, altrimenti la fa, la salva e la firma.
+async function voce(testo: string, stile = STILE) {
+  const nome = `${await impronta(`${MODELLO}|${VOCE}|${stile}|${testo}`)}.wav`
+  const gia = await firma(nome)
+  if (gia) return { url: gia, nuova: false }
+  return { url: await salvaVoce(nome, await parla(testo, stile)), nuova: true }
+}
+
+const unisci = (...pezzi: Uint8Array[]) => {
+  const tutto = new Uint8Array(pezzi.reduce((n, p) => n + p.length, 0))
+  pezzi.reduce((da, p) => (tutto.set(p, da), da + p.length), 0)
+  return tutto
+}
+const silenzio = (secondi: number) => new Uint8Array(Math.round(secondi * 24000) * 2)
+
+// Canzoncine della sveglia dei bambini (scritte apposta, una al giorno a giro), cantate da Laomedeia e salvate.
+const CANZONI = [
+  'Din don, din don, il sole fa capolino, apri gli occhietti, è già mattino! Din don, din don, stiracchia le braccia, e un bel sorriso sulla faccia!',
+  'Cucù, cucù, il gallo canta già, la notte se n\'è andata e il giorno arriva qua! Cucù, cucù, giù dal letto piano piano, un passettino e poi la mano.',
+  'Tic tac, tic tac, fa l\'orologio sul comò, svegliatevi bambini, io vi canto un po\'! Tic tac, tic tac, uno sbadiglio grande grande, e giù dal letto a passi da gigante!',
+  'Lalalà, lalalà, la luna è andata a letto, e adesso tocca al sole entrare dal tetto! Lalalà, lalalà, aprite le finestre, la giornata è pronta come una festa!',
+  'Brr brr brr, chi si nasconde nel piumone? Su su su, c\'è il sole sul balcone! Brr brr brr, un abbraccio e un bacino, e il sonno scappa via come un topolino!',
+  'Pim pum pam, chi dorme ancora qua? Un raggio di sole vi fa il solletico già! Pim pum pam, un salto e via, buongiorno a tutti con allegria!',
+  'Uccellini sul ramo cantano con me, cip cip cip, che bel giorno che c\'è! Uccellini sul ramo, su, venite a ballar, la colazione aspetta, è ora di alzar!',
+  'Dormi dormi? No no no! Adesso basta, ve lo dico io! Sveglia sveglia? Sì sì sì! Oggi è proprio un bellissimo dì!',
+]
+const STILE_CANTO = 'Canta, non leggere: canta piano questa canzoncina con una melodia semplice, dolce e allegra, a voce morbida, come per svegliare con delicatezza dei bambini'
+async function canzone(numero?: number) {
+  const giorno = Math.floor(Date.now() / 86400e3)
+  const testo = CANZONI[(numero ?? giorno) % CANZONI.length]
+  const nome = `canzoni/${await impronta(`${MODELLO}|${VOCE}|${STILE_CANTO}|${testo}`)}.wav`
+  const gia = await leggiVoce(nome)
+  if (gia) return gia
+  const pcm = await parla(testo, STILE_CANTO)
+  await salvaVoce(nome, pcm)
+  return pcm
 }
 
 // --- Sveglie ---
@@ -186,16 +238,18 @@ async function testoSveglia(sv: Record<string, any>, tempo: string) {
     `Oggi è ${data}. Meteo di Torricella-Taverne: ${tempo}.`
   const sistema = sv.per === 'bambini'
     ? `${comune} Stai svegliando dei bambini di circa 8 anni in Ticino. Racconta il meteo di oggi in modo scherzoso e affettuoso, ` +
-      'con un consiglio pratico (giacca, ombrello, berretto…) e una battutina simpatica adatta ai bambini, sempre diversa. ' +
+      'con un consiglio pratico (giacca, ombrello, berretto…) e una battutina che faccia davvero ridere un bambino di 8 anni: ' +
+      'un indovinello o un gioco di parole semplice e sensato (tipo "Qual è il colmo per…?" con la risposta), sempre diverso. ' +
       'Chiudi invitandoli ad alzarsi con allegria. Al massimo 70 parole.'
     : `${comune} Stai svegliando Giovanni, un imprenditore ticinese. Dagli il meteo di oggi con un tocco di ironia, una battuta, ` +
-      'poi 2 o 3 notizie importanti di ieri, soprattutto di borsa (SMI, borse europee e americane, franco, petrolio) o fatti di ' +
-      'attualità davvero importanti: cercale sul web e usa solo fatti verificati, detti in una frase ciascuno. ' +
+      'poi 1 o 2 fatti di ieri che hanno davvero mosso la borsa o l\'economia (NON un elenco di indici: cosa è successo e perché ' +
+      'conta, al massimo un numero), poi l\'highlight di ieri nel mondo AI e tech: nuovi modelli, nuove uscite, presentazioni ' +
+      'importanti (1 o 2 notizie). Cerca tutto sul web e usa solo fatti verificati di ieri o di stanotte. ' +
       'Fai PRIMA tutte le ricerche, senza scrivere niente, e solo alla fine scrivi tutto il testo in una volta. ' +
-      'Chiudi con un augurio di buona giornata. Al massimo 150 parole.'
+      'Chiudi con un augurio di buona giornata. Al massimo 170 parole.'
   const messaggi: Record<string, unknown>[] = [{ role: 'user', content: 'Scrivi il testo della sveglia di stamattina.' }]
   const corpo: Record<string, unknown> = { model: VELOCE, max_tokens: 3000, system: sistema, messages: messaggi }
-  if (sv.notizie) corpo.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }]
+  if (sv.notizie) corpo.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }]
   const blocchi: any[] = []
   // Con la ricerca sul web l'API può fermarsi a metà ("pause_turn"): si rimanda la risposta e continua.
   for (let giro = 0; giro < 3; giro++) {
@@ -219,8 +273,10 @@ async function vacanzaOggi() {
   return righe.length > 0
 }
 
-// Una sveglia: testo → voce → annuncio sulla cassa → dopo la voce il Preferito Sonos a volume dolce.
-async function suona(sv: Record<string, any>, prova: { cassa?: string; musica?: boolean } = {}) {
+// Una sveglia: (bambini: canzoncina) → testo → voce → annuncio sulla cassa → dopo la voce il Preferito Sonos a volume dolce.
+async function suona(sv: Record<string, any>, prova: { cassa?: string; musica?: boolean; canzone?: number } = {}) {
+  // Eccezioni di un giorno (es. settimana senza Davide e Celeste): { "2026-10-22": "Buongiorno Leo e Jolie…" }.
+  sv = { ...sv, saluto: sv.eccezioni?.[oggiZurigo()] || sv.saluto }
   let tempo = 'meteo non disponibile'
   try { tempo = await meteo() } catch { /* senza meteo si va avanti lo stesso */ }
   let resto: string | null = null
@@ -229,21 +285,38 @@ async function suona(sv: Record<string, any>, prova: { cassa?: string; musica?: 
   const stile = sv.per === 'bambini'
     ? 'Leggi in italiano con tono allegro, dolce e un po\' buffo, come chi sveglia dei bambini con un sorriso'
     : 'Leggi in italiano con tono caldo e sorridente, ritmo sciolto da radio del mattino'
-  const v = await voce(frase, stile, `sveglie/${sv.id}${prova.cassa ? '-prova' : ''}.wav`)
+  const errori: string[] = []
+  const msg = (e: unknown) => String((e as Error)?.message || e).slice(0, 200)
+  let canto: Uint8Array | null = null
+  if (sv.per === 'bambini') { try { canto = await canzone(prova.canzone) } catch (e) { errori.push(`canzone: ${msg(e)}`) } }
+  let parlato: Uint8Array | null = null
+  try { parlato = await parla(frase, stile) } catch (e) { errori.push(`voce: ${msg(e)}`) }
+  const pezzi = [canto, parlato].filter(Boolean) as Uint8Array[]
+  const pcm = pezzi.length === 2 ? unisci(pezzi[0], silenzio(0.8), pezzi[1]) : pezzi[0]
   const token = await accesso()
   const tutte = await casse(token)
   const nomeCassa = prova.cassa || sv.cassa
   const c = tutte.find((x: any) => x.nome.toLowerCase() === nomeCassa.toLowerCase())
   if (!c) throw new Error(`Cassa non trovata: ${nomeCassa}`)
-  await sonos(token, `players/${c.id}/audioClip`, {
-    name: 'Second Brain', appId: 'ch.ceramex.secondbrain', priority: 'HIGH', streamUrl: v.url, volume: sv.volume_voce,
-  })
+  // Senza voce (quota Google finita) la sveglia suona lo stesso: din-don di Sonos e poi la musica.
+  const clip: Record<string, unknown> = { name: 'Second Brain', appId: 'ch.ceramex.secondbrain', priority: 'HIGH', volume: sv.volume_voce }
+  let secondi = 3
+  if (pcm) {
+    clip.streamUrl = await salvaVoce(`sveglie/${sv.id}${prova.cassa ? '-prova' : ''}.wav`, pcm)
+    secondi = pcm.length / 48000
+  } else clip.clipType = 'CHIME'
+  await sonos(token, `players/${c.id}/audioClip`, clip)
+  const v = { secondi }
   let musica = 'niente'
   if (sv.preferito && prova.musica !== false) {
     await aspetta(Math.min(170, v.secondi + 2) * 1000)
     const hh = await casa(token)
     const { items } = await sonos(token, `households/${hh}/favorites`)
-    const pref = (items || []).find((f: any) => f.name.toLowerCase() === String(sv.preferito).toLowerCase())
+    // Nome senza maiuscole, spazi e segni ("Blink-182" = "blink 182"); va bene anche se uno contiene l'altro.
+    const norma = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+    const voluto = norma(String(sv.preferito))
+    const pref = (items || []).find((f: any) => norma(f.name) === voluto) ||
+      (items || []).find((f: any) => norma(f.name).includes(voluto) || voluto.includes(norma(f.name)))
     if (!pref) throw new Error(`Preferito Sonos non trovato: ${sv.preferito} (va aggiunto nell'app Sonos)`)
     const { groups } = await sonos(token, `households/${hh}/groups`)
     const g = (groups || []).find((x: any) => (x.playerIds || []).includes(c.id))
@@ -252,7 +325,7 @@ async function suona(sv: Record<string, any>, prova: { cassa?: string; musica?: 
     await sonos(token, `groups/${g.id}/favorites`, { favoriteId: pref.id, playOnCompletion: true, action: 'REPLACE', playModes: { shuffle: true } })
     musica = pref.name
   }
-  return { testo: frase, secondi: Math.round(v.secondi), musica }
+  return { testo: parlato ? frase : '(senza voce: din-don)', secondi: Math.round(v.secondi), musica, errori: errori.join(' | ') || undefined }
 }
 
 // Giro di ogni minuto: prende le sveglie da fare (una volta sola al giorno ciascuna) e le suona in sottofondo.
@@ -271,7 +344,7 @@ async function sveglie() {
         continue
       }
       const fatto = await suona(sv)
-      await rest(`sonos_sveglie?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ ultimo_testo: fatto.testo }) })
+      await rest(`sonos_sveglie?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ ultimo_testo: fatto.testo, errore: fatto.errori || null }) })
     } catch (e) {
       const errore = String((e as Error)?.message || e).slice(0, 300)
       await rest(`sonos_sveglie?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ errore }) }).catch(() => {})
@@ -330,7 +403,7 @@ Deno.serve(async (req: Request) => {
     if (utente?.id !== UTENTE || daConnettore(jwt)) return risposta({ errore: 'Non autorizzato' }, 401)
   }
 
-  const { azione, cassa, volume, testo, stile, id, musica } = await req.json().catch(() => ({}))
+  const { azione, cassa, volume, testo, stile, id, musica, canzone: numeroCanzone } = await req.json().catch(() => ({}))
   if (azione === 'sveglie') {
     if (!programmato) return risposta({ errore: 'Non autorizzato' }, 401)
     // @ts-ignore EdgeRuntime c'è nelle funzioni Supabase: il lavoro continua dopo la risposta.
@@ -341,7 +414,8 @@ Deno.serve(async (req: Request) => {
     if (azione === 'sveglia_prova') {
       const [sv] = await rest(`sonos_sveglie?id=eq.${Number(id) || 0}&select=*`) as Record<string, any>[]
       if (!sv) return risposta({ errore: 'Sveglia non trovata' }, 400)
-      return risposta(await suona(sv, { cassa: cassa ? String(cassa) : undefined, musica: musica !== false }))
+      return risposta(await suona(sv, { cassa: cassa ? String(cassa) : undefined, musica: musica !== false,
+        canzone: numeroCanzone == null ? undefined : Number(numeroCanzone) }))
     }
     if (azione === 'collega') {
       const stato = crypto.randomUUID()

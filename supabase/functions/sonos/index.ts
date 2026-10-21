@@ -117,12 +117,23 @@ async function firma(nome: string) {
 }
 
 // Laomedeia dice (o canta) il testo: PCM 16 bit, mono, 24 kHz.
-// A volte Gemini risponde senza audio: si riprova fino a 3 volte.
+// Quota gratuita: 10 voci al giorno e 3 al minuto PER MODELLO (AI Studio, 21.10.2026). Finita quella del primo
+// modello si passa al successivo, con la stessa voce Laomedeia.
+const MODELLI_VOCE = [MODELLO, 'gemini-3.8-flash-tts', 'gemini-2.5-flash-preview-tts']
 async function parla(testo: string, stile: string) {
+  let motivo = ''
+  for (const modello of MODELLI_VOCE) {
+    try { return await parlaCon(modello, testo, stile) } catch (e) { motivo = String((e as Error)?.message || e) }
+  }
+  throw new Error(motivo)
+}
+
+// A volte Gemini risponde senza audio: si riprova fino a 3 volte.
+async function parlaCon(modello: string, testo: string, stile: string) {
   if (!GEMINI_API_KEY) throw new Error('Manca GEMINI_API_KEY')
   let motivo = ''
   for (let tentativo = 0; tentativo < 3; tentativo++) {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODELLO}:generateContent`, {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modello}:generateContent`, {
       method: 'POST',
       headers: { 'x-goog-api-key': GEMINI_API_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -135,10 +146,13 @@ async function parla(testo: string, stile: string) {
     if (dati) return Uint8Array.from(atob(dati), (c) => c.charCodeAt(0))
     motivo = j?.error?.message || j?.candidates?.[0]?.finishReason || j?.promptFeedback?.blockReason || String(r.status)
     if (r.status === 400 || r.status === 403) break
-    // Quota gratuita: limite al minuto (si aspetta e si riprova una volta) o al giorno (si rinuncia).
-    if (r.status === 429) { if (tentativo > 0) break; await new Promise((ok) => setTimeout(ok, 30000)) }
+    // Quota gratuita: al giorno → subito il modello dopo; al minuto → si aspetta e si riprova una volta.
+    if (r.status === 429) {
+      if (tentativo > 0 || /PerDay/i.test(JSON.stringify(j?.error?.details || []))) break
+      await new Promise((ok) => setTimeout(ok, 30000))
+    }
   }
-  throw new Error(`Voce non fatta (${motivo})`.slice(0, 200))
+  throw new Error(`Voce non fatta con ${modello} (${motivo})`.slice(0, 200))
 }
 
 // Salva il PCM come WAV nel bucket `voci` (sopra quello di prima) e dà il link firmato.
@@ -425,6 +439,11 @@ Deno.serve(async (req: Request) => {
     }
     const token = await accesso()
     if (azione === 'casse') return risposta({ casse: await casse(token) })
+    if (azione === 'modelli_voce') {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000', { headers: { 'x-goog-api-key': GEMINI_API_KEY || '' } })
+      const j = await r.json().catch(() => ({}))
+      return risposta({ modelli: (j.models || []).map((m: any) => m.name).filter((n: string) => /tts/i.test(n)) })
+    }
     if (azione === 'preferiti') {
       const { items } = await sonos(token, `households/${await casa(token)}/favorites`)
       return risposta({ preferiti: (items || []).map((f: any) => ({ id: f.id, nome: f.name, servizio: f.service?.name })) })

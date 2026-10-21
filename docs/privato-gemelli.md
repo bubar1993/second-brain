@@ -46,7 +46,7 @@ Area Privato: gemelli, figli di Lady di Blackwood, scadenze, liste, garanzie, va
   - Bimbi: prima una canzoncina (8 scritte apposta in `CANZONI`, una al giorno a giro, cantate da Laomedeia e salvate in `voci/canzoni/`), poi il saluto. Battuta = indovinello/gioco di parole per 8 anni.
   - Giovanni: meteo + battuta + 1-2 fatti che hanno mosso la borsa (non l'elenco degli indici) + highlight AI/tech di ieri (max 5 ricerche).
   - `eccezioni` (jsonb data → saluto): 22 e 23.10.2026 solo "Leo e Jolie" (settimana senza Davide e Celeste).
-  - Quota gratuita Gemini TTS: limite al minuto e al giorno (il giorno di Google riparte alle 9 di Zurigo). Se la voce non va: din-don di Sonos e poi la musica; il motivo in `errore`. Il 21.10 sera la quota è finita con le prove.
+  - Quota gratuita Gemini TTS (AI Studio → Limitazione di frequenza, progetto Second Brain): **3 al minuto e 10 al giorno PER MODELLO** (il giorno di Google riparte alle 9 di Zurigo). `parla()` prova in ordine 3.1 Flash TTS → 3.8 Flash TTS → 2.5 Flash TTS, sempre Laomedeia. Se nessuno va: din-don di Sonos e poi la musica; il motivo in `errore`. Azione `modelli_voce` = elenco dei modelli TTS.
 - Da fare: comando dal + ("annuncio bambini: a tavola!"); accendere/spegnere le sveglie dall'app.
 
 ### Idee parcheggiate

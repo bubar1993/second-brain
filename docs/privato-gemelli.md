@@ -37,7 +37,13 @@ Area Privato: gemelli, figli di Lady di Blackwood, scadenze, liste, garanzie, va
 - Voce (scelta di Giovanni): **Gemini 3.1 Flash TTS, voce Laomedeia**, chiave gratuita `GEMINI_API_KEY` (AI Studio, progetto "Second Brain", separato da "Gestionale"; Giovanni non vuole spendere e accetta che Google usi i testi). Frasi salvate nel bucket privato `voci` (nome = sha256 di modello|voce|stile|testo, WAV 24 kHz): la stessa frase non si rifà. Prima prova in Camera Mia il 21.10, ok. Token solo in `sonos_collegamento` (nessun permesso a app, agenti, Capo: esclusa dal blocco "capo vede tutto"); l'app legge `sonos_stato`.
 - Casse (tutte fanno gli annunci): Camera Mia, Corridoio, Bambini, Salotto. Collegato il 21.10, prova din-don in Camera Mia riuscita.
 - Prove da qui senza vedere il token: `net.http_post` dal database con `copia_token` del Vault, poi `net._http_response`.
-- Da fare: comando dal + ("annuncio bambini: a tavola!"); poi sveglie con i Preferiti Sonos (playlist Spotify).
+- **Sveglie** (21.10.2026, scelte di Giovanni): tabella `sonos_sveglie` (nessun permesso all'app per ora), pg_cron `sonos-sveglie` ogni minuto chiama `sonos` {azione:'sveglie'} solo se `sonos_sveglie_da_fare()` ne trova una (da un minuto prima a 10 dopo l'ora di Zurigo, una volta al giorno: `ultima_il`). Flusso: meteo Open-Meteo (Torricella-Taverne) → testo di Claude Haiku (crediti Max, spesa in `ai_uso` + 0,01 $ a ricerca; per Giovanni 2-3 notizie di ieri, borsa/attualità, con la ricerca web) → voce Laomedeia (`voci/sveglie/<id>.wav`, riscritta ogni volta) → annuncio → finita la voce, Preferito Sonos a volume dolce, in ordine casuale. `salta_vacanze` = niente sveglia nei giorni "Scuola chiusa" (`eventi`). Esito in `ultimo_testo` / `errore`. Prova: {azione:'sveglia_prova', id, cassa, musica:false}.
+  - Bimbi lun–mer 07:00, Bambini, "Buongiorno Leo e Jolie, dormito bene?" → Alternative; salta vacanze.
+  - Bimbi gio–ven 07:10, Bambini, "Buongiorno Leo, Jolie, Davide e Celeste, dormito bene?" → Alternative; salta vacanze.
+  - Giovanni lun–mer 06:50, Camera Mia, "Buongiorno Giovanni!" + notizie → Preferito "Worakls".
+  - Giovanni gio–ven 07:00, Camera Mia, "Buongiorno Amore!" + notizie → Preferito "Blink-182".
+  - Volumi: voce 25, musica 15.
+- Da fare: comando dal + ("annuncio bambini: a tavola!"); accendere/spegnere le sveglie dall'app.
 
 ### Idee parcheggiate
 - ~~Risposta scritta dall'AI dentro l'app (Chiedi)~~: fatta il 14.10.2026 con i crediti API del piano Max (vedi "Risposta dell'AI in Chiedi").

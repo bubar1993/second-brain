@@ -31,6 +31,13 @@ Area Privato: gemelli, figli di Lady di Blackwood, scadenze, liste, garanzie, va
 - **Garanzie** (`#/garanzie`, tabella `garanzie`, `scade_il` calcolata da `comprata_il` + `mesi`): foto dello scontrino dal + con "garanzia lavatrice Fust 2 anni" (senza durata: 2 anni; una data nel testo = giorno d'acquisto). La nota va in P con `lavorata_il` già messo (gli agenti non la rileggono). **Nessun avviso di scadenza** (scelta di Giovanni), solo l'elenco con la miniatura.
 - L'agente privato (`agente_privato`) dal 13.10.2026 sera (ok di Giovanni, regole + routine aggiornate, punto 2d–f): dalle note private aggiunge ristoranti/posti (da provare, provati, voto) e cose della spesa, crea le garanzie dalle note non fatte dall'app e mette le note nei temi del quaderno; capitoli nuovi solo dopo una domanda e il sì di Giovanni.
 
+### Sonos: annunci e sveglie (21.10.2026, ok di Giovanni, in corso)
+- Integrazione "Second Brain" su developer.sonos.com (Direct Control, account Sonos di Giovanni), chiave e segreto nei segreti `SONOS_KEY` / `SONOS_SECRET`. Indirizzo di ritorno: la funzione `sonos`.
+- Funzione `sonos` (Giovanni dall'app o x-copia-token): `collega` (link di autorizzazione, 15 min), `casse`, `annuncio` (`cassa` nome o id, `volume`, `url` mp3 https; senza url il din-don di Sonos). Token solo in `sonos_collegamento` (nessun permesso a app, agenti, Capo: esclusa dal blocco "capo vede tutto"); l'app legge `sonos_stato`.
+- Casse (tutte fanno gli annunci): Camera Mia, Corridoio, Bambini, Salotto. Collegato il 21.10, prova din-don in Camera Mia riuscita.
+- Prove da qui senza vedere il token: `net.http_post` dal database con `copia_token` del Vault, poi `net._http_response`.
+- Da fare: voce italiana (Google Chirp 3 HD o ElevenLabs, scelta di Giovanni) con le voci salvate e riusate (Storage privato, link temporaneo); comando dal + ("annuncio bambini: a tavola!"); poi sveglie con i Preferiti Sonos (playlist Spotify).
+
 ### Idee parcheggiate
 - ~~Risposta scritta dall'AI dentro l'app (Chiedi)~~: fatta il 14.10.2026 con i crediti API del piano Max (vedi "Risposta dell'AI in Chiedi").
 - In sospeso (Giovanni, 13.10.2026): idee regalo, bozza di auguri, inviti da rispondere, spese condivise, diario della sera, obiettivi e abitudini, wishlist, cose prestate, riassunto della domenica sera, widget sul telefono, foto cercabili.

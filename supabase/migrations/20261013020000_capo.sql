@@ -87,13 +87,13 @@ end $$;
 create trigger capo_conferme_controllo before update on public.capo_conferme
   for each row execute function public.capo_conferme_controllo();
 
--- Capo vede tutto: ogni tabella con RLS (tranne wa_collegamento e le due sue qui sopra), leggere e scrivere, niente delete.
+-- Capo vede tutto: ogni tabella con RLS (tranne wa_collegamento, sonos_collegamento e le due sue qui sopra), leggere e scrivere, niente delete.
 do $$
 declare t record;
 begin
   for t in select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
            where n.nspname = 'public' and c.relkind = 'r' and c.relrowsecurity
-             and c.relname not in ('wa_collegamento', 'capo_conferme', 'modifiche_claude') loop
+             and c.relname not in ('wa_collegamento', 'sonos_collegamento', 'capo_conferme', 'modifiche_claude') loop
     execute format('grant select, insert, update on public.%I to agente_capo', t.relname);
     execute format('drop policy if exists "capo" on public.%I', t.relname);
     execute format('create policy "capo" on public.%I for all to agente_capo using (true) with check (true)', t.relname);

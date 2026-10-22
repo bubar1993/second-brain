@@ -12,6 +12,16 @@ const SENZA_ANNO = '1904'
 const CAMPI = 'id,risorsa,nome,cognome,ditta,ruolo,telefoni,email,compleanno,appunti,area,persona_id,origine,eliminata_il,aggiornata_il'
 export const nomeContatto = (c) => [c?.nome, c?.cognome].filter(Boolean).join(' ') || c?.ditta || 'Senza nome'
 
+// Legge tutte le righe anche oltre il limite di 1000 per richiesta (prima del 22.10 i contatti dopo la "N" mancavano).
+async function tutte(crea) {
+  const righe = []
+  for (let da = 0; ; da += 1000) {
+    const pezzo = chk(await crea().range(da, da + 999))
+    righe.push(...pezzo)
+    if (pezzo.length < 1000) return righe
+  }
+}
+
 function dataCompleanno(iso) {
   if (!iso) return ''
   const [a, m, g] = iso.split('-')
@@ -74,10 +84,10 @@ function Elenco() {
   const [lavora, setLavora] = useState(false)
   const { dati, errore, carica, ricarica } = useCarica(async () => {
     const [c, s] = await Promise.all([
-      sb.from('rubrica').select(CAMPI).order('nome').order('cognome').limit(5000),
+      tutte(() => sb.from('rubrica').select(CAMPI).order('nome').order('cognome').order('id')),
       sb.from('rubrica_stato').select('ultimo_giro,esito').maybeSingle(),
     ])
-    return { contatti: chk(c), stato: chk(s) }
+    return { contatti: c, stato: chk(s) }
   }, [])
 
   async function aggiorna() {

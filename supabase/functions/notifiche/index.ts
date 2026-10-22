@@ -105,6 +105,14 @@ async function whatsapp(titolo: string, corpo: string) {
   })
   if (!r.ok) throw new Error(`${r.status} ${(await r.text()).slice(0, 200)}`)
 }
+// Per la prova: la chiave vede l'account di messaggistica di prova e il modello? Legge soltanto, non manda niente.
+const WA_ACCOUNT = '1132628449338035'
+async function statoWhatsapp() {
+  if (!WA_TOKEN) return 'senza chiave'
+  const r = await fetch(`https://graph.facebook.com/v26.0/${WA_ACCOUNT}/message_templates?name=avviso_guasto&fields=name,status,category`,
+    { headers: { Authorization: `Bearer ${WA_TOKEN}` } })
+  return r.ok ? (await r.json()).data : `${r.status} ${(await r.text()).slice(0, 200)}`
+}
 
 // ---------- Cosa avvisare ----------
 const oraZurigo = (iso: string) => new Date(iso).toLocaleTimeString('it-CH', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Zurich' })
@@ -183,7 +191,7 @@ Deno.serve(async (req) => {
   const { prova } = await req.json().catch(() => ({}))
   if (prova) {
     const iscrizioni = await rest('push_iscrizioni?select=id')
-    return Response.json({ prova: true, iscrizioni: iscrizioni.length, avvisi: await daAvvisare() })
+    return Response.json({ prova: true, iscrizioni: iscrizioni.length, avvisi: await daAvvisare(), whatsapp: await statoWhatsapp() })
   }
   const mandate: string[] = []
   const errori: string[] = []

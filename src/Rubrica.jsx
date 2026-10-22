@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { sb, areaDa, AREE, quando, numeroWhatsApp, giorniDaOggi } from './supabase'
-import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, Icona, useModifiche, useDueTocchi } from './componenti'
+import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, Icona, useModifiche, useDueTocchi, ridimensiona } from './componenti'
 
 // Rubrica (13.10.2026, ok di Giovanni): i contatti Google di giovannifabris@ceramex.ch, cioè quelli del telefono.
 // Aggiungere, correggere ed eliminare qui cambia anche il telefono (funzione `rubrica`, Google li porta sul telefono
@@ -300,6 +300,7 @@ function Modifica({ c, fatto }) {
   const [areaNuovo, setAreaNuovo] = useState(area === 'T' ? 'P' : area)
   const [lavora, setLavora] = useState(false)
   const [cambiato, setCambiato] = useState(false)
+  const [leggo, setLeggo] = useState(false)
   useModifiche(cambiato)
 
   useEffect(() => {
@@ -311,6 +312,39 @@ function Modifica({ c, fatto }) {
     } : vuoto)
   }, [c, m])
   if (!m) return null
+
+  // Biglietto da visita (22.10.2026, ok di Giovanni): l'AI legge la foto e riempie i campi; si salva solo con "Salva".
+  async function leggiBiglietto(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setLeggo(true)
+    try {
+      const blob = await ridimensiona(file)
+      const immagine = await new Promise((ok, no) => {
+        const r = new FileReader()
+        r.onload = () => ok(String(r.result).split(',')[1])
+        r.onerror = () => no(new Error('Non riesco a leggere la foto'))
+        r.readAsDataURL(blob)
+      })
+      const r = await chiama('rubrica', { azione: 'biglietto', immagine, tipo: blob.type || 'image/jpeg' })
+      if (!r.leggibile) return avvisa('Non riesco a leggere il biglietto: rifai la foto più da vicino, con più luce.')
+      const d = r.campi
+      setM({
+        ...m,
+        nome: d.nome || m.nome, cognome: d.cognome || m.cognome, ditta: r.ditta_trovata || d.ditta || m.ditta, ruolo: d.ruolo || m.ruolo,
+        telefoni: d.telefoni.length ? d.telefoni : m.telefoni, email: d.email.length ? d.email : m.email,
+        appunti: [m.appunti, d.appunti].filter(Boolean).join('\n'),
+      })
+      if (r.area) setAreaNuovo(r.area)
+      setCambiato(true)
+      avvisa(r.ditta_trovata ? `Letto. ${r.ditta_trovata} è già nel brain: area ${areaDa(r.area)?.nome}. Controlla e salva.` : 'Letto: controlla i campi e salva.')
+    } catch (err) {
+      avvisa(messaggioErrore(err))
+    } finally {
+      setLeggo(false)
+    }
+  }
 
   const metti = (k, v) => { setM({ ...m, [k]: v }); setCambiato(true) }
   const campo = (k) => ({ value: m[k], onChange: (e) => metti(k, e.target.value) })
@@ -336,6 +370,12 @@ function Modifica({ c, fatto }) {
   return (
     <div className="schermata">
       <Indietro titolo={c ? 'Modifica contatto' : 'Nuovo contatto'} />
+      {!c && (
+        <label className="tasto-grande tasto-biglietto" aria-disabled={leggo}>
+          <Icona nome="foto" /> {leggo ? 'Leggo il biglietto…' : 'Fotografa un biglietto da visita'}
+          <input type="file" accept="image/*" hidden onChange={leggiBiglietto} disabled={leggo} />
+        </label>
+      )}
       {!c && (
         <div className="scelta-area" role="group" aria-label="Area">
           {AREE.map((a) => (

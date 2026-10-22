@@ -22,7 +22,7 @@ Ricerca per parole e per significato, connettore "Second Brain" (mcp), risposta 
 - Prove senza Giovanni: col copia_token `{ prova: 'strumento', nome, argomenti, area }` (non chiama Claude) o `{ domanda, prova: true }` (riga segnata `prova`). Migrazioni `chiedi_ai`, `chiedi_ai_spesa`.
 - Gli stessi crediti li usa anche la risposta veloce del Capo (16.10.2026, `capo-veloce`, vedi `docs/capo.md`): prezzi, spesa e tetti comuni in `_shared/ai.ts`.
 - **Prima della visita** (22.10.2026, ok di Giovanni): tasto in Oggi sugli appuntamenti di lavoro (pannello dell'appuntamento, se non è finito, e riquadro "Adesso"). Chiama `chiedi-ai` con `{ visita: <id evento> }`: la domanda la scrive il server dall'appuntamento (titolo, ora, luogo, ditta, persona, descrizione come dati), nell'area dell'appuntamento; risposta in max ~12 righe: chi è, cose aperte, ultime novità con data, cosa chiedere. Il riassunto resta sul telefono (localStorage `prima-visita:<id>`), con "Rifai il riassunto". Prima prova (Bazzi, 22.10): 0,04 $. Il riquadro della risposta e l'attesa stanno in `src/RispostaAI.jsx` (usati da Chiedi e Oggi).
-- Prossime idee approvate il 22.10.2026, in quest'ordine: il "Medico" del guardiano, biglietto da visita → contatto. Ancora da decidere: foto cercabili, riassunto della domenica sera.
+- Fatti anche il 22.10.2026 con gli stessi crediti: il "Medico" del guardiano (`docs/sicurezza-backup.md`) e il biglietto da visita → contatto (`docs/rubrica.md`). Ancora da decidere: foto cercabili, riassunto della domenica sera.
 
 ### Intelligenza artificiale: idea di partenza (11.10.2026)
 

@@ -403,7 +403,7 @@ export function useDueTocchi(durata = 5000) {
 }
 
 // Rimpicciolisce le foto del telefono prima di caricarle (max 1600 px).
-async function ridimensiona(file, max = 1600) {
+export async function ridimensiona(file, max = 1600) {
   try {
     const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' })
     const s = Math.min(1, max / Math.max(bmp.width, bmp.height))

@@ -1021,6 +1021,9 @@ a.cita::after { content: ''; position: absolute; inset: -11px -6px; } /* area di
 /* Sveglie Sonos (21.10.2026): ora grande da toccare, acceso/spento, tasto rapido "Alessia non c'è". */
 .scheda-sveglie { gap: 8px; background: linear-gradient(90deg, rgba(255, 143, 69, 0.13), rgba(255, 143, 69, 0.02)); border-color: rgba(255, 143, 69, 0.3); }
 .scheda-sveglie .riga-meta { margin: 0; }
+/* Rubrica, nuovo contatto: foto del biglietto da visita (22.10.2026). */
+.tasto-biglietto { display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; margin-bottom: 12px; }
+.tasto-biglietto[aria-disabled="true"] { opacity: 0.6; pointer-events: none; }
 .tasto-grande.tasto-attivo { background: #ff8f45; color: var(--vuoto); box-shadow: 0 0 20px rgba(255, 143, 69, 0.4); }
 .riga-sveglia { align-items: center; }
 .elenco > div:last-child > .riga-sveglia { border-bottom: 0; }

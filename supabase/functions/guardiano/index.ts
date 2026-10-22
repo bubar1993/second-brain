@@ -157,12 +157,16 @@ function controllaGiri(d: any, adesso: number): Problema[] {
   }
 
   const z = oraZurigo(adesso)
+  const ieri = oraZurigo(adesso - 864e5).giorno
   for (const r of GIORNALIERI) {
     const g = giri[r.lavoro]
     if (giroErrato(r.lavoro, r.nome, g)) continue
-    const oggi = g && oraZurigo(Date.parse(g.il)).giorno === z.giorno
-    if (z.ora >= r.entro && !oggi) {
-      out.push({ chiave: `giro:${r.lavoro}`, titolo: `${r.nome} oggi non è partita`, dettaglio: `Ultimo giro: ${quando(g?.il)}` })
+    const giornoGiro = g && oraZurigo(Date.parse(g.il)).giorno
+    // Dopo l'ora "entro" conta il giro di oggi; prima basta quello di ieri. (Il 22.10 alle 00:02 il guasto
+    // si era chiuso da solo a mezzanotte, con un "Risolto" sbagliato: ora resta aperto finché il giro non parte.)
+    const manca = z.ora >= r.entro ? giornoGiro !== z.giorno : giornoGiro !== z.giorno && giornoGiro !== ieri
+    if (manca) {
+      out.push({ chiave: `giro:${r.lavoro}`, titolo: `${r.nome} ${z.ora >= r.entro ? 'oggi' : 'ieri'} non è partita`, dettaglio: `Ultimo giro: ${quando(g?.il)}` })
     }
   }
   for (const r of SETTIMANALI) {

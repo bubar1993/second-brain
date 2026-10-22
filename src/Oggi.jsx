@@ -739,7 +739,7 @@ function AvvisoGuasti() {
   const [mandati, setMandati] = useState(() => new Set())
 
   const carica = useCallback(async () => {
-    const { data } = await sb.from('guasti').select('id,chiave,titolo,dettaglio,aperto_il').is('chiuso_il', null).order('aperto_il')
+    const { data } = await sb.from('guasti').select('id,chiave,titolo,dettaglio,spiegazione,aperto_il').is('chiuso_il', null).order('aperto_il')
     setGuasti(data || [])
     if (data?.length) {
       const { data: m } = await sb.from('modifiche_claude').select('guasto_id').in('guasto_id', data.map((g) => g.id))
@@ -768,6 +768,7 @@ function AvvisoGuasti() {
       {guasti.map((g) => (
         <div key={g.id}>
           <p>{g.titolo} (dal {quando(g.aperto_il, true)}). {g.dettaglio}</p>
+          {g.spiegazione && <p className="guasto-medico">{g.spiegazione}</p>}
           {mandati.has(g.id)
             ? <p className="piccolo">Mandato a Claude.</p>
             : <button type="button" className="tasto-piccolo" onClick={() => manda(g)}>Manda a Claude</button>}

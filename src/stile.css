@@ -244,6 +244,8 @@ a.riga:active, button.riga:active { background: rgba(255, 255, 255, 0.04); }
 .scheda-inbox strong { color: var(--giallo); }
 .scheda-allarme { background: rgba(255, 93, 108, 0.12); border-color: rgba(255, 93, 108, 0.35); color: #ffc2c8; font-weight: 600; }
 .scheda-allarme p { margin: 0; }
+/* Il "Medico": cosa vuol dire il guasto e cosa fare, scritto dall'AI. */
+.scheda-allarme .guasto-medico { margin: 6px 0; font-weight: 400; color: var(--testo); white-space: pre-line; }
 .scheda-impronta { flex-direction: column; align-items: stretch; background: rgba(91, 147, 255, 0.08); border-color: rgba(91, 147, 255, 0.25); }
 .scheda-impronta p { margin: 0; }
 

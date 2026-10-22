@@ -4,6 +4,7 @@ import { useApp, useCarica, chk, messaggioErrore, NotaRiga, Stato, Icona, useMod
 import Rete from './Rete'
 import { AttivaNotifiche } from './Notifiche'
 import { visiteAperte, valoriEvento, CAMPI_EVENTO, ModificaAppuntamento, linkCall } from './Visita'
+import { RispostaAI, useAttesaAI } from './RispostaAI'
 
 const corto = (s, n = 16) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s)
 const numero = (n) => (n == null ? '…' : n.toLocaleString('de-CH'))
@@ -422,7 +423,35 @@ function Adesso({ e }) {
         <a className="tasto-piccolo" href={`#/visita/${e.id}`}>Appunti</a>
         {e.aziende && <a className="tasto-piccolo" href={`#/azienda/${e.aziende.id}`}>Scheda</a>}
       </div>
+      {lavoro(e) && <PrimaDellaVisita e={e} />}
     </section>
+  )
+}
+
+// "Prima della visita" (22.10.2026, ok di Giovanni): l'AI riassume ditta e persona dell'appuntamento (cose aperte,
+// ultime novità, cosa chiedere) con i crediti API, via chiedi-ai. Il riassunto resta sul telefono per quell'appuntamento.
+function PrimaDellaVisita({ e }) {
+  const chiave = `prima-visita:${e.id}`
+  const [ai, setAi] = useState(() => { try { return JSON.parse(leggi(chiave) || 'null') } catch { return null } })
+  useAttesaAI(ai, setAi)
+  useEffect(() => { if (ai?.id) scrivi(chiave, JSON.stringify(ai)) }, [ai, chiave])
+
+  async function prepara() {
+    setAi({ stato: 'in_corso' })
+    try {
+      const r = await chiama('chiedi-ai', { visita: e.id })
+      setAi(r?.id ? { id: r.id, stato: 'in_corso' } : { stato: 'errore', testo: 'L\'AI non è pronta: dillo a Claude sul PC.' })
+    } catch (err) {
+      setAi({ stato: 'errore', testo: messaggioErrore(err) })
+    }
+  }
+
+  if (!ai) return <button type="button" className="tasto-piccolo prima-visita-tasto" onClick={prepara}>Prima della visita</button>
+  return (
+    <div className="prima-visita">
+      <RispostaAI ai={ai} />
+      {ai.stato !== 'in_corso' && <button type="button" className="tasto-link" onClick={prepara}>Rifai il riassunto</button>}
+    </div>
   )
 }
 
@@ -549,6 +578,7 @@ function RiquadroEvento({ e, chiuso, apri, tocca, fatto, ricarica, chiudi, daChi
                 : finito(e) && <a className="tasto-piccolo" href={`#/aggiungi?persona=${e.persone.id}`}>Com'è andata? Annota</a>}
               <button type="button" className="tasto-piccolo" onClick={() => fatto(e)}>Segna fatto</button>
             </div>
+            {lavoro(e) && !finito(e) && <PrimaDellaVisita e={e} />}
             <ModificaAppuntamento e={e} fatto={ricarica} chiudi={chiudi} />
           </div>
         )}

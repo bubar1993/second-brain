@@ -21,7 +21,8 @@ Ricerca per parole e per significato, connettore "Second Brain" (mcp), risposta 
 - Spesa: `ai_uso` (una riga per chiamata, costo dai token), `ai_spesa(da)`, tetti in `ai_impostazioni` (`inizio_ciclo` = giorno del mese in cui si rinnovano i crediti: **21** dal 22.10.2026, ok di Giovanni. Il credito del 18.10 scade il 21.11, quello del 13.10 è scaduto il 21.10; oltre 70 $ nel ciclo passa a Haiku 5.5 con la riga "Risposta veloce", oltre 90 $ si ferma; 15 $ al giorno solo contro errori). Prezzi in `chiedi-ai` (pagina prezzi del 14.10.2026).
 - Prove senza Giovanni: col copia_token `{ prova: 'strumento', nome, argomenti, area }` (non chiama Claude) o `{ domanda, prova: true }` (riga segnata `prova`). Migrazioni `chiedi_ai`, `chiedi_ai_spesa`.
 - Gli stessi crediti li usa anche la risposta veloce del Capo (16.10.2026, `capo-veloce`, vedi `docs/capo.md`): prezzi, spesa e tetti comuni in `_shared/ai.ts`.
-- Prossime idee proposte (non fatte): "Prima della visita" sull'appuntamento in Oggi; foto cercabili.
+- **Prima della visita** (22.10.2026, ok di Giovanni): tasto in Oggi sugli appuntamenti di lavoro (pannello dell'appuntamento, se non è finito, e riquadro "Adesso"). Chiama `chiedi-ai` con `{ visita: <id evento> }`: la domanda la scrive il server dall'appuntamento (titolo, ora, luogo, ditta, persona, descrizione come dati), nell'area dell'appuntamento; risposta in max ~12 righe: chi è, cose aperte, ultime novità con data, cosa chiedere. Il riassunto resta sul telefono (localStorage `prima-visita:<id>`), con "Rifai il riassunto". Prima prova (Bazzi, 22.10): 0,04 $. Il riquadro della risposta e l'attesa stanno in `src/RispostaAI.jsx` (usati da Chiedi e Oggi).
+- Prossime idee approvate il 22.10.2026, in quest'ordine: il "Medico" del guardiano, biglietto da visita → contatto. Ancora da decidere: foto cercabili, riassunto della domenica sera.
 
 ### Intelligenza artificiale: idea di partenza (11.10.2026)
 

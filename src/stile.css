@@ -952,6 +952,10 @@ mark { background: rgba(255, 214, 102, 0.22); color: var(--testo); border-radius
 .adesso-titolo { font-size: 19px; font-weight: 600; line-height: 1.25; }
 .adesso-tasti { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .adesso-tasti .tasto-piccolo:first-child { background: var(--col); border-color: var(--col); color: var(--vuoto); }
+/* "Prima della visita": il riassunto dell'AI sotto i tasti dell'appuntamento. */
+.prima-visita-tasto { margin-top: 8px; }
+.prima-visita { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 10px; }
+.prima-visita .risposta-ai { align-self: stretch; }
 
 /* Oggi: "Cose per te", una scheda sola. */
 .cose-per-te { display: flex; flex-direction: column; gap: 6px; }

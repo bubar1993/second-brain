@@ -352,12 +352,13 @@ const numeriDaSistemare = (lista: Riga[]) => {
 }
 
 // coppie = unioni scelte da Giovanni ([resta, via], es. "Mamma (Leo)" dentro "Teresa Mamma Elodie"): si fanno solo quelle.
-async function pulisci(token: string, prova: boolean, coppie?: [string, string][]) {
+// togli_email = mail sbagliate da non tenere nel contatto unito (22.10.2026, es. Sara Pinton con la mail di un'altra).
+async function pulisci(token: string, prova: boolean, coppie?: [string, string][], togliEmail: string[] = []) {
   const righe = await tutte(`rubrica?utente_id=eq.${UTENTE}&eliminata_il=is.null&risorsa=not.is.null&select=*`) as Riga[]
   if (coppie?.length) {
     const per = new Map(righe.map((r) => [r.id, r]))
     const scelte = coppie.map(([a, b]) => ({ resta: per.get(a)!, via: [per.get(b)!] })).filter((u) => u.resta && u.via[0] && u.resta.id !== u.via[0].id)
-    return unisci(token, prova, scelte, scelte.map((u) => u.resta))
+    return unisci(token, prova, scelte, scelte.map((u) => u.resta), new Set(togliEmail.map((e) => e.toLowerCase())))
   }
   // 1. Gruppi da unire (unione-ricerca su numero + nome di battesimo).
   const padre = righe.map((_, i) => i)
@@ -393,7 +394,7 @@ async function pulisci(token: string, prova: boolean, coppie?: [string, string][
   return unisci(token, prova, unioni, daSistemare)
 }
 
-async function unisci(token: string, prova: boolean, unioni: { resta: Riga, via: Riga[] }[], daSistemare: Riga[]) {
+async function unisci(token: string, prova: boolean, unioni: { resta: Riga, via: Riga[] }[], daSistemare: Riga[], togliEmail = new Set<string>()) {
   const viaIds = new Set(unioni.flatMap((u) => u.via.map((r) => r.id)))
   if (prova) {
     return {
@@ -424,7 +425,7 @@ async function unisci(token: string, prova: boolean, unioni: { resta: Riga, via:
     const mail = new Map<string, any>()
     for (const e of [...(p.emailAddresses || []), ...altri.flatMap((a: any) => a.emailAddresses || [])]) {
       const k = String(e.value || '').toLowerCase()
-      if (k && !mail.has(k)) mail.set(k, { value: e.value, ...(e.type ? { type: e.type } : {}) })
+      if (k && !mail.has(k) && !togliEmail.has(k)) mail.set(k, { value: e.value, ...(e.type ? { type: e.type } : {}) })
     }
     const nomi = [...(p.names?.length ? p.names : [{}])]
     const n = nomeSenzaNumeri(nomi[0])
@@ -499,7 +500,8 @@ Deno.serve(async (req: Request) => {
     const token = await accesso()
     if (azione === 'pulisci') {
       const coppie = Array.isArray(corpo.coppie) ? corpo.coppie.filter((c: unknown) => Array.isArray(c) && c.length === 2 && c.every(uuid)) : undefined
-      return risposta(await pulisci(token, corpo.prova !== false, coppie))
+      const togli = Array.isArray(corpo.togli_email) ? corpo.togli_email.filter((e: unknown) => typeof e === 'string' && e.includes('@')) : []
+      return risposta(await pulisci(token, corpo.prova !== false, coppie, togli))
     }
     if (azione === 'salva' && persona_id) {
       if (!uuid(persona_id)) return risposta({ errore: 'Persona sconosciuta' }, 400)

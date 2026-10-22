@@ -378,6 +378,11 @@ async function suona(sv: Record<string, any>, prova: { cassa?: string; musica?: 
     await sonos(token, `groups/${g.id}/groupVolume`, { volume: sv.volume_musica })
     await sonos(token, `groups/${g.id}/favorites`, { favoriteId: pref.id, playOnCompletion: true, action: 'REPLACE', playModes: { shuffle: true } })
     musica = pref.name
+    // Dopo musica_minuti il giro di ogni minuto la mette in pausa (se nel frattempo non è cambiata).
+    if (!prova.cassa) {
+      await rest(`sonos_sveglie?id=eq.${sv.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({
+        spegni_alle: new Date(Date.now() + (sv.musica_minuti || 5) * 60e3).toISOString(), spegni_gruppo: g.id, spegni_preferito: pref.name }) })
+    }
   }
   return { testo: parlato ? frase : '(senza voce: din-don)', secondi: Math.round(v.secondi), musica, errori: errori.join(' | ') || undefined }
 }
@@ -396,7 +401,7 @@ function settimana() {
 async function elencoSveglie() {
   const da = oggiZurigo(), a = dataTra(8)
   const [sveglie, speciali, vacanze] = await Promise.all([
-    rest('sonos_sveglie?select=id,nome,cassa,giorni,ora,saluto,per,preferito,attiva,salta_vacanze,eccezioni,ultima_il,ultimo_testo,errore&order=id') as Promise<Record<string, any>[]>,
+    rest('sonos_sveglie?select=id,nome,cassa,giorni,ora,saluto,per,preferito,attiva,salta_vacanze,eccezioni,volume_voce,volume_musica,musica_minuti,ultima_il,ultimo_testo,errore&order=id') as Promise<Record<string, any>[]>,
     rest(`sonos_giorni?data=gte.${da}&data=lte.${a}&select=data,come,nota`) as Promise<Record<string, any>[]>,
     rest(`eventi?titolo=ilike.Scuola%20chiusa*&inizio=gte.${da}T00:00:00Z&inizio=lte.${a}T23:59:59Z&select=inizio`) as Promise<Record<string, any>[]>,
   ])
@@ -470,7 +475,7 @@ async function annuncia(token: string, cassa: unknown, testo: unknown, volume?: 
 // Una cosa preparata dal Capo (capo_conferme tipo 'sonos') e confermata da Giovanni con i due tocchi.
 // I dati li ha scritti il Capo, che legge anche mail di estranei: qui si accetta SOLO questo elenco chiuso, controllato.
 //   { tipo: 'annuncio', cassa, testo }                       → annuncio (al massimo 300 caratteri)
-//   { tipo: 'sveglia', id, ora?, attiva? }                    → cambio per sempre
+//   { tipo: 'sveglia', id, ora?, attiva?, volume_voce?, volume_musica?, musica_minuti? } → cambio per sempre
 //   { tipo: 'sveglia_giorno', id, data, ora?, spenta? }       → solo quel giorno (da oggi a 30 giorni)
 //   { tipo: 'giorno', data, come }                            → quel giorno fa come un altro (come null = normale)
 //   { tipo: 'senza_alessia', attiva }                         → giovedì e venerdì di questa settimana come lunedì
@@ -501,6 +506,12 @@ async function eseguiConferma(id: string) {
       const campi: Record<string, unknown> = {}
       if (d.ora != null) { if (!ORA.test(String(d.ora))) throw new Error('Ora non valida'); campi.ora = d.ora }
       if (d.attiva != null) campi.attiva = !!d.attiva
+      for (const [k, min, max] of [['volume_voce', 5, 60], ['volume_musica', 1, 60], ['musica_minuti', 1, 180]] as const) {
+        if (d[k] == null) continue
+        const n = Math.round(Number(d[k]))
+        if (!(n >= min && n <= max)) throw new Error(`${k} deve stare tra ${min} e ${max}`)
+        campi[k] = n
+      }
       if (!Object.keys(campi).length) throw new Error('Niente da cambiare')
       await rest(`sonos_sveglie?id=eq.${s.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(campi) })
       esito = `Sveglia cambiata: ${s.nome}`
@@ -538,7 +549,31 @@ async function eseguiConferma(id: string) {
 }
 
 // Giro di ogni minuto: prende le sveglie da fare (una volta sola al giorno ciascuna) e le suona in sottofondo.
+// Musica delle sveglie da fermare: pausa solo se in quel gruppo suona ancora il Preferito della sveglia
+// (se Giovanni ha messo altro, non si tocca).
+async function spegniMusica() {
+  const righe = await rest(`sonos_sveglie?spegni_alle=lte.${new Date().toISOString()}&select=id,spegni_gruppo,spegni_preferito`) as Record<string, any>[]
+  if (!righe.length) return
+  const token = await accesso()
+  const norma = (s: string) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+  for (const r of righe) {
+    try {
+      const m = await sonos(token, `groups/${r.spegni_gruppo}/playbackMetadata`).catch(() => null)
+      const nome = norma(m?.container?.name || '')
+      // Senza nome (Sonos non lo dice) si ferma lo stesso: l'ultima cosa partita lì è la sveglia.
+      if (!nome || nome.includes(norma(r.spegni_preferito)) || norma(r.spegni_preferito).includes(nome)) {
+        await sonos(token, `groups/${r.spegni_gruppo}/playback/pause`, {})
+      }
+    } catch (e) {
+      console.error('spegni musica', e)
+    }
+    await rest(`sonos_sveglie?id=eq.${r.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ spegni_alle: null, spegni_gruppo: null, spegni_preferito: null }) })
+  }
+}
+
 async function sveglie() {
+  await spegniMusica().catch((e) => console.error('spegni musica', e))
   const ids = (await rest('rpc/sonos_sveglie_da_fare', { method: 'POST', body: '{}' }) as number[]) || []
   const oggi = oggiZurigo()
   for (const id of ids) {

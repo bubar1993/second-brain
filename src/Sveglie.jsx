@@ -84,6 +84,7 @@ export function Sveglie() {
                           <span className="riga-testo">{giorni(s.giorni)} · «{s.saluto}»</span>
                           <span className="riga-meta">{[s.notizie || s.per === 'giovanni' ? 'meteo, battuta e notizie' : 'canzoncina, meteo e indovinello',
                             s.preferito && `poi ${musica(s.preferito)}`].filter(Boolean).join(' · ')}</span>
+                          <span className="riga-meta">Volume voce {s.volume_voce}, musica {s.volume_musica} · la musica si ferma dopo {s.musica_minuti} min</span>
                           {s.errore && <span className="riga-meta rosso">Ultima volta: {s.errore}</span>}
                         </div>
                         <label className="sveglia-accesa">
@@ -102,7 +103,7 @@ export function Sveglie() {
               </div>
             ))}
 
-            <p className="nota-piccola">Nei giorni di scuola chiusa le sveglie non suonano. Volume: voce 25, musica 15.</p>
+            <p className="nota-piccola">Nei giorni di scuola chiusa le sveglie non suonano. Volumi e minuti si cambiano dicendolo al Capo o a Claude.</p>
           </>
         )}
       </Stato>

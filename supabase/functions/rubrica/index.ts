@@ -63,7 +63,12 @@ async function google(token: string, percorso: string, init: RequestInit = {}) {
   const r = await fetch(`${PEOPLE}/${percorso}`, { ...init, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } })
   if (r.status === 410) return { scaduto: true }
   if (r.status === 404) return null
-  if (!r.ok) throw new Error(`Google Contatti ${r.status}: ${(await r.text()).slice(0, 200)}`)
+  if (!r.ok) {
+    const testo = await r.text()
+    // Google dà anche 400 FAILED_PRECONDITION "Sync token is expired" (EXPIRED_SYNC_TOKEN): stesso caso del 410.
+    if (r.status === 400 && /EXPIRED_SYNC_TOKEN|sync token is expired/i.test(testo)) return { scaduto: true }
+    throw new Error(`Google Contatti ${r.status}: ${testo.slice(0, 200)}`)
+  }
   return r.status === 204 ? {} : r.json()
 }
 

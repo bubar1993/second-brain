@@ -1,7 +1,7 @@
 // Guardiano (21.10.2026, ok di Giovanni). La chiama pg_cron ogni 15 minuti.
 // Controlla: le tre app (Brain, Ceramex, G&C), i due gestionali (connessione di sola lettura brain_lettore),
 // i giri degli agenti e dei lavori automatici (lavori_registro, copia_registro), il backup, le richieste agli
-// agenti rimaste ferme e i lavori di pg_cron falliti. Ogni problema è una riga aperta in "guasti"; quando sparisce
+// agenti rimaste ferme, i lavori di pg_cron falliti, le funzioni automatiche che rispondono con errore e la rubrica. Ogni problema è una riga aperta in "guasti"; quando sparisce
 // la riga si chiude. Le notifiche ("Guasto: …" / "Risolto: …") le manda la funzione "notifiche".
 // Non ripara niente da solo: segnala e basta.
 // Con { "prova": true } dice cosa ha trovato senza scrivere niente.
@@ -174,7 +174,28 @@ function controllaGiri(d: any, adesso: number): Problema[] {
   const b: UltimoGiro | null = d.backup
   if (b && !b.ok) out.push({ chiave: 'backup', titolo: 'Il backup su Drive non è riuscito', dettaglio: `${quando(b.il)}: ${b.errore || 'errore'}` })
   else if (!b || adesso - Date.parse(b.il) > 8 * 864e5) out.push({ chiave: 'backup', titolo: 'Il backup su Drive non parte da più di una settimana', dettaglio: `Ultimo: ${quando(b?.il)}` })
+
+  // Rubrica (22.10.2026): sincronizza ogni 15 minuti, giorno e notte; ultimo_giro cambia solo se il giro riesce.
+  if (d.rubrica && adesso - Date.parse(d.rubrica) > 60 * 60000) {
+    out.push({ chiave: 'giro:rubrica', titolo: 'La sincronizzazione della rubrica è ferma', dettaglio: `Ultima riuscita: ${quando(d.rubrica)}` })
+  }
   return out
+}
+
+// Funzioni chiamate dai lavori automatici che rispondono con un errore (22.10.2026). pg_net non dice quale
+// funzione era: resta il testo dell'errore. Ne servono almeno 2 in 30 minuti, così un errore di passaggio non avvisa.
+function controllaErrori(d: any): Problema[] {
+  const ko: { il: string, stato: number, errore: string | null }[] = d.http_ko || []
+  if (ko.length < 2) return []
+  const testo = (s: string | null) => {
+    try { const j = JSON.parse(s || ''); return String(j.errore || j.error?.message || j.error || s) } catch { return String(s || 'errore') }
+  }
+  const ultimo = ko[0]
+  return [{
+    chiave: 'http:errori',
+    titolo: 'Una funzione automatica risponde con un errore',
+    dettaglio: `${ko.length} errori negli ultimi 30 minuti, l'ultimo il ${quando(ultimo.il)} (codice ${ultimo.stato}): ${testo(ultimo.errore).replace(/\s+/g, ' ').slice(0, 250)}`,
+  }]
 }
 
 // Richieste agli agenti ferme da più di 3 ore (contate dalle 6 alle 23).
@@ -216,7 +237,7 @@ Deno.serve(async (req) => {
     const dati = await rest('rpc/guardiano_dati', { method: 'POST', body: '{}' })
     const adesso = Date.parse(dati.adesso)
     const [app, db] = await Promise.all([controllaApp(), controllaGestionali()])
-    problemi = [...app, ...db, ...controllaGiri(dati, adesso), ...controllaRichieste(dati, adesso), ...controllaCron(dati)]
+    problemi = [...app, ...db, ...controllaGiri(dati, adesso), ...controllaRichieste(dati, adesso), ...controllaCron(dati), ...controllaErrori(dati)]
   } catch (e) {
     // Il guardiano stesso non riesce a leggere: lo segno come guasto (se almeno scrivere funziona).
     problemi = [{ chiave: 'guardiano', titolo: 'Il guardiano non riesce a fare i controlli', dettaglio: (e as Error).message.slice(0, 300) }]

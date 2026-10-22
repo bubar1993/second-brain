@@ -188,7 +188,17 @@ async function daAvvisare(): Promise<Avviso[]> {
 Deno.serve(async (req) => {
   if (!COPIA_TOKEN || req.headers.get('x-copia-token') !== COPIA_TOKEN) return new Response('Non autorizzato', { status: 401 })
   // Prova (per i controlli di Claude): dice cosa manderebbe adesso, senza mandare né segnare niente.
-  const { prova } = await req.json().catch(() => ({}))
+  const { prova, prova_whatsapp } = await req.json().catch(() => ({}))
+  // Un WhatsApp di prova vero, SOLO quando Giovanni lo chiede (23.10.2026: "non puoi far partire una prova?").
+  if (prova_whatsapp) {
+    if (!WA_TOKEN) return Response.json({ ok: false, errore: 'senza chiave' })
+    try {
+      await whatsapp('Prova del guardiano', 'messaggio di prova chiesto da te: gli avvisi su WhatsApp funzionano')
+      return Response.json({ ok: true })
+    } catch (e) {
+      return Response.json({ ok: false, errore: (e as Error).message })
+    }
+  }
   if (prova) {
     const iscrizioni = await rest('push_iscrizioni?select=id')
     return Response.json({ prova: true, iscrizioni: iscrizioni.length, avvisi: await daAvvisare(), whatsapp: await statoWhatsapp() })

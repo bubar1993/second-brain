@@ -15,11 +15,12 @@ Valgono quando cambi le regole degli agenti. I dettagli stanno in `docs/agenti-r
 - `agente-sql` rifiuta `net.http_*`, blocchi DO, `plpgsql` e `create function` (18.10.2026): niente di questo nelle regole degli agenti del second brain.
 - Niente mail o notifiche di prova. Una prova che fa partire un agente può mandare una notifica al telefono di Giovanni: farla di giorno e dirglielo prima.
 - Routine create via API: passare sempre `mcp_connections`, se no prendono TUTTI i connettori dell'account.
+- Portinaio (23.10.2026): smistatore e agente G&C li sveglia la funzione `portinaio` solo quando c'è lavoro nuovo (dettagli in `docs/agenti-routine.md`). Nei loro prompt la regola `PORTINAIO-GIRO-COMPLETO` (giro completo e registro) deve restare PRIMA di quella del `<routine-fire-payload>`: senza la riga nel registro il portinaio smette di svegliarli. Se cambi cosa fa un agente, guarda se `portinaio_lavoro` deve guardare anche quella cosa.
 - Guardiano (21.10.2026): se aggiungi un agente, ne cambi gli orari o il nome nel registro (`lavori_registro.lavoro`), aggiorna `GIRI`/`GIORNALIERI`/`SETTIMANALI` in `supabase/functions/guardiano/index.ts`, se no dà falsi allarmi o non vede che è fermo.
 
 | File | Routine |
 | --- | --- |
-| `agente-gc.md` | Agente G&C (ore piene) `trig_0167WFkRzohRBwGMJKA5PQCi`, (mezz'ora) `trig_01WUMfFZV9XKDSRTwH5HREoz` |
+| `agente-gc.md` | Agente G&C (ore piene, 7 e 18 + portinaio) `trig_0167WFkRzohRBwGMJKA5PQCi`, (mezz'ora, SPENTA dal 23.10) `trig_01WUMfFZV9XKDSRTwH5HREoz` |
 | `agente-note.md` | Agente note lavoro `trig_012xsQNDrzFNnpAszr9gsGBh` |
 | `agente-privato.md` | Agente privato `trig_014BzqnSAWeuSq97vzQdwG15` |
 | `agente-calendario.md` | Agente calendario `trig_01ExFtoP2zGTkQDT4mnTdzGD` |
@@ -28,7 +29,7 @@ Valgono quando cambi le regole degli agenti. I dettagli stanno in `docs/agenti-r
 | `agente-riepilogo.md` | Cestina Riepilogo Ceramex `trig_013MZvzHbrRNeVLRt84pQSij` (IN PAUSA) |
 | `agente-fornitori-gc.md` | Completa fornitori scontrini `trig_01FgTpFW71zzgUVUgmdURN4s` |
 | `agente-archiviazione-gc.md` | Archiviazione email G&C `trig_01Go1LUFLhtADpTeZs2GjY8s` |
-| `agente-smistatore.md` | Smistatore `trig_01EmGQxMLKmQgRjYHJw77p9L` |
+| `agente-smistatore.md` | Smistatore `trig_01EmGQxMLKmQgRjYHJw77p9L` (7:10 + portinaio) |
 | `agente-seguire.md` | Agente da seguire `trig_01DznF5caV1wjdxjt2bH1w2a` |
 | `agente-capo.md` | Agente capo `trig_01Hv5Y9LHytXiiX5L3xs2Nuw` (parte solo dal pulsante) |
 | `agente-ordini.md` | Ordini Marazzi `trig_01MZAj5mn8whEhDXom22181Y` |

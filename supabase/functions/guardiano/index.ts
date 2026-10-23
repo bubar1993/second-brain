@@ -37,11 +37,11 @@ const GESTIONALI = [
 type Giro = { lavoro: string, nome: string, da: number, a: number, max: number }
 const GIRI: Giro[] = [
   { lavoro: 'agente-ceramex', nome: 'L\'agente Ceramex (bozze mail)', da: 6, a: 24, max: 180 },
-  { lavoro: 'agente-gc', nome: 'L\'agente G&C', da: 6, a: 24, max: 150 },
+  // Dal 23.10.2026 G&C e smistatore li sveglia il portinaio: il G&C ha solo i giri fissi delle 7 e delle 18.
+  { lavoro: 'agente-gc', nome: 'L\'agente G&C', da: 6, a: 24, max: 720 },
   { lavoro: 'agente-calendario', nome: 'L\'agente calendario', da: 6, a: 24, max: 150 },
   { lavoro: 'agente-lavoro', nome: 'L\'agente note lavoro', da: 6, a: 23, max: 150 },
   { lavoro: 'agente-privato', nome: 'L\'agente privato', da: 6, a: 23, max: 150 },
-  { lavoro: 'agente-smistatore', nome: 'Lo smistatore', da: 6, a: 23, max: 150 },
   { lavoro: 'agente-gc-archiviazione', nome: 'L\'archiviazione email G&C', da: 6, a: 23, max: 210 },
   { lavoro: 'agente-seguire', nome: 'L\'agente "Da seguire"', da: 7, a: 22, max: 210 },
   { lavoro: 'copia-gc', nome: 'La copia dal gestionale G&C', da: 0, a: 24, max: 150 },
@@ -50,6 +50,7 @@ const GIRI: Giro[] = [
 // Giri una volta al giorno o alla settimana: guasto se dopo l'ora "entro" di oggi non c'è ancora il giro.
 const GIORNALIERI = [
   { lavoro: 'agente-ceramex-liste', nome: 'L\'archiviazione delle liste di carico Ceramex (6:52)', entro: 9 },
+  { lavoro: 'agente-smistatore', nome: 'Lo smistatore (giro delle 7:10)', entro: 9 },
 ]
 const SETTIMANALI = [
   { lavoro: 'agente-gc-fornitori', nome: 'Il completamento fornitori G&C (venerdì)', giorni: 8 },
@@ -227,6 +228,30 @@ function controllaRichieste(d: any, adesso: number): Problema[] {
   }))
 }
 
+// Portinaio (23.10.2026): gira ogni 10 minuti e sveglia smistatore e G&C solo quando c'è lavoro nuovo.
+function controllaPortinaio(d: any, adesso: number): Problema[] {
+  const out: Problema[] = []
+  const righe: any[] = d.portinaio || []
+  const controllo = Math.max(0, ...righe.map((r) => (r.controllo ? Date.parse(r.controllo) : 0)))
+  if (adesso - controllo > 30 * 60000) {
+    out.push({ chiave: 'giro:portinaio', titolo: 'Il portinaio degli agenti è fermo', dettaglio: `Ultimo controllo: ${quando(controllo ? new Date(controllo).toISOString() : undefined)}. Smistatore e agente G&C girano solo agli orari fissi.` })
+  }
+  const oggi = oraZurigo(adesso).giorno
+  for (const r of righe) {
+    const nome = NOMI_AGENTI[r.agente] || r.agente
+    if (r.errore) out.push({ chiave: `portinaio:${r.agente}`, titolo: `Il portinaio non sveglia più ${nome}`, dettaglio: `${quando(r.errore_il)}: ${r.errore}` })
+    if (r.ultimo_errore) out.push({ chiave: `portinaio:sveglia:${r.agente}`, titolo: `La sveglia del portinaio per ${nome} non parte`, dettaglio: `${quando(r.ultimo_errore_il)}: ${r.ultimo_errore}` })
+    if (r.tetto_il && oraZurigo(Date.parse(r.tetto_il)).giorno === oggi) {
+      out.push({ chiave: `portinaio:tetto:${r.agente}`, titolo: `Il portinaio ha svegliato ${nome} troppe volte oggi`, dettaglio: `Tetto raggiunto il ${quando(r.tetto_il)}: fino a sera al massimo una sveglia all'ora.` })
+    }
+  }
+  // Una mail di info@ che nessun agente ha guardato da più di un'ora (contata dalle 6 alle 23).
+  if (d.posta_ferma && minutiAttivi(Date.parse(d.posta_ferma), adesso, 6, 23) > 60) {
+    out.push({ chiave: 'giro:posta-non-vista', titolo: 'Ci sono mail di info@ che l\'agente G&C non ha ancora guardato', dettaglio: `La più vecchia è arrivata il ${quando(d.posta_ferma)}` })
+  }
+  return out
+}
+
 function controllaCron(d: any): Problema[] {
   const ko: { nome: string, il: string, errore: string }[] = d.cron_ko || []
   const nomi = [...new Set(ko.map((k) => k.nome))]
@@ -243,8 +268,8 @@ Il guardiano controlla ogni 15 minuti il sistema e ha trovato un guasto. Spiega 
 Com'è fatto il sistema:
 - Tre app web: Brain (il second brain), Ceramex (agente di commercio: fatture, bozze mail), G&C (gestionale forniture per interni). Due database dei gestionali Ceramex e G&C.
 - Nel Brain: funzioni automatiche chiamate dai lavori programmati (rubrica dei contatti Google, notifiche, copia delle note da Ceramex e da G&C, lettura della posta info@, ordini Marazzi, ricerca per significato, sveglie Sonos, backup su Drive la domenica notte).
-- Agenti (routine nel cloud di claude.ai): bozze mail Ceramex, G&C, calendario, note lavoro, privato, smistatore, archiviazione mail G&C, "Da seguire", il Capo.
-- Chiavi del guasto: "app:" = un'app non si apre; "db:" = un database non risponde; "giro:" = un lavoro o un agente è fermo o ha sbagliato l'ultimo giro; "richieste:" = richieste agli agenti ferme; "cron:" = un lavoro programmato non parte; "http:errori" = una funzione automatica risponde con un errore; "backup" = il backup su Drive.
+- Agenti (routine nel cloud di claude.ai): bozze mail Ceramex, G&C, calendario, note lavoro, privato, smistatore, archiviazione mail G&C, "Da seguire", il Capo. Smistatore e G&C li sveglia il "portinaio" (funzione automatica ogni 10 minuti) solo quando c'è lavoro nuovo.
+- Chiavi del guasto: "portinaio:" = il portinaio non sveglia un agente (sveglia che non parte, agente che non ha scritto il suo giro, troppe sveglie in un giorno); "app:" = un'app non si apre; "db:" = un database non risponde; "giro:" = un lavoro o un agente è fermo o ha sbagliato l'ultimo giro; "richieste:" = richieste agli agenti ferme; "cron:" = un lavoro programmato non parte; "http:errori" = una funzione automatica risponde con un errore; "backup" = il backup su Drive.
 
 Come rispondi:
 - In italiano, 2-4 righe corte, testo semplice (niente titoli, grassetti, link).
@@ -298,7 +323,7 @@ Deno.serve(async (req) => {
     const dati = await rest('rpc/guardiano_dati', { method: 'POST', body: '{}' })
     const adesso = Date.parse(dati.adesso)
     const [app, db] = await Promise.all([controllaApp(), controllaGestionali()])
-    problemi = [...app, ...db, ...controllaGiri(dati, adesso), ...controllaRichieste(dati, adesso), ...controllaCron(dati), ...controllaErrori(dati)]
+    problemi = [...app, ...db, ...controllaGiri(dati, adesso), ...controllaRichieste(dati, adesso), ...controllaPortinaio(dati, adesso), ...controllaCron(dati), ...controllaErrori(dati)]
   } catch (e) {
     // Il guardiano stesso non riesce a leggere: lo segno come guasto (se almeno scrivere funziona).
     problemi = [{ chiave: 'guardiano', titolo: 'Il guardiano non riesce a fare i controlli', dettaglio: (e as Error).message.slice(0, 300) }]

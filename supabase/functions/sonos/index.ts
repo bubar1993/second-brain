@@ -13,7 +13,8 @@
 //        sveglie di sonos_sveglie arrivate all'ora (saluto + meteo scherzoso + battuta, per Giovanni anche 2-3 notizie
 //        di ieri cercate sul web; testo di Claude Haiku coi crediti del piano Max) e poi il Preferito Sonos;
 //      { azione: 'sveglia_prova', id, cassa?, musica? } → la stessa sveglia subito, senza segnarla fatta;
-//      { azione: 'sveglie_elenco' | 'sveglia_cambia' | 'senza_alessia' } → pagina Sveglie dell'app;
+//      { azione: 'sveglie_elenco' (completo?) | 'sveglia_cambia' | 'senza_alessia' | 'sveglia_nuova' | 'sveglia_togli' }
+//        → pagina Sveglie dell'app (la nuova sveglia sceglie una delle FRASI standard);
 //      { azione: 'esegui_conferma', id } → solo Giovanni: fa una conferma 'sonos' del Capo dopo i due tocchi.
 // Chi può: Giovanni dall'app (non i connettori) oppure il giro programmato (x-copia-token).
 
@@ -443,6 +444,46 @@ async function elencoSveglie() {
   }
 }
 
+// Frasi standard delle sveglie (24.10.2026, Giovanni): la nuova sveglia dall'app sceglie una di queste, non testo libero.
+const FRASI = [
+  { chiave: 'leo_jolie', saluto: 'Buongiorno Leo e Jolie, dormito bene?', per: 'bambini', notizie: false, preferito: 'Alternative', nome: 'Leo e Jolie' },
+  { chiave: 'quattro', saluto: 'Buongiorno Leo, Jolie, Davide e Celeste, dormito bene?', per: 'bambini', notizie: false, preferito: 'Alternative', nome: 'Leo, Jolie, Davide e Celeste' },
+  { chiave: 'giovanni', saluto: 'Buongiorno Giovanni!', per: 'giovanni', notizie: true, preferito: 'This Is Worakls', nome: 'Giovanni' },
+  { chiave: 'amore', saluto: 'Buongiorno Amore!', per: 'giovanni', notizie: true, preferito: 'This Is blink-182', nome: 'Amore' },
+]
+const NOMI_GIORNI = ['', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom']
+const etichettaGiorni = (g: number[]) => {
+  const s = [...g].sort()
+  return s.length > 1 && s.every((x, i) => i === 0 || x === s[i - 1] + 1)
+    ? `${NOMI_GIORNI[s[0]]}-${NOMI_GIORNI[s[s.length - 1]]}` : s.map((x) => NOMI_GIORNI[x]).join(', ')
+}
+
+// Nuova sveglia dall'app: giorni, ora, cassa, una frase standard e (se vuole) un Preferito Sonos.
+async function nuovaSveglia(d: Record<string, any>) {
+  const giorni = [...new Set((Array.isArray(d.giorni) ? d.giorni : []).map(Number))].filter((x) => x >= 1 && x <= 7).sort()
+  if (!giorni.length) throw new Error('Scegli almeno un giorno')
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(d.ora))) throw new Error('Ora non valida')
+  const frase = FRASI.find((f) => f.chiave === d.frase)
+  if (!frase) throw new Error('Scegli una frase')
+  const token = await accesso()
+  const cassa = (await casse(token)).find((c: any) => c.nome === d.cassa)
+  if (!cassa) throw new Error('Scegli una cassa')
+  let preferito: string | null = frase.preferito
+  if (d.preferito !== undefined) {
+    if (d.preferito === null || d.preferito === '') preferito = null
+    else {
+      const { items } = await sonos(token, `households/${await casa(token)}/favorites`)
+      if (!(items || []).some((f: any) => f.name === d.preferito)) throw new Error('Preferito Sonos non trovato')
+      preferito = d.preferito
+    }
+  }
+  const camera = cassa.nome === 'Camera Mia'
+  await rest('sonos_sveglie', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({
+    nome: `${frase.nome} ${etichettaGiorni(giorni)}`, cassa: cassa.nome, giorni, ora: d.ora, saluto: frase.saluto, per: frase.per,
+    notizie: frase.notizie, preferito, volume_voce: camera ? 15 : 20, volume_musica: camera ? 5 : 9, salta_vacanze: true }) })
+  return await elencoSveglie()
+}
+
 // Giovedì e venerdì di questa settimana (da oggi in avanti) come lunedì, o di nuovo normali.
 async function senzaAlessia(attiva: boolean) {
   const g = settimana().filter((x) => x.giorno >= 4 && x.giorno <= 5 && x.data >= oggiZurigo()).map((x) => x.data)
@@ -656,7 +697,24 @@ Deno.serve(async (req: Request) => {
     return risposta({ ok: true })
   }
   try {
-    if (azione === 'sveglie_elenco') return risposta(await elencoSveglie())
+    if (azione === 'sveglie_elenco') {
+      const d = await elencoSveglie()
+      if (!corpoJson.completo) return risposta(d)
+      // Per "Nuova sveglia" nella pagina: frasi standard, casse e Preferiti Sonos (se Sonos risponde).
+      let casseNomi: string[] = [], preferiti: string[] = []
+      try {
+        const token = await accesso()
+        casseNomi = (await casse(token)).filter((c: any) => c.annunci).map((c: any) => c.nome)
+        const { items } = await sonos(token, `households/${await casa(token)}/favorites`)
+        preferiti = (items || []).map((f: any) => f.name)
+      } catch (e) { console.error('elenco completo', e) }
+      return risposta({ ...d, frasi: FRASI, casse: casseNomi, preferiti })
+    }
+    if (azione === 'sveglia_nuova') return risposta(await nuovaSveglia(corpoJson))
+    if (azione === 'sveglia_togli') {
+      await rest(`sonos_sveglie?id=eq.${Number(id) || 0}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } })
+      return risposta(await elencoSveglie())
+    }
     if (azione === 'sveglia_cambia') {
       const campi: Record<string, unknown> = {}
       const { ora, attiva } = corpoJson

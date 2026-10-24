@@ -1036,3 +1036,8 @@ a.cita::after { content: ''; position: absolute; inset: -11px -6px; } /* area di
 .riga-prossima-sveglia { display: flex; align-items: center; gap: 8px; min-height: 40px; color: var(--tenue); font-size: 14px; text-decoration: none; }
 .riga-prossima-sveglia b { color: #ff8f45; font-weight: 600; }
 .riga-prossima-sveglia svg { color: #ff8f45; flex: none; }
+.tasto-nuova-sveglia { width: 100%; margin-top: 16px; }
+.nuova-sveglia { margin-top: 16px; gap: 8px; }
+.nuova-sveglia h3 { margin: 0; color: var(--testo); }
+.nuova-sveglia .riga-meta { margin: 6px 0 0; }
+.nuova-sveglia .chip { white-space: normal; text-align: left; }

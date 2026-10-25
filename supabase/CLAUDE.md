@@ -4,6 +4,7 @@ Progetto second-brain `vgurncqvgulldolhetyr`. I dettagli delle singole funzioni 
 
 - SQL e migrazioni: `scripts/sql.ps1 -File x.sql [-Nome migrazione]`. I file delle migrazioni stanno in `migrations/`.
 - Deploy di una funzione: `npx --yes supabase@2 functions deploy <fn> --project-ref vgurncqvgulldolhetyr --no-verify-jwt --use-api`.
+- Tabella o vista nuova (dal 30.10.2026, cambio di Supabase): l'API non la vede più da sola. Nella stessa migrazione: `enable row level security` con le sue regole e grant espliciti ad authenticated e service_role (ad anon mai, se non serve). Le tabelle di prima restano come sono.
 - Tabella nuova: rilanciare la migrazione `mcp_solo_lettura` (i token dei connettori non scrivono) e il blocco "capo vede tutto" della migrazione `capo`; dare i permessi solo agli agenti che servono (lavoro ≠ privato).
 - Funzione nuova chiamata dall'app con l'accesso di Giovanni: oltre a `utente.id === UTENTE`, rifiutare i token dei connettori con `daConnettore(jwt)` (`functions/_shared/accesso.ts`).
 - Funzione "security definer" nuova: revoke da public/anon, grant ad authenticated, service_role e ai ruoli agente_*.

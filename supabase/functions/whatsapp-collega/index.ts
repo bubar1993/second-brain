@@ -3,12 +3,16 @@
 // 1. scambia il codice con il token (non scade; resta solo nel database, tabella senza permessi per l'app);
 // 2. iscrive l'app all'account (così arrivano i webhook);
 // 3. chiede a Meta i contatti della rubrica e lo storico 6 mesi (si può fare UNA sola volta, entro 24 ore).
-// Si chiama con l'intestazione x-collega-token (segreto WA_COLLEGA_TOKEN). Non manda messaggi a nessuno.
+// Si chiama con l'intestazione x-collega-token (segreto WA_COLLEGA_TOKEN) oppure, dal 26.10.2026, dalla pagina
+// "Collega WhatsApp" dell'app con l'accesso di Giovanni (mai con un token dei connettori). Non manda messaggi a nessuno.
 // Modo prova (per l'analisi dell'app di Meta): token_prova = token temporaneo del numero di prova di Meta.
 // Salva quel numero e iscrive l'app, ma NON chiede contatti e storico (si fa una sola volta, col numero vero).
+// Se l'iscrizione non manda waba_id / phone_number_id, li trova dal codice (debug_token → account → numeri).
+import { daConnettore } from '../_shared/accesso.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const UTENTE = 'f220cb9e-6628-4fd4-b2ef-f7e5f49d9a54'
 const APP_ID = '1050142621357706'
 const GRAPH = 'https://graph.facebook.com/v26.0'
 
@@ -36,9 +40,20 @@ async function graph(percorso: string, token: string, corpo?: unknown) {
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return risposta({ errore: 'Usa POST' }, 405)
   const atteso = Deno.env.get('WA_COLLEGA_TOKEN')
-  if (!atteso || req.headers.get('x-collega-token') !== atteso) return risposta({ errore: 'Non autorizzato' }, 401)
+  const conChiave = !!atteso && req.headers.get('x-collega-token') === atteso
+  let daApp = false
+  if (!conChiave) {
+    const jwt = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
+    const u = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${jwt}` } })
+    const utente = u.ok ? await u.json() : null
+    if (utente?.id !== UTENTE || daConnettore(jwt)) return risposta({ errore: 'Non autorizzato' }, 401)
+    daApp = true
+  }
 
-  const { code, waba_id, phone_number_id, token_prova, ...resto } = await req.json().catch(() => ({}))
+  const { code, token_prova, ...resto } = await req.json().catch(() => ({}))
+  let { waba_id, phone_number_id } = resto
+  // Dall'app solo l'iscrizione vera (codice), niente prove e niente "solo".
+  if (daApp && (token_prova || !code)) return risposta({ errore: 'Dall\'app serve il codice dell\'iscrizione' }, 400)
   let solo: string | undefined = resto.solo
   const fatto: Record<string, unknown> = {}
   try {
@@ -62,8 +77,24 @@ Deno.serve(async (req: Request) => {
       const j = await r.json()
       if (!j.access_token) return risposta({ errore: `Scambio codice: ${j?.error?.message || r.status}` }, 502)
       token = j.access_token
-      await salva({ token, waba_id: waba_id || col?.waba_id, phone_number_id: phone_number_id || col?.phone_number_id,
-        collegato_il: new Date().toISOString(), errore: null })
+      // Account e numero non arrivati dalla pagina: si leggono dai permessi del token appena avuto.
+      if (!waba_id) {
+        const d = await graph(`debug_token?input_token=${encodeURIComponent(token)}`, `${APP_ID}|${segreto}`)
+        const scopi = (d?.data?.granular_scopes || []) as { scope: string, target_ids?: string[] }[]
+        waba_id = scopi.find((s) => s.scope === 'whatsapp_business_management')?.target_ids?.[0]
+          || scopi.find((s) => s.scope === 'whatsapp_business_messaging')?.target_ids?.[0]
+        fatto.waba_trovato = !!waba_id
+      }
+      if (waba_id && !phone_number_id) {
+        const nn = await graph(`${waba_id}/phone_numbers?fields=id,display_phone_number`, token)
+        phone_number_id = nn?.data?.[0]?.id
+      }
+      // Mai tenere account o numero di prima (quello di prova) insieme al token nuovo.
+      if (!waba_id || !phone_number_id) {
+        await salva({ errore: 'Iscrizione: account o numero non trovati' })
+        return risposta({ errore: 'Account WhatsApp o numero non trovati dopo l\'iscrizione', fatto }, 502)
+      }
+      await salva({ token, waba_id, phone_number_id, numero: null, collegato_il: new Date().toISOString(), errore: null })
       fatto.token = 'salvato'
       ;[col] = await rest('wa_collegamento?id=eq.1&select=*') as Record<string, any>[]
     }

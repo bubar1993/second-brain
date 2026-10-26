@@ -14,6 +14,143 @@ function useStatoWhatsApp() {
   return stato
 }
 
+// Il numero di prova di Meta (+1 555 645 6202) non conta come collegato: serve il numero vero di Giovanni.
+const numeroDiProva = (n) => /^\+?1[\s-]*555/.test(String(n || ''))
+
+// ---- Collega WhatsApp (26.10.2026, dopo l'approvazione di Meta del 25.10) ----
+// Iscrizione integrata di Meta in coesistenza: il numero resta nell'app WhatsApp Business del telefono (QR).
+// FB.login con la configurazione "ES Config" → codice (vale pochi secondi) + account e numero dal messaggio
+// WA_EMBEDDED_SIGNUP; poi subito whatsapp-collega (con l'accesso di Giovanni) che salva il collegamento e chiede
+// contatti e storico di 6 mesi (una volta sola, entro 24 ore). Mai "numero nuovo" o "virtuale".
+const APP_META = '1050142621357706'
+const CONFIG_META = '1143212528277399'
+function caricaSdkMeta() {
+  if (window.FB) return Promise.resolve(window.FB)
+  if (window.__sdkMeta) return window.__sdkMeta
+  window.__sdkMeta = new Promise((ok, no) => {
+    window.fbAsyncInit = () => {
+      window.FB.init({ appId: APP_META, autoLogAppEvents: true, xfbml: false, version: 'v26.0' })
+      ok(window.FB)
+    }
+    const s = document.createElement('script')
+    s.src = 'https://connect.facebook.net/it_IT/sdk.js'
+    s.async = true
+    s.crossOrigin = 'anonymous'
+    s.onerror = () => { window.__sdkMeta = null; no(new Error('Non riesco a caricare la pagina di Meta')) }
+    document.body.appendChild(s)
+  })
+  return window.__sdkMeta
+}
+export function CollegaWhatsApp() {
+  const stato = useStatoWhatsApp()
+  const [fase, setFase] = useState('pronto') // pronto | meta | salvo | fatto | errore
+  const [messaggio, setMessaggio] = useState('')
+  const [esito, setEsito] = useState(null)
+  const ids = useRef({})
+  const codice = useRef(null)
+  const mandato = useRef(false)
+
+  async function completa() {
+    if (mandato.current || !codice.current) return
+    mandato.current = true
+    setFase('salvo')
+    try {
+      const { data, error } = await sb.functions.invoke('whatsapp-collega', {
+        body: { code: codice.current, waba_id: ids.current.waba_id, phone_number_id: ids.current.phone_number_id },
+      })
+      if (error) {
+        let testo = error.message
+        try { testo = (await error.context.json()).errore || testo } catch { /* risposta senza dettagli */ }
+        throw new Error(testo)
+      }
+      setEsito(data.fatto || {})
+      setFase('fatto')
+    } catch (e) {
+      setMessaggio(messaggioErrore(e))
+      setFase('errore')
+    }
+  }
+
+  // Meta manda account e numero con un messaggio alla pagina (sessionInfoVersion 3).
+  useEffect(() => {
+    const ascolta = (e) => {
+      let host = ''
+      try { host = new URL(e.origin).hostname } catch { return }
+      if (!/(^|\.)facebook\.com$/.test(host)) return
+      let d
+      try { d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data } catch { return }
+      if (!d || d.type !== 'WA_EMBEDDED_SIGNUP') return
+      if (String(d.event).startsWith('FINISH')) {
+        ids.current = { waba_id: d.data?.waba_id, phone_number_id: d.data?.phone_number_id }
+        if (codice.current) completa()
+      } else if (d.event === 'CANCEL') {
+        setMessaggio(d.data?.current_step ? `Interrotto da Meta (passo: ${d.data.current_step}).` : 'Interrotto.')
+        setFase('pronto')
+      } else if (d.event === 'ERROR') {
+        setMessaggio(d.data?.error_message || 'Errore nella finestra di Meta.')
+        setFase('errore')
+      }
+    }
+    window.addEventListener('message', ascolta)
+    return () => window.removeEventListener('message', ascolta)
+  }, [])
+
+  async function apri() {
+    setMessaggio('')
+    mandato.current = false
+    codice.current = null
+    ids.current = {}
+    let FB
+    try { FB = await caricaSdkMeta() } catch (e) { setMessaggio(e.message); setFase('errore'); return }
+    setFase('meta')
+    FB.login((r) => {
+      const code = r && r.authResponse && r.authResponse.code
+      if (!code) { setFase((f) => (f === 'meta' ? 'pronto' : f)); setMessaggio((m) => m || 'Finestra di Meta chiusa senza collegare.'); return }
+      codice.current = code
+      // Se il messaggio con account e numero non arriva, dopo 3 secondi si va lo stesso: li trova la funzione.
+      if (ids.current.waba_id) completa()
+      else setTimeout(completa, 3000)
+    }, {
+      config_id: CONFIG_META, response_type: 'code', override_default_response_type: true,
+      extras: { setup: {}, featureType: 'whatsapp_business_app_onboarding', sessionInfoVersion: '3' },
+    })
+  }
+
+  const giaCollegato = stato && stato.collegato && !numeroDiProva(stato.numero)
+  return (
+    <div className="schermata">
+      <Indietro titolo="Collega WhatsApp" />
+      {giaCollegato && fase !== 'fatto' && (
+        <div className="scheda"><p>Il numero <b>{stato.numero}</b> è già collegato (dal {quando(stato.collegato_il, true)}).</p></div>
+      )}
+      {fase !== 'fatto' && (
+        <div className="scheda">
+          <p><b>Serve:</b> questo PC e il telefono con WhatsApp Business, 10 minuti.</p>
+          <ol>
+            <li>Tocca "Apri Meta" qui sotto: si apre la finestra di Meta.</li>
+            <li>Scegli il portfolio <b>Ceramex</b> e <b>"Collega l'app WhatsApp Business"</b>. Mai "numero nuovo" o "virtuale".</li>
+            <li>Sul telefono, in WhatsApp Business, inquadra il QR che compare e conferma la condivisione della cronologia.</li>
+            <li>Torna qui: il resto lo fa il Brain da solo.</li>
+          </ol>
+        </div>
+      )}
+      {fase === 'pronto' || fase === 'errore' ? (
+        <button type="button" className="tasto-grande" onClick={apri}>Apri Meta</button>
+      ) : null}
+      {fase === 'meta' && <p className="nota-piccola">Finestra di Meta aperta: segui i passi lì. Se non la vedi, guarda se il browser ha bloccato la finestra.</p>}
+      {fase === 'salvo' && <p className="nota-piccola">Salvo il collegamento e chiedo a Meta contatti e messaggi…</p>}
+      {messaggio && <div className={'scheda' + (fase === 'errore' ? ' scheda-allarme' : '')}><p>{messaggio}</p></div>}
+      {fase === 'fatto' && (
+        <div className="scheda">
+          <p><b>Collegato{esito?.numero?.display_phone_number ? `: ${esito.numero.display_phone_number}` : ''}.</b></p>
+          <p>Contatti e messaggi degli ultimi 6 mesi stanno arrivando da Meta (può volerci un po'). Gli agenti li metteranno nelle schede giuste.</p>
+          <a className="tasto-piccolo" href="#/whatsapp">Vai alle chat</a>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Elenco chat: chi ha scritto per ultimo in alto. Con un'area scelta, solo quella (e i contatti da smistare).
 export function ChatWhatsApp() {
   const { area } = useApp()
@@ -33,9 +170,10 @@ export function ChatWhatsApp() {
   return (
     <div className="schermata">
       <Indietro titolo="WhatsApp" />
-      {stato && !stato.collegato && (
+      {stato && (!stato.collegato || numeroDiProva(stato.numero)) && (
         <div className="scheda scheda-impronta">
-          <p>WhatsApp non è ancora collegato. Si aggancia con il QR dal telefono appena Meta approva la verifica di Ceramex: lo facciamo insieme.</p>
+          <p>Il tuo numero WhatsApp non è ancora collegato.</p>
+          <a className="tasto-grande" href="#/whatsapp/collega">Collega WhatsApp</a>
         </div>
       )}
       {stato?.errore && <div className="scheda scheda-allarme"><p>WhatsApp: {stato.errore}</p></div>}

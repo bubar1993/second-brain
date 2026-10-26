@@ -40,6 +40,7 @@ const Gemelli = pigra(() => import('./Gemelli'), 'Gemelli')
 const ChatWhatsApp = pigra(caricaWhatsApp, 'ChatWhatsApp')
 const ChatContatto = pigra(caricaWhatsApp, 'ChatContatto')
 const ModelliWhatsApp = pigra(caricaWhatsApp, 'ModelliWhatsApp')
+const CollegaWhatsApp = pigra(caricaWhatsApp, 'CollegaWhatsApp')
 const Ordini = pigra(() => import('./Ordini'), 'Ordini')
 const Riordino = pigra(() => import('./Riordino'), 'Riordino')
 const Bacheca = pigra(() => import('./Bacheca'), 'Bacheca')
@@ -295,7 +296,7 @@ function Guscio({ utente, condiviso }) {
     case 'rubrica': schermata = <Rubrica key={secondo || 'elenco'} parti={rotta.parti.slice(1)} />; break
     case 'notifiche': schermata = <Notifiche />; break
     case 'visita': schermata = <Visita key={secondo} id={secondo} />; break
-    case 'whatsapp': schermata = secondo === 'modelli' ? <ModelliWhatsApp /> : secondo ? <ChatContatto key={secondo} waId={secondo} /> : <ChatWhatsApp />; break
+    case 'whatsapp': schermata = secondo === 'modelli' ? <ModelliWhatsApp /> : secondo === 'collega' ? <CollegaWhatsApp /> : secondo ?<ChatContatto key={secondo} waId={secondo} /> : <ChatWhatsApp />; break
     default: schermata = <Oggi inbox={inbox} bozze={bozze} domande={domande} risposte={risposte} riordino={riordino} seguire={seguire} conferme={conferme} />
   }
   const sottoCapo = ['capo', 'domande', 'agenti', 'agente', 'bacheca'].includes(primo)

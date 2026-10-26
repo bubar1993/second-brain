@@ -10,7 +10,11 @@ CARTELLA = Path(os.environ['USERPROFILE']) / '.secondbrain'
 LOG = CARTELLA / 'trascrivi.log'
 BLOCCO = CARTELLA / 'trascrivi.lock'
 URL = 'https://vgurncqvgulldolhetyr.supabase.co/functions/v1/whatsapp-vocali'
-MODELLO = 'large-v3-turbo'
+# large-v3, non turbo (26.10.2026): in italiano sbaglia molto meno nomi e parole, ~3 s per un vocale di un minuto.
+MODELLO = 'large-v3'
+# Se la funzione non manda i nomi del contatto (vedi wa_parole_vocale), almeno questi.
+PAROLE_BASE = ('Nomi: Ceramex, G&C Home Concepts, Marazzi, Ragno, Flaviker, ABK, Garbelotto, Profilitec, '
+               'Manno, Lugano, Ticino, Dafalgan, Algifor, Ponstan.')
 
 
 def scrivi_log(riga):
@@ -69,8 +73,9 @@ def main():
                     f.write(audio)
                     percorso = f.name
                 try:
+                    # Lingua riconosciuta da Whisper (ogni tanto arrivano vocali in altre lingue).
                     pezzi, info = modello.transcribe(percorso, beam_size=5, vad_filter=True,
-                                                     initial_prompt='Messaggio vocale WhatsApp in italiano.')
+                                                     initial_prompt=v.get('parole') or PAROLE_BASE)
                     testo = ' '.join(p.text.strip() for p in pezzi).strip()
                 finally:
                     os.unlink(percorso)

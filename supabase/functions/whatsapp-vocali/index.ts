@@ -1,6 +1,7 @@
 // WhatsApp (fase 7): porta per trascrivere le note vocali sul PC di Giovanni (Whisper sulla scheda video, gratis).
 // Si chiama con l'intestazione x-trascrivi-token (segreto TRASCRIVI_TOKEN). Lo script è scripts/trascrivi-vocali.py.
-// - GET                → note vocali da trascrivere (ultimi 30 giorni: dopo Meta cancella il file)
+// - GET                → note vocali da trascrivere (ultimi 30 giorni: dopo Meta cancella il file), ognuna con
+//                        "parole": i nomi che Whisper deve conoscere (funzione SQL wa_parole_vocale, 26.10.2026)
 // - GET ?audio=<id>    → il file audio, scaricato da Meta col token del collegamento (il token non esce mai)
 // - POST {id, testo}   → salva la trascrizione nel testo; vista_il torna vuoto così gli agenti la rileggono
 // - POST {id, errore}  → segna che non si è potuta fare (non si riprova)
@@ -30,7 +31,9 @@ Deno.serve(async (req: Request) => {
         const da = new Date(Date.now() - 30 * 864e5).toISOString()
         const righe = await rest(`wa_messaggi?tipo=eq.audio&trascrizione=is.null&data=gte.${da}&select=id,media,data&order=data.asc&limit=20`) as
           { id: string; media: Record<string, any> | null; data: string }[]
-        return risposta(righe.map((r) => ({ id: r.id, mime: r.media?.mime || null, data: r.data })))
+        const parole = await Promise.all(righe.map((r) =>
+          rest('rpc/wa_parole_vocale', { method: 'POST', body: JSON.stringify({ p_id: r.id }) }).catch(() => null)))
+        return risposta(righe.map((r, i) => ({ id: r.id, mime: r.media?.mime || null, data: r.data, parole: parole[i] || null })))
       }
       const [m] = await rest(`wa_messaggi?id=eq.${encodeURIComponent(id)}&tipo=eq.audio&select=media`) as { media: Record<string, any> | null }[]
       if (!m?.media?.id) return risposta({ errore: 'Nessun file per questo messaggio' }, 404)

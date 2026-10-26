@@ -1,6 +1,6 @@
 # Second Brain GF
 
-Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo aggiornamento: 26.10.2026 (connettore "Supabase agenti" per le routine).
+Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo aggiornamento: 26.10.2026 (antagonista prima delle modifiche a rischio).
 
 I dettagli stanno in `docs/` (indice in fondo): prima di lavorare su un argomento leggi il file giusto. Le cose aperte sono nella memoria "Cose in sospeso".
 
@@ -14,6 +14,7 @@ I dettagli stanno in `docs/` (indice in fondo): prima di lavorare su un argoment
 ## Regole di lavoro
 - Si lavora per fasi. Nessuna fase parte senza l'ok di Giovanni.
 - Prima di toccare cose già funzionanti o configurazioni importanti: spiega e chiedi conferma.
+- **Antagonista** (26.10.2026): prima di chiedere l'ok per una modifica a rischio, passa le parole di Giovanni e il piano o il diff all'agente `antagonista` (non la tua conclusione). Sempre per: gestionali Ceramex e G&C, migrazioni, permessi e utenti del database, prompt di routine e agenti, token e sicurezza, regole sulle mail, cancellazioni, proposte del Capo in `modifiche_claude`. Non per testi, colori, docs. A Giovanni mostri piano + obiezioni + cosa hai corretto; il suo ok resta obbligatorio.
 - Soluzioni gratuite. Servizi a pagamento solo con il suo sì.
 - Niente email o notifiche di test verso di lui.
 - Una sola versione per file: aggiorna, non creare copie.

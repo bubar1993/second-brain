@@ -22,6 +22,8 @@ const numeroDiProva = (n) => /^\+?1[\s-]*555/.test(String(n || ''))
 // FB.login con la configurazione "ES Config" → codice (vale pochi secondi) + account e numero dal messaggio
 // WA_EMBEDDED_SIGNUP; poi subito whatsapp-collega (con l'accesso di Giovanni) che salva il collegamento e chiede
 // contatti e storico di 6 mesi (una volta sola, entro 24 ore). Mai "numero nuovo" o "virtuale".
+// Portfolio «Giovanni Fabris WhatsApp», non Ceramex: con Ceramex (proprietario dell'app) Meta si ferma
+// all'ultimo passo e il numero resta DISCONNECTED (prova del 26.10.2026).
 const APP_META = '1050142621357706'
 const CONFIG_META = '1143212528277399'
 function caricaSdkMeta() {
@@ -121,14 +123,17 @@ export function CollegaWhatsApp() {
     <div className="schermata">
       <Indietro titolo="Collega WhatsApp" />
       {giaCollegato && fase !== 'fatto' && (
-        <div className="scheda"><p>Il numero <b>{stato.numero}</b> è già collegato (dal {quando(stato.collegato_il, true)}).</p></div>
+        <div className="scheda">
+          <p>Il numero <b>{stato.numero}</b> risulta collegato (dal {quando(stato.collegato_il, true)}).</p>
+          <p>Se i messaggi non arrivano nel Brain, prima scollegalo dal telefono: WhatsApp Business → <b>Impostazioni</b> → <b>Account</b> → <b>Piattaforma aziendale</b> → <b>Disconnetti</b>. Poi rifai i passi qui sotto.</p>
+        </div>
       )}
       {fase !== 'fatto' && (
         <div className="scheda">
           <p><b>Serve:</b> questo PC e il telefono con WhatsApp Business, 10 minuti.</p>
           <ol>
             <li>Tocca "Apri Meta" qui sotto: si apre la finestra di Meta.</li>
-            <li>Scegli il portfolio <b>Ceramex</b> e <b>"Collega l'app WhatsApp Business"</b>. Mai "numero nuovo" o "virtuale".</li>
+            <li>Scegli il portfolio <b>«Giovanni Fabris WhatsApp»</b> (non Ceramex), crea un <b>nuovo account WhatsApp</b> e scegli <b>"Collega l'app WhatsApp Business"</b>. Mai "numero nuovo" o "virtuale".</li>
             <li>Sul telefono, in WhatsApp Business, inquadra il QR che compare e conferma la condivisione della cronologia.</li>
             <li>Torna qui: il resto lo fa il Brain da solo.</li>
           </ol>
@@ -178,6 +183,7 @@ export function ChatWhatsApp() {
       )}
       {stato?.errore && <div className="scheda scheda-allarme"><p>WhatsApp: {stato.errore}</p></div>}
       {stato?.collegato && <a className="riga" href="#/whatsapp/modelli"><span className="riga-corpo"><span className="riga-testo">Modelli di messaggio</span></span><Icona nome="freccia" size={18} /></a>}
+      {stato?.collegato && !numeroDiProva(stato.numero) && <a className="riga" href="#/whatsapp/collega"><span className="riga-corpo"><span className="riga-testo">Collega di nuovo WhatsApp</span></span><Icona nome="freccia" size={18} /></a>}
       <input type="search" value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca chat" />
       <Stato carica={carica} errore={errore} vuoto={dati && !visibili.length ? 'Nessuna chat.' : null}>
         {dati && (

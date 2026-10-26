@@ -20,7 +20,7 @@ export const AGENTI = [
   { codice: 'fornitori', nome: 'Completa fornitori', cosa: 'Completa sul web i fornitori nati dagli scontrini nel gestionale G&C (indirizzo, UID, telefono)', registro: 'agente-gc-fornitori', aree: ['G'], orari: 'il venerdì alle 8:48', senzaRichieste: true },
   { codice: 'seguire', nome: 'Da seguire', cosa: 'Trova nelle note le promesse (tue e degli altri) e i campioni, raccoglie le circolari di mandanti e fornitori e una volta alla settimana cerca schede e note doppie', registro: 'agente-seguire', aree: ['C', 'G'], orari: 'ogni 2 ore alle :40, dalle 7:40 alle 21:40' },
   { codice: 'smistatore', nome: 'Smistatore', cosa: 'Non fa lavori: quando un agente non può fare una cosa, o quando rispondi a una domanda, passa il comando all\'agente giusto e lo fa partire', registro: 'agente-smistatore', aree: ['C', 'G'], orari: 'ogni ora alle :10, dalle 6 alle 22, e subito quando rispondi a una domanda' },
-  { codice: 'calendario', nome: 'Agente calendario', cosa: 'Google Calendar: copia gli appuntamenti, i colori, gli spostamenti e quelli nuovi', registro: 'agente-calendario', aree: ['C', 'G', 'P'], orari: 'ogni ora, dalle 6 alle 23' },
+  { codice: 'calendario', nome: 'Agente calendario', cosa: 'Google Calendar: copia gli appuntamenti, i colori, gli spostamenti e quelli nuovi', registro: 'agente-calendario', aree: ['C', 'G', 'P'], orari: 'alle 6, 12 e 18, e quando c\'è una novità (dalle 6 alle 23)' },
   { codice: 'privato', nome: 'Agente privato', cosa: 'Note private, gemelli, scadenze, compleanni', registro: 'agente-privato', aree: ['P'], orari: 'ogni ora, dalle 6 alle 23' },
 ]
 

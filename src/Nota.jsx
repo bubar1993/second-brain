@@ -94,7 +94,7 @@ export default function Nota({ id }) {
   }
 
   // "Metti in calendario" (21.10.2026): appuntamento di mezz'ora all'ora del promemoria, 'da_creare';
-  // l'agente calendario lo crea in Google al giro dopo (ogni ora, 6-23).
+  // l'agente calendario lo crea in Google al giro dopo (lo sveglia il portinaio, di giorno entro ~20 minuti).
   const inCalendario = (p) => dati.eventi.some((e) => e.promemoria_id === p.id && !['scartato', 'cancellato'].includes(e.stato))
   const mettiInCalendario = (p) => esegui(async () => {
     const inizio = new Date(p.scade_il)

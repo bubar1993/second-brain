@@ -240,7 +240,8 @@ function controllaPortinaio(d: any, adesso: number): Problema[] {
   const oggi = oraZurigo(adesso).giorno
   for (const r of righe) {
     const nome = NOMI_AGENTI[r.agente] || r.agente
-    if (r.errore) out.push({ chiave: `portinaio:${r.agente}`, titolo: `Il portinaio non sveglia più ${nome}`, dettaglio: `${quando(r.errore_il)}: ${r.errore}` })
+    // Il calendario dopo un'ora in errore riprova (26.10.2026): l'avviso lo dice.
+    if (r.errore) out.push({ chiave: `portinaio:${r.agente}`, titolo: r.agente === 'calendario' ? `Il portinaio ha problemi con ${nome}: riprova ogni ora` : `Il portinaio non sveglia più ${nome}`, dettaglio: `${quando(r.errore_il)}: ${r.errore}` })
     if (r.ultimo_errore) out.push({ chiave: `portinaio:sveglia:${r.agente}`, titolo: `La sveglia del portinaio per ${nome} non parte`, dettaglio: `${quando(r.ultimo_errore_il)}: ${r.ultimo_errore}` })
     if (r.tetto_il && oraZurigo(Date.parse(r.tetto_il)).giorno === oggi) {
       out.push({ chiave: `portinaio:tetto:${r.agente}`, titolo: `Il portinaio ha svegliato ${nome} troppe volte oggi`, dettaglio: `Tetto raggiunto il ${quando(r.tetto_il)}: fino a sera al massimo una sveglia all'ora.` })

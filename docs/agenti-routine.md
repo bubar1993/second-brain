@@ -61,7 +61,7 @@ Routine claude.ai, utenti del database per agente, "Fallo adesso", Smistatore, r
   - Tabella `portinaio` (RLS, nessun permesso ad app/agenti). Prova: `{ "prova": true }` col copia_token dice chi sveglierebbe senza svegliare né scrivere.
   - Guardiano: G&C `max` 720, smistatore tra i GIORNALIERI (entro le 9), nuovi guasti `giro:portinaio` (fermo da 30 minuti), `portinaio:<agente>`, `portinaio:sveglia:<agente>`, `portinaio:tetto:<agente>`, `giro:posta-non-vista` (mail info@ non vista da più di 60 minuti).
   - Come tornare indietro: riaccendere la routine della mezz'ora, rimettere gli orari vecchi (smistatore `10 6-22`, G&C `0 6-23`), `cron.unschedule('portinaio')`, ripristinare GIRI del guardiano.
-- Prossime fasi (da decidere con Giovanni): Bozze mail Ceramex e Archiviazione G&C (Opus, le più care); agente lavoro, privato, Da seguire, Ordini Marazzi (Ordini Marazzi non ha ancora il pulsante). Calendario: FATTO il 26.10.2026 (ok di Giovanni), ma il permesso calendar.readonly aspetta il clic di Giovanni: finché manca resta ogni ora e il portinaio lo sveglia solo per il database. Dettagli in `calendario.md` → "Portinaio per il calendario".
+- Prossime fasi (da decidere con Giovanni): Bozze mail Ceramex e Archiviazione G&C (Opus, le più care); agente lavoro, privato, Da seguire, Ordini Marazzi (Ordini Marazzi non ha ancora il pulsante). Calendario: FATTO il 26.10.2026 (ok di Giovanni): permesso calendar.readonly collegato, routine alle 6:05, 12:05, 18:05 + portinaio. Dettagli in `calendario.md` → "Portinaio per il calendario".
 
 ### Aggiornare i prompt delle routine (RemoteTrigger)
 

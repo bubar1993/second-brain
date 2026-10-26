@@ -5,7 +5,7 @@ import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, Icona, useDet
 // ---------- Spostare o correggere un appuntamento ----------
 // Resta lo STESSO appuntamento: appunti, note e collegamenti non si perdono.
 // Quelli di Google Calendar: il cambio va in eventi.cambio, l'app lo mostra subito
-// e l'agente calendario lo porta in Google entro un'ora. Gli altri (proposti, da creare) si cambiano e basta.
+// e l'agente calendario lo porta in Google (lo sveglia il portinaio: di giorno entro un'ora, di notte alle 6). Gli altri (proposti, da creare) si cambiano e basta.
 export const CAMPI_EVENTO = 'id,google_id,titolo,inizio,fine,tutto_il_giorno,luogo,descrizione,area,stato,motivo,errore,cambio,cambio_il,nota_id,automatico,aziende(id,nome),persone(id,nome,cognome,telefono)'
 
 // Link per entrare in una call (Teams, Zoom, Meet, Webex) scritto nel luogo o nella descrizione (14.10.2026).
@@ -21,8 +21,9 @@ async function cambiaEvento(e, nuovo) {
     chk(await sb.from('eventi').update({ cambio: nuovo, cambio_il: new Date().toISOString(), errore: null }).eq('id', o.id))
     return async () => chk(await sb.from('eventi').update({ cambio: o.cambio || null, cambio_il: o.cambio_il || null, errore: o.errore || null }).eq('id', o.id))
   }
-  const prima = { titolo: o.titolo, inizio: o.inizio, fine: o.fine, luogo: o.luogo, tutto_il_giorno: o.tutto_il_giorno }
-  chk(await sb.from('eventi').update(nuovo).eq('id', o.id))
+  // Correggendo un appuntamento non ancora creato si toglie anche l'errore: così il portinaio lo riprova subito.
+  const prima = { titolo: o.titolo, inizio: o.inizio, fine: o.fine, luogo: o.luogo, tutto_il_giorno: o.tutto_il_giorno, errore: o.errore || null }
+  chk(await sb.from('eventi').update({ ...nuovo, errore: null }).eq('id', o.id))
   return async () => chk(await sb.from('eventi').update(prima).eq('id', o.id))
 }
 

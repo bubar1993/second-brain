@@ -54,8 +54,9 @@ const AGENTI: Record<string, Agente> = {
   },
 }
 
-// Novità in Google Calendar dopo la fine dell'ultimo giro (senza margine: i colori e gli eventi messi dall'agente
-// durante il giro sono più vecchi e non lo risvegliano). Stessa finestra dell'agente: 2 giorni indietro, 45 avanti.
+// Novità in Google Calendar: i cambi degli ultimi 30 minuti prima della fine dell'ultimo giro (un cambio fatto mentre
+// l'agente girava non si perde) e dopo, tolti quelli che l'agente ha già nel database (calendario_novita: i suoi
+// colori ed eventi nuovi non lo risvegliano). Stessa finestra dell'agente: 2 giorni indietro, 45 avanti.
 async function novitaGoogle(dalMs: number, adesso: number): Promise<number> {
   const tok = await (await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
@@ -67,14 +68,19 @@ async function novitaGoogle(dalMs: number, adesso: number): Promise<number> {
   })).json()
   if (!tok.access_token) throw new Error(`Google: ${tok.error || 'nessun accesso'}`)
   const q = new URLSearchParams({
-    updatedMin: new Date(dalMs || adesso - 86400000).toISOString(),
+    updatedMin: new Date(dalMs ? dalMs - 30 * 60000 : adesso - 86400000).toISOString(),
     timeMin: new Date(adesso - 2 * 86400000).toISOString(), timeMax: new Date(adesso + 45 * 86400000).toISOString(),
-    showDeleted: 'true', singleEvents: 'true', maxResults: '5', fields: 'items(id)',
+    showDeleted: 'true', singleEvents: 'true', maxResults: '50', fields: 'items(id,updated),nextPageToken',
   })
   const r = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(CALENDARIO)}/events?${q}`,
     { headers: { Authorization: `Bearer ${tok.access_token}` } })
   if (!r.ok) throw new Error(`Google Calendar ${r.status}`)
-  return ((await r.json()).items || []).length
+  const pagina = await r.json()
+  // Più di 50 cambi (es. una serie che si ripete ogni giorno): è comunque una novità.
+  if (pagina.nextPageToken) return 51
+  const cambi = pagina.items || []
+  if (!cambi.length) return 0
+  return await rest('rpc/calendario_novita', { method: 'POST', body: JSON.stringify({ p_cambi: cambi }) })
 }
 const PAUSA = 20 * 60000
 const REGISTRO_ENTRO = 25 * 60000
@@ -116,7 +122,10 @@ async function controlla(codice: string, a: Agente, adesso: number, prova: boole
     if (!prova) await aggiorna(codice, { errore, errore_il: new Date(adesso).toISOString() })
     stato.errore = errore
   }
-  if (stato.errore) return fuori('in errore')
+  // Il calendario ha solo 3 giri fissi al giorno: dopo un'ora in errore riprova una volta (se il giro va bene, l'errore
+  // si chiude da solo; se no torna in errore dopo 25 minuti e riprova un'ora dopo).
+  const riprova = codice === 'calendario' && stato.errore && adesso - ms(stato.errore_il) > 60 * 60000
+  if (stato.errore && !riprova) return fuori('in errore')
 
   if (z.minuti < 6 * 60 || z.minuti >= 23 * 60) return fuori('notte')
   if (a.fissi.some(([h, m]) => Math.abs(z.minuti - (h * 60 + m)) <= 20)) return fuori('vicino a un giro fisso')
@@ -148,6 +157,8 @@ async function controlla(codice: string, a: Agente, adesso: number, prova: boole
 
   const campi: Record<string, unknown> = { ultima_sveglia: new Date(adesso).toISOString(), motivo, giorno: z.giorno, sveglie_oggi: oggi + 1 }
   if (tetto) campi.tetto_il = new Date(adesso).toISOString()
+  // Nuovo tentativo dopo un errore: l'ora dell'errore riparte, così il prossimo tentativo è tra un'ora, non subito.
+  if (riprova) campi.errore_il = new Date(adesso).toISOString()
   const token = Deno.env.get(a.token)
   try {
     if (!token) throw new Error(`manca il segreto ${a.token}`)

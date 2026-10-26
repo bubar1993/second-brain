@@ -50,10 +50,10 @@ Deno.serve(async (req: Request) => {
     daApp = true
   }
 
-  const { code, token_prova, ...resto } = await req.json().catch(() => ({}))
+  const { code, token_prova, token_sistema, ...resto } = await req.json().catch(() => ({}))
   let { waba_id, phone_number_id } = resto
   // Dall'app solo l'iscrizione vera (codice), niente prove e niente "solo".
-  if (daApp && (token_prova || !code)) return risposta({ errore: 'Dall\'app serve il codice dell\'iscrizione' }, 400)
+  if (daApp && (token_prova || token_sistema || !code)) return risposta({ errore: 'Dall\'app serve il codice dell\'iscrizione' }, 400)
   let solo: string | undefined = resto.solo
   const fatto: Record<string, unknown> = {}
   try {
@@ -67,6 +67,22 @@ Deno.serve(async (req: Request) => {
       ;[col] = await rest('wa_collegamento?id=eq.1&select=*') as Record<string, any>[]
       fatto.prova = 'numero di prova salvato'
       solo = 'iscrivi'
+    }
+
+    // 26.10.2026: l'iscrizione integrata converte il numero ma si ferma all'ultimo passo ("ID business non valido"),
+    // perché l'account finisce nel portfolio Ceramex, lo stesso dell'app. Allora si usa il token dell'utente di sistema
+    // AvvisiBrain (segreto WA_AVVISI_TOKEN, stesso portfolio), dopo che Giovanni gli ha assegnato l'account. Solo dal PC.
+    if (token_sistema) {
+      token = Deno.env.get('WA_AVVISI_TOKEN') || ''
+      if (!token || !waba_id) return risposta({ errore: 'Servono WA_AVVISI_TOKEN e waba_id' }, 400)
+      if (!phone_number_id) {
+        const nn = await graph(`${waba_id}/phone_numbers?fields=id,display_phone_number`, token)
+        phone_number_id = nn?.data?.[0]?.id
+      }
+      if (!phone_number_id) return risposta({ errore: 'Numero non trovato nell\'account' }, 502)
+      await salva({ token, waba_id, phone_number_id, numero: null, collegato_il: new Date().toISOString(), errore: null })
+      fatto.token = 'utente di sistema'
+      ;[col] = await rest('wa_collegamento?id=eq.1&select=*') as Record<string, any>[]
     }
 
     if (code) {

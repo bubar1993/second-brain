@@ -55,7 +55,7 @@ ORDINE DEL GIRO
    Poi update domande set chiusa_il = now() where id = '...'.
 
 2. NOTE NUOVE → PROMESSE E CAMPIONI. Note da guardare (dalla più vecchia, max 80 per giro):
-   select n.id, n.area, n.azienda_id, a.nome ditta, n.mandante, n.sezione, n.testo, n.data, n.contatto, n.creata_il from note n left join aziende a on a.id = n.azienda_id where n.area in ('C','G') and n.eliminata_il is null and n.scartata_il is null and coalesce(n.data, n.creata_il::date) > current_date - 30 and not exists (select 1 from note_seguite s where s.nota_id = n.id) order by coalesce(n.data, n.creata_il::date), n.creata_il limit 80;
+   select n.id, n.area, n.azienda_id, a.nome ditta, n.mandante, n.sezione, n.testo, n.data, n.contatto, n.creata_il from note n left join aziende a on a.id = n.azienda_id where n.area in ('C','G') and n.eliminata_il is null and n.scartata_il is null and coalesce(n.data, n.creata_il::date) > current_date - 30 and not (n.fonte = 'whatsapp' and n.data < '2026-10-26') and not exists (select 1 from note_seguite s where s.nota_id = n.id) order by coalesce(n.data, n.creata_il::date), n.creata_il limit 80;
    Prima leggi le promesse e i campioni ancora aperti delle stesse ditte (per non fare doppioni e per chiuderli):
    select id, azienda_id, chi, testo, entro from promesse where fatta_il is null and scartata_il is null and azienda_id in (...);
    select id, azienda_id, cosa, stato, richiesto_il from campioni where stato in ('da_spedire','in_viaggio') and azienda_id in (...);

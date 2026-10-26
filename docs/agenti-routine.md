@@ -24,7 +24,7 @@ Routine claude.ai, utenti del database per agente, "Fallo adesso", Smistatore, r
   - Porta unica `agente-sql`: il token sceglie l'utente (AGENTE_TOKEN = G&C, AGENTE_TOKEN_LAVORO, AGENTE_TOKEN_PRIVATO, AGENTE_TOKEN_CALENDARIO; variabili di Windows con lo stesso nome). Password/token: `node scripts/collega-agente.mjs lavoro|privato|calendario|gc`. Se si cambiano le regole o il token, aggiornare il prompt della routine.
   - Dubbi → tabella `domande` → schermata "Domande per te" (Oggi la segnala). Lavoro fatto → `note.lavorata_il` e `lavori_registro`.
   - Attenzione: le routine create via API prendono TUTTI i connettori dell'account: ridurli sempre a Claude Docs (o al solo connettore che serve, passando `mcp_connections` già nella creazione).
-  - Gli agenti scrivono anche il **punto del mattino e della sera** (`riassunti_giorno`, una riga per parte lavoro/privato) e **propongono appuntamenti** (`eventi` stato 'proposto') trovati nelle note.
+  - Gli agenti scrivono anche il **punto del mattino e della sera** (`riassunti_giorno`, una riga per parte lavoro/privato), la domenica dopo le 19 **"La tua settimana"** (momento 'settimana', dal 26.10.2026) e **propongono appuntamenti** (`eventi` stato 'proposto') trovati nelle note (dal 26.10.2026 in prova alcuni vanno in calendario da soli: `calendario.md`).
 
 ### Schermata "Agenti" e "Fallo adesso" (12.10.2026 sera, ok di Giovanni)
 - `#/agenti` (Dentro e menu del PC, `src/Agenti.jsx`): per ogni agente l'ultimo giro (`lavori_registro`, campo `dettagli.riepilogo`) e le risposte nuove. `#/agente/<codice>` (lavoro, ceramex, gc, calendario, privato): scrivi all'agente, le tue richieste con le risposte, gli ultimi giri. Oggi segnala le risposte da leggere.
@@ -61,7 +61,7 @@ Routine claude.ai, utenti del database per agente, "Fallo adesso", Smistatore, r
   - Tabella `portinaio` (RLS, nessun permesso ad app/agenti). Prova: `{ "prova": true }` col copia_token dice chi sveglierebbe senza svegliare né scrivere.
   - Guardiano: G&C `max` 720, smistatore tra i GIORNALIERI (entro le 9), nuovi guasti `giro:portinaio` (fermo da 30 minuti), `portinaio:<agente>`, `portinaio:sveglia:<agente>`, `portinaio:tetto:<agente>`, `giro:posta-non-vista` (mail info@ non vista da più di 60 minuti).
   - Come tornare indietro: riaccendere la routine della mezz'ora, rimettere gli orari vecchi (smistatore `10 6-22`, G&C `0 6-23`), `cron.unschedule('portinaio')`, ripristinare GIRI del guardiano.
-- Prossime fasi (da decidere con Giovanni): Bozze mail Ceramex e Archiviazione G&C (Opus, le più care); agente lavoro, privato, Da seguire, Ordini Marazzi (Ordini Marazzi non ha ancora il pulsante). Calendario: serve un controllo di Google Calendar senza AI (permesso calendar.readonly da dare a Google), finché no resta ogni ora.
+- Prossime fasi (da decidere con Giovanni): Bozze mail Ceramex e Archiviazione G&C (Opus, le più care); agente lavoro, privato, Da seguire, Ordini Marazzi (Ordini Marazzi non ha ancora il pulsante). Calendario: FATTO il 26.10.2026 (ok di Giovanni), ma il permesso calendar.readonly aspetta il clic di Giovanni: finché manca resta ogni ora e il portinaio lo sveglia solo per il database. Dettagli in `calendario.md` → "Portinaio per il calendario".
 
 ### Aggiornare i prompt delle routine (RemoteTrigger)
 

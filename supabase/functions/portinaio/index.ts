@@ -8,13 +8,18 @@
 // - dopo una sveglia l'agente deve scrivere lavori_registro entro 25 minuti: se no il portinaio non lo sveglia
 //   più (errore nella tabella portinaio, lo vede il guardiano) finché non compare un giro nel registro.
 // Il messaggio di avvio è sempre lo stesso testo fisso: niente dati del database (mail di estranei) dentro.
-// Conosce solo questi due agenti. Con { "prova": true } dice chi sveglierebbe, senza svegliare né scrivere.
+// Dal 26.10.2026 anche l'agente calendario: eventi approvati da creare, spostamenti chiesti dall'app e novità in
+// Google Calendar (permesso calendar.readonly, segreto CALENDARIO_REFRESH_TOKEN). Finché il permesso non c'è, il
+// calendario ha ancora il giro ogni ora e il portinaio guarda solo il database.
+// Con { "prova": true } dice chi sveglierebbe, senza svegliare né scrivere.
 // Risponde sempre 200 (anche se una sveglia non parte: l'errore va nella tabella portinaio, ultimo_errore, e si
 // riprova al controllo dopo; "errore" invece blocca l'agente ed è solo per il registro mancante).
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const COPIA_TOKEN = Deno.env.get('COPIA_TOKEN')
+const CALENDARIO_REFRESH = Deno.env.get('CALENDARIO_REFRESH_TOKEN')
+const CALENDARIO = 'giovannifabris@ceramex.ch'
 
 const AVVIO = 'PORTINAIO-GIRO-COMPLETO: giro avviato dal portinaio perché c\'è lavoro nuovo. Fai il giro completo, come un giro a orario: RICHIESTE DI GIOVANNI, poi tutto il giro normale, e alla FINE la riga in lavori_registro.'
 
@@ -38,6 +43,38 @@ const AGENTI: Record<string, Agente> = {
     nomi: { richieste: 'richieste', domande: 'domande nuove', risposte: 'risposte di Giovanni', non_fatte: 'richieste non fatte',
       seguiti: 'seguiti da mandare', seguiti_in_attesa: 'seguiti in attesa' },
   },
+  calendario: {
+    // Senza il permesso Google il giro resta ogni ora (:05): il portinaio sveglia solo per il database.
+    routine: 'trig_01ExFtoP2zGTkQDT4mnTdzGD', token: 'ROUTINE_TOKEN_CALENDARIO', tetto: 20,
+    fissi: CALENDARIO_REFRESH ? [[6, 5], [12, 5], [18, 5]] : Array.from({ length: 18 }, (_, i) => [6 + i, 5] as [number, number]),
+    motivi: ['da_creare', 'cambi', 'richieste', 'google'],
+    ritardati: [],
+    nomi: { da_creare: 'appuntamenti da creare', cambi: 'appuntamenti da spostare', richieste: 'richieste',
+      google: 'novità in Google Calendar' },
+  },
+}
+
+// Novità in Google Calendar dopo la fine dell'ultimo giro (senza margine: i colori e gli eventi messi dall'agente
+// durante il giro sono più vecchi e non lo risvegliano). Stessa finestra dell'agente: 2 giorni indietro, 45 avanti.
+async function novitaGoogle(dalMs: number, adesso: number): Promise<number> {
+  const tok = await (await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: Deno.env.get('GMAIL_CLIENT_ID')!, client_secret: Deno.env.get('GMAIL_CLIENT_SECRET')!,
+      refresh_token: CALENDARIO_REFRESH!, grant_type: 'refresh_token',
+    }),
+  })).json()
+  if (!tok.access_token) throw new Error(`Google: ${tok.error || 'nessun accesso'}`)
+  const q = new URLSearchParams({
+    updatedMin: new Date(dalMs || adesso - 86400000).toISOString(),
+    timeMin: new Date(adesso - 2 * 86400000).toISOString(), timeMax: new Date(adesso + 45 * 86400000).toISOString(),
+    showDeleted: 'true', singleEvents: 'true', maxResults: '5', fields: 'items(id)',
+  })
+  const r = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(CALENDARIO)}/events?${q}`,
+    { headers: { Authorization: `Bearer ${tok.access_token}` } })
+  if (!r.ok) throw new Error(`Google Calendar ${r.status}`)
+  return ((await r.json()).items || []).length
 }
 const PAUSA = 20 * 60000
 const REGISTRO_ENTRO = 25 * 60000
@@ -84,6 +121,20 @@ async function controlla(codice: string, a: Agente, adesso: number, prova: boole
   if (z.minuti < 6 * 60 || z.minuti >= 23 * 60) return fuori('notte')
   if (a.fissi.some(([h, m]) => Math.abs(z.minuti - (h * 60 + m)) <= 20)) return fuori('vicino a un giro fisso')
   if (adesso - partenza < PAUSA) return fuori('partito da poco')
+  // Il calendario gira ancora anche a orario: niente sveglia subito dopo un suo giro.
+  if (codice === 'calendario' && adesso - registro < PAUSA) return fuori('giro appena finito')
+
+  // Google solo per il calendario e solo col permesso; se Google non risponde valgono le cose del database.
+  if (codice === 'calendario' && CALENDARIO_REFRESH) {
+    try {
+      lavoro.google = await novitaGoogle(registro, adesso)
+    } catch (e) {
+      lavoro.google = 0
+      lavoro.google_errore = String((e as Error)?.message || e).slice(0, 200)
+      if (!prova) await aggiorna(codice, { ultimo_errore: `Google Calendar non risponde: ${lavoro.google_errore}`,
+        ultimo_errore_il: new Date(adesso).toISOString() })
+    }
+  }
 
   const lontano = adesso - partenza > 60 * 60000
   const trovati = [...a.motivi, ...(lontano ? a.ritardati : [])].filter((m) => Number(lavoro[m]) > 0)

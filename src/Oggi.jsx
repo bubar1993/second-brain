@@ -86,13 +86,23 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
       .order('inizio', { ascending: false }).limit(40)
     if (area !== 'T') qv = qv.or(`area.eq.${area},area.is.null`)
     const oggiIso = `${da.getFullYear()}-${String(da.getMonth() + 1).padStart(2, '0')}-${String(da.getDate()).padStart(2, '0')}`
-    let qr = sb.from('riassunti_giorno').select('parte,momento,testo,creata_il').eq('giorno', oggiIso)
+    let qr = sb.from('riassunti_giorno').select('parte,momento,testo,creata_il').in('momento', ['mattino', 'sera'])
+      .eq('giorno', oggiIso)
     if (area === 'P') qr = qr.eq('parte', 'privato')
     else if (area !== 'T') qr = qr.eq('parte', 'lavoro')
+    // "La tua settimana" (26.10.2026): la scrivono gli agenti la domenica dopo le 19; si vede domenica sera e lunedì.
+    const domenica = da.getDay() === 0 ? da : da.getDay() === 1 ? new Date(da.getTime() - 86400000) : null
+    let qs = Promise.resolve({ data: [] })
+    if (domenica) {
+      const dom = `${domenica.getFullYear()}-${String(domenica.getMonth() + 1).padStart(2, '0')}-${String(domenica.getDate()).padStart(2, '0')}`
+      qs = sb.from('riassunti_giorno').select('parte,momento,testo,creata_il').eq('momento', 'settimana').eq('giorno', dom)
+      if (area === 'P') qs = qs.eq('parte', 'privato')
+      else if (area !== 'T') qs = qs.eq('parte', 'lavoro')
+    }
     // Compleanni anche dai contatti del telefono senza scheda (Rubrica, quasi tutti privati).
     const qrub = sb.from('rubrica').select('id,nome,cognome,compleanno,area')
       .not('compleanno', 'is', null).is('eliminata_il', null).is('persona_id', null)
-    const [promemoria, note, recenti, nati0, ev0, ria, vecchi, rub, prop] = await Promise.all([qp, qn, qa, qc, qe, qr, qv, qrub, qprop])
+    const [promemoria, note, recenti, nati0, ev0, ria, vecchi, rub, prop, sett] = await Promise.all([qp, qn, qa, qc, qe, qr, qv, qrub, qprop, qs])
     const ev = { data: [...chk(ev0), ...chk(prop)] }
     const nati = { data: [...chk(nati0), ...chk(rub).map((c) => ({ ...c, persone_aree: [{ area: c.area || 'P' }], link: `#/rubrica/${c.id}` }))] }
     const aziende = []
@@ -107,7 +117,8 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
     // Il riassunto più recente di ogni parte (la sera sostituisce il mattino).
     const riassunti = ['lavoro', 'privato'].map((parte) => chk(ria).filter((r) => r.parte === parte)
       .sort((a, b) => (a.momento === 'sera' ? -1 : 1) - (b.momento === 'sera' ? -1 : 1))[0]).filter(Boolean)
-    return { promemoria: chk(promemoria), note: chk(note), aziende, compleanni, eventi: chk(ev), passati: chk(vecchi), riassunti }
+    const settimane = ['lavoro', 'privato'].map((parte) => chk(sett).find((r) => r.parte === parte)).filter(Boolean)
+    return { promemoria: chk(promemoria), note: chk(note), aziende, compleanni, eventi: chk(ev), passati: chk(vecchi), riassunti, settimane }
   }
 
   // Quanto è grande la memoria: si legge una volta.
@@ -282,6 +293,13 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
 
         <Adesso e={prossimo} />
         <ProssimaSveglia />
+
+        {dati?.settimane?.map((r) => (
+          <section key={'settimana-' + r.parte} className="riassunto-giorno">
+            <h3>La tua settimana{dati.settimane.length > 1 ? ` · ${r.parte === 'lavoro' ? 'lavoro' : 'privato'}` : ''}</h3>
+            <p>{r.testo}</p>
+          </section>
+        ))}
 
         {dati?.riassunti.map((r) => (
           <section key={r.parte} className="riassunto-giorno">
@@ -532,7 +550,8 @@ const statoEvento = (e, primo) => {
   return (
     <>
       {e.originale.cambio && `${p}spostato, in arrivo nel calendario`}
-      {e.stato === 'da_creare' && !e.errore && `${p}in arrivo nel calendario`}
+      {e.stato === 'da_creare' && !e.errore && `${p}${e.automatico ? 'messo da solo dalla tua nota, ' : ''}in arrivo nel calendario`}
+      {e.automatico && e.stato !== 'da_creare' && !e.errore && `${p}messo da solo dalla tua nota`}
       {e.errore && <span className="rosso">{p}{e.stato === 'da_creare' ? 'non creato: ' : ''}{e.errore}</span>}
     </>
   )
@@ -555,7 +574,7 @@ function RiquadroEvento({ e, chiuso, apri, tocca, fatto, ricarica, chiudi, daChi
             </span>
             <span className="riga-corpo">
               <span className="riga-testo">{e.titolo}</span>
-              {(dove || e.originale.cambio || e.stato === 'da_creare' || e.errore) && (
+              {(dove || e.originale.cambio || e.stato === 'da_creare' || e.automatico || e.errore) && (
                 <span className="riga-meta">{dove}{statoEvento(e, !dove)}</span>
               )}
             </span>

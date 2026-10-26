@@ -39,7 +39,8 @@ const GIRI: Giro[] = [
   { lavoro: 'agente-ceramex', nome: 'L\'agente Ceramex (bozze mail)', da: 6, a: 24, max: 180 },
   // Dal 23.10.2026 G&C e smistatore li sveglia il portinaio: il G&C ha solo i giri fissi delle 7 e delle 18.
   { lavoro: 'agente-gc', nome: 'L\'agente G&C', da: 6, a: 24, max: 720 },
-  { lavoro: 'agente-calendario', nome: 'L\'agente calendario', da: 6, a: 24, max: 150 },
+  // Calendario (26.10.2026): col permesso Google ha solo i giri fissi delle 6:05, 12:05 e 18:05 + portinaio.
+  { lavoro: 'agente-calendario', nome: 'L\'agente calendario', da: 6, a: 24, max: Deno.env.get('CALENDARIO_REFRESH_TOKEN') ? 400 : 150 },
   { lavoro: 'agente-lavoro', nome: 'L\'agente note lavoro', da: 6, a: 23, max: 150 },
   { lavoro: 'agente-privato', nome: 'L\'agente privato', da: 6, a: 23, max: 150 },
   { lavoro: 'agente-gc-archiviazione', nome: 'L\'archiviazione email G&C', da: 6, a: 23, max: 210 },
@@ -234,7 +235,7 @@ function controllaPortinaio(d: any, adesso: number): Problema[] {
   const righe: any[] = d.portinaio || []
   const controllo = Math.max(0, ...righe.map((r) => (r.controllo ? Date.parse(r.controllo) : 0)))
   if (adesso - controllo > 30 * 60000) {
-    out.push({ chiave: 'giro:portinaio', titolo: 'Il portinaio degli agenti è fermo', dettaglio: `Ultimo controllo: ${quando(controllo ? new Date(controllo).toISOString() : undefined)}. Smistatore e agente G&C girano solo agli orari fissi.` })
+    out.push({ chiave: 'giro:portinaio', titolo: 'Il portinaio degli agenti è fermo', dettaglio: `Ultimo controllo: ${quando(controllo ? new Date(controllo).toISOString() : undefined)}. Smistatore, agente G&C e agente calendario girano solo agli orari fissi.` })
   }
   const oggi = oraZurigo(adesso).giorno
   for (const r of righe) {

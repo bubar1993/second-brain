@@ -3,11 +3,11 @@
 Agente calendario, Google Calendar, spostare appuntamenti, inviti a call, appunti di visita. Testo spostato così com'era da CLAUDE.md il 14.10.2026 (versione intera nel tag git `prima-divisione-claude-md`).
 
 ### Calendario e promemoria (fase 3)
-- All'inizio gli eventi si creano solo con la conferma di Giovanni. Più avanti anche in automatico.
+- All'inizio gli eventi si creano solo con la conferma di Giovanni. Dal 26.10.2026 in prova anche in automatico (vedi "Eventi messi da soli").
 - Le date trovate in mail e WhatsApp vengono proposte con un tocco.
 - Prima di un appuntamento con un cliente: il suo riassunto. Dopo: "cosa vuoi annotare?".
 - I promemoria stanno nell'app. Le notifiche sul telefono solo per le cose urgenti che sceglie Giovanni (fatte il 13.10.2026, vedi "Vacanze scolastiche, liste, garanzie, notifiche").
-- Riassunti: mattino, sera, domenica sera.
+- Riassunti: mattino, sera, domenica sera ("La tua settimana", fatto il 26.10.2026: momento 'settimana' in `riassunti_giorno`, lo scrivono gli agenti lavoro e privato la domenica dopo le 19; Oggi lo mostra domenica sera e tutto il lunedì, migrazione `riassunto_settimana`).
 
 ### Calendario (fase 3, 12.10.2026 notte)
 - Routine "Agente calendario" `trig_01ExFtoP2zGTkQDT4mnTdzGD` (:05, 6–22), connettore Google Calendar dell'account claude.ai di Giovanni (unico connettore), utente DB `agente_calendario` (solo `eventi` + nomi di ditte/persone). Regole: `agenti/agente-calendario.md`.
@@ -33,5 +33,17 @@ Agente calendario, Google Calendar, spostare appuntamenti, inviti a call, appunt
 
 ### Promemoria → calendario (21.10.2026, Giovanni)
 - Nella pagina di una nota (`src/Nota.jsx`), sotto ogni promemoria con data e non fatto: **"Metti in calendario"** → `eventi` 'da_creare' di mezz'ora all'ora del promemoria, stessa area, `proposto_da = 'giovanni'`, `nota_id` e `promemoria_id` (colonna nuova, migrazione `promemoria_in_calendario`); poi si legge "In calendario". L'agente calendario lo crea in Google al giro dopo (nessun limite di data nelle sue regole). Primi due: rinnovi del passaporto (7.12.2027 bimbi, 7.12.2032 Giovanni), messi da Claude il 21.10.
+
+### Eventi messi da soli (26.10.2026, prova fino al 9.11.2026, ok di Giovanni: "solo dalle mie note")
+- Migrazione `eventi_automatici`, piano controllato dall'antagonista. Gli agenti inseriscono sempre 'proposto'; il trigger BEFORE INSERT `eventi_automatico_prima` (gira col ruolo di chi scrive) decide `eventi.automatico` con `evento_automatico_ok()`, poi il trigger AFTER INSERT `eventi_automatico_dopo` (security definer) mette 'da_creare'. `automatico` non si cambia dopo (`eventi_automatico_fisso`).
+- Solo se: ruolo `agente_lavoro` (proposto_da 'lavoro', area C/G) o `agente_privato` ('privato', P); nota di Giovanni `fonte` scritta/voce, creata da meno di 3 giorni, `lavorata_il` vuoto (l'agente la sta lavorando adesso); inizio nei prossimi 60 giorni; niente invitati; niente link in titolo/luogo/descrizione; nessun altro appuntamento non scartato nella stessa ora ±1 (qualsiasi area). Tutto il resto (mail, WhatsApp, inviti a call, Capo, agenti Ceramex/G&C) resta Sì/No.
+- La prova si spegne da sola il 10.11.2026 alle 0:00 (data dentro `evento_automatico_ok`). Per tenerla: cambiare la data; per spegnerla prima: metterla nel passato.
+- Niente tasto "Togli" (sarebbe stata una strada nuova per cancellare in Google): se un evento non va, Giovanni lo cancella da Google Calendar e la copia lo segna 'cancellato'. In Oggi: "messo da solo dalla tua nota".
+- Provata il 26.10 in una transazione annullata: nota dettata → 'da_creare'; con link, sovrapposto, da mail (anche con automatico forzato a true) e dal Capo → resta 'proposto'.
+
+### Portinaio per il calendario (26.10.2026, ok di Giovanni)
+- `portinaio_lavoro('calendario')` (migrazione `portinaio_calendario`): eventi 'da_creare' senza google_id cambiati dopo l'ultima partenza, `cambio` nuovi, richieste nuove. La funzione `portinaio` guarda anche le novità in Google Calendar (Events.list con `updatedMin` = fine dell'ultimo giro, finestra −2/+45 giorni, `showDeleted`), ma solo col segreto `CALENDARIO_REFRESH_TOKEN` (permesso `calendar.readonly`, `node scripts/collega-calendario.mjs <client_secret.json>`, clic di Giovanni; stesso client "Second Brain Gmail"). Se Google non risponde valgono le cose del database.
+- Senza il segreto la routine resta ogni ora (`5 6-23`) e il portinaio non sveglia nei 20 minuti intorno ai giri. Col segreto: cambiare la routine a `5 6,12,18` (giri fissi della funzione) e aggiornare l'intestazione del prompt; il guardiano passa da solo a `max` 400.
+- Nel prompt della routine calendario c'è la regola PORTINAIO-GIRO-COMPLETO prima di quella del `<routine-fire-payload>`.
 
 Vedi anche: `privato-gemelli.md` (vacanze "Scuola chiusa", pianoforte), `schermate.md` (Oggi a lista unica, spunta sugli appuntamenti).

@@ -23,10 +23,11 @@ Stile, Oggi, Aggiungi, Chiedi, Dentro, schede persona, Quaderno, Bozze, Riordino
 - Le persone nascono dai contatti delle schede aziende: `sincronizza_persone()` (pg_cron ogni 15 min) le crea/aggiorna (solo campi vuoti), le lega alle ditte (`persone_aziende`) e collega le note con "contatto" se il nome porta a UNA persona. Collega anche i contatti WhatsApp per numero.
 
 ### Oggi: spunta sugli appuntamenti (12.10.2026)
+- Appuntamenti messi in calendario da soli (prova dal 26.10.2026, `calendario.md`): sotto il titolo "messo da solo dalla tua nota" (`eventi.automatico`).
 - Ogni appuntamento in Oggi ha la spunta come i promemoria: `eventi.fatto_il` (solo nel second brain, Google non cambia; l'agente calendario non la tocca). Gli agenti lavoro e privato riscrivono il punto del mattino quando qualcosa è stato spuntato o è arrivato di nuovo (solo cose ancora da fare).
 
 ### Oggi a lista unica (13.10.2026 notte, scelte di Giovanni dalle proposte grafiche)
-- Ordine: titolo → punto del mattino/sera → **lista unica** → "Da mettere in calendario?" → "Da chiudere" → avvisi (bozze, domande, Inbox…) → compleanni → ultime note.
+- Ordine: titolo → "La tua settimana" (domenica sera e lunedì, dal 26.10.2026) → punto del mattino/sera → **lista unica** → "Da mettere in calendario?" → "Da chiudere" → avvisi (bozze, domande, Inbox…) → compleanni → ultime note.
 - Lista unica per giorno: In ritardo (rosso), Oggi, Domani, poi i giorni dopo (appuntamenti 7 giorni, promemoria 14), Senza data, "Promemoria più avanti". Dentro ogni giorno appuntamenti e promemoria insieme per orario ("tutto il giorno" in cima).
 - **Appuntamento = riquadro** col colore dell'area e l'ora grande; tasto **Appunti** pieno, bene in vista (lavoro, oggi e giorni scorsi). Tocco = pannello con scheda, persona, Appunti, "Segna fatto", sposta/cambia. **Promemoria = riga leggera** col cerchio da spuntare e l'ora piccola.
 - Componenti in `src/Oggi.jsx`: `RiquadroEvento`, `RigaPromemoria`, `Proposte`, `DaChiudere`, `useAzioniEventi`.

@@ -156,6 +156,9 @@ export function CollegaWhatsApp() {
   )
 }
 
+// Le aree di una chat (26.10.2026): quella scelta nella chat più quelle della scheda della persona collegata.
+const areeChat = (c) => [...new Set([c.area, ...(c.persone?.persone_aree || []).map((x) => x.area)].filter(Boolean))]
+
 // Elenco chat: chi ha scritto per ultimo in alto. Con un'area scelta, solo quella (e i contatti da smistare).
 export function ChatWhatsApp() {
   const { area } = useApp()
@@ -163,14 +166,15 @@ export function ChatWhatsApp() {
   const [cerca, setCerca] = useState('')
 
   const { dati, errore, carica } = useCarica(async () => {
-    let q = sb.from('wa_contatti').select('wa_id,area,nome_rubrica,nome_profilo,ultimo_il,ultimo_in_il,persone(id,nome,cognome)')
-      .not('ultimo_il', 'is', null).order('ultimo_il', { ascending: false }).limit(300)
-    if (area !== 'T') q = q.or(`area.eq.${area},area.is.null`)
+    // L'area si filtra qui sotto: una chat può stare in più aree (anche dalla scheda), il database non lo sa dire.
+    const q = sb.from('wa_contatti').select('wa_id,area,nome_rubrica,nome_profilo,ultimo_il,ultimo_in_il,persone(id,nome,cognome,persone_aree(area))')
+      .not('ultimo_il', 'is', null).order('ultimo_il', { ascending: false }).limit(area === 'T' ? 300 : 1000)
     return chk(await q)
   }, [area])
 
   const testo = cerca.trim().toLowerCase()
-  const visibili = (dati || []).filter((c) => !testo || `${nomeContatto(c)} ${c.wa_id}`.toLowerCase().includes(testo))
+  const visibili = (dati || []).filter((c) => (area === 'T' || !areeChat(c).length || areeChat(c).includes(area))
+    && (!testo || `${nomeContatto(c)} ${c.wa_id}`.toLowerCase().includes(testo))).slice(0, 300)
 
   return (
     <div className="schermata">
@@ -189,13 +193,13 @@ export function ChatWhatsApp() {
         {dati && (
           <div className="elenco">
             {visibili.map((c) => {
-              const a = areaDa(c.area)
+              const aree = areeChat(c).map(areaDa).filter(Boolean)
               return (
                 <a key={c.wa_id} className="riga" href={`#/whatsapp/${c.wa_id}`}>
-                  <span className="pallino" style={{ background: a ? a.colore : 'var(--grigio)' }} />
+                  <span className="pallino" style={{ background: aree[0] ? aree[0].colore : 'var(--grigio)' }} />
                   <span className="riga-corpo">
                     <span className="riga-testo">{nomeContatto(c)}</span>
-                    <span className="riga-meta">{a ? a.nome : 'Da smistare'} · {quando(c.ultimo_il, true)}</span>
+                    <span className="riga-meta">{aree.length ? aree.map((a) => a.nome).join(' + ') : 'Da smistare'} · {quando(c.ultimo_il, true)}</span>
                   </span>
                   <Icona nome="freccia" size={18} />
                 </a>
@@ -277,12 +281,18 @@ export function ChatContatto({ waId }) {
           </button>
         ))}
       </div>
+      {areeChat(c).filter((x) => x !== c.area).length > 0 && (
+        <p className="nota-piccola">
+          Anche in {areeChat(c).filter((x) => x !== c.area).map((x) => areaDa(x)?.nome || x).join(' e ')}: lo dice la scheda di {nomePersona(c.persone)}.
+          {areeChat(c).includes('P') && areeChat(c).length > 1 ? ' Gli agenti la trattano come privata.' : ''}
+        </p>
+      )}
       <div className="campo">
         <span>Persona</span>
         <SceltaPersone valore={c.persone ? [c.persone] : []}
           onChange={(l) => cambia({ persona_id: l.length ? l[l.length - 1].id : null }, l.length ? 'Collegata' : 'Scollegata')} />
       </div>
-      {c.area === 'P' && (
+      {areeChat(c).includes('P') && (
         <label className="interruttore-riga">
           <input type="checkbox" checked={!!c.approfondita} onChange={(e) => cambia({ approfondita: e.target.checked })} />
           Tieni più dettagli su questa persona

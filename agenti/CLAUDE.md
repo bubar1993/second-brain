@@ -15,6 +15,7 @@ Valgono quando cambi le regole degli agenti. I dettagli stanno in `docs/agenti-r
 - `agente-sql` rifiuta `net.http_*`, blocchi DO, `plpgsql` e `create function` (18.10.2026): niente di questo nelle regole degli agenti del second brain.
 - Niente mail o notifiche di prova. Una prova che fa partire un agente può mandare una notifica al telefono di Giovanni: farla di giorno e dirglielo prima.
 - Routine create via API: passare sempre `mcp_connections`, se no prendono TUTTI i connettori dell'account.
+- Gestionali dalle routine: si usa il connettore `Supabase_agenti` (id `5325c266-2575-4edd-ba41-8701edb619fa`), non il vecchio "Supabase", che per le modifiche chiede una conferma a cui nessuno risponde (26.10.2026, `docs/agenti-routine.md`).
 - Portinaio (23.10.2026): smistatore e agente G&C li sveglia la funzione `portinaio` solo quando c'è lavoro nuovo (dettagli in `docs/agenti-routine.md`). Nei loro prompt la regola `PORTINAIO-GIRO-COMPLETO` (giro completo e registro) deve restare PRIMA di quella del `<routine-fire-payload>`: senza la riga nel registro il portinaio smette di svegliarli. Se cambi cosa fa un agente, guarda se `portinaio_lavoro` deve guardare anche quella cosa.
 - Guardiano (21.10.2026): se aggiungi un agente, ne cambi gli orari o il nome nel registro (`lavori_registro.lavoro`), aggiorna `GIRI`/`GIORNALIERI`/`SETTIMANALI` in `supabase/functions/guardiano/index.ts`, se no dà falsi allarmi o non vede che è fermo.
 

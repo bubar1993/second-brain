@@ -9,6 +9,13 @@ Routine claude.ai, utenti del database per agente, "Fallo adesso", Smistatore, r
 - Controllo settimanale delle schede doppie.
 - La divisione finale degli agenti si decide alla fine.
 
+### Connettore "Supabase agenti" (26.10.2026, ok di Giovanni)
+- Problema: da circa il 24.10 il connettore Supabase chiede una conferma (elicitation) per l'SQL che crede distruttivo. Sbaglia spesso: un `update ... where id = ...` con testo pieno di apostrofi passava per "UPDATE senza WHERE". In una routine nessuno risponde: dopo 60 s `execute_sql` va in errore e il giro si ferma. Le Bozze Ceramex si sono fermate il 26.10 alle 9:09 e alle 9:30 (guasto `giro:agente-ceramex`).
+- Soluzione: connettore personalizzato **"Supabase agenti"** (id `5325c266-2575-4edd-ba41-8701edb619fa`), URL `https://mcp.supabase.com/mcp?skip_elicitations=execute_sql` (opzione ufficiale di Supabase), autorizzato da Giovanni sull'organizzazione "G&C Home Concepts & Ceramex". Nelle routine si chiama `Supabase_agenti` (strumenti `mcp__Supabase_agenti__*`): i prompt lo trovano con ToolSearch "supabase".
+- Ce l'hanno al posto del vecchio Supabase: Bozze mail Ceramex (ore piene, mezz'ora, weekend), Archiviazione email G&C, Copia AbaNinja serale, Completa fornitori scontrini, Agente capo. Il vecchio "Supabase" resta per le chat e per Claude Code: non va toccato.
+- L'URL di un connettore non si cambia dentro la routine: il campo `url` di `mcp_connections` viene ignorato (provato il 26.10). Una routine nuova che scrive nei gestionali deve avere `Supabase_agenti` in `mcp_connections`.
+- Primo giro con il connettore nuovo: Bozze ore piene, 26.10 alle 10:10. Gli `update mail_bozze` rimasti indietro sono passati senza conferma.
+
 ### Schede persona e agenti delle note (12.10.2026 notte, ok di Giovanni)
 
 - **Agenti delle note** (routine claude.ai, gratis col piano Max, ambiente "Second Brain", solo connettore Claude Docs):

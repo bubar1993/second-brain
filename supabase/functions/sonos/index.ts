@@ -15,6 +15,8 @@
 //      { azione: 'sveglia_prova', id, cassa?, musica? } → la stessa sveglia subito, senza segnarla fatta;
 //      { azione: 'sveglie_elenco' (completo?) | 'sveglia_cambia' (ora?, attiva?, volume_voce?, volume_musica?) | 'senza_alessia' | 'sveglia_nuova' | 'sveglia_togli' }
 //        → pagina Sveglie dell'app (la nuova sveglia sceglie una delle FRASI standard);
+//      { azione: 'messaggio_nuovo', data, ora, casse[], testo, volume? } | { azione: 'messaggio_togli', id }
+//        → messaggi a un'ora precisa (sonos_messaggi), detti dal giro 'sveglie';
 //      { azione: 'esegui_conferma', id } → solo Giovanni: fa una conferma 'sonos' del Capo dopo i due tocchi.
 // Chi può: Giovanni dall'app (non i connettori) oppure il giro programmato (x-copia-token).
 
@@ -508,6 +510,74 @@ async function senzaAlessia(attiva: boolean) {
   } else await rest(`sonos_giorni?data=in.(${g.join(',')})`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } })
 }
 
+// --- Messaggi a un'ora precisa (27.10.2026, Giovanni) ---
+// Un giorno, un'ora, una o più stanze e il testo scritto da lui (letto così com'è, senza Claude). La voce si fa una
+// volta sola quando salva (si ritrova dall'impronta del testo) e vale per tutte le stanze.
+const ORA_OK = /^([01]\d|2[0-3]):[0-5]\d$/
+const adessoZurigo = () => new Date().toLocaleTimeString('sv-SE', { timeZone: 'Europe/Zurich' }).slice(0, 5)
+const messaggioDi = (e: unknown) => String((e as Error)?.message || e).slice(0, 200)
+
+// Per la pagina: da ieri in avanti (quelli già detti restano visibili un giorno).
+const elencoMessaggi = () =>
+  rest(`sonos_messaggi?data=gte.${dataTra(-1)}&select=id,data,ora,casse,testo,volume,detto_il,dette,errore&order=data,ora`)
+
+async function nuovoMessaggio(d: Record<string, any>) {
+  const data = String(d.data || '')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data) || data < oggiZurigo() || data > dataTra(60)) throw new Error('Giorno non valido')
+  if (!ORA_OK.test(String(d.ora))) throw new Error('Ora non valida')
+  if (data === oggiZurigo() && d.ora <= adessoZurigo()) throw new Error('Quest\'ora è già passata')
+  const testo = String(d.testo || '').replace(/\s+/g, ' ').trim()
+  if (!testo || testo.length > 300) throw new Error('Scrivi il messaggio (al massimo 300 caratteri)')
+  const volume = d.volume == null ? 20 : Math.round(Number(d.volume))
+  if (!(volume >= 5 && volume <= 60)) throw new Error('Volume tra 5 e 60')
+  const token = await accesso()
+  const buone = (await casse(token)).filter((c: any) => c.annunci).map((c: any) => c.nome as string)
+  const scelte = [...new Set((Array.isArray(d.casse) ? d.casse : []).map(String))].filter((c) => buone.includes(c))
+  if (!scelte.length) throw new Error('Scegli almeno una stanza')
+  const doppio = 'Questo messaggio c\'è già, a quell\'ora'
+  const gia = await rest(`sonos_messaggi?data=eq.${data}&ora=eq.${d.ora}&detto_il=is.null&select=testo`) as Record<string, any>[]
+  if (gia.some((x) => x.testo === testo)) throw new Error(doppio)
+  let errore: string | null = null
+  try { await voce(testo) } catch (e) { errore = `Voce non ancora pronta (${messaggioDi(e)}): la riprovo all'ora giusta` }
+  try {
+    await rest('sonos_messaggi', { method: 'POST', headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ data, ora: d.ora, casse: scelte, testo, volume, errore }) })
+  } catch (e) {
+    if (/ 409 /.test(messaggioDi(e))) throw new Error(doppio)
+    throw e
+  }
+  return { ok: true, voce_pronta: !errore }
+}
+
+// Giro di ogni minuto: i messaggi arrivati all'ora, ciascuno una volta sola, in tutte le sue stanze.
+async function messaggi() {
+  const ids = (await rest('rpc/sonos_messaggi_da_fare', { method: 'POST', body: '{}' }) as number[]) || []
+  for (const id of ids) {
+    // "In corso" finché non ha finito: se la funzione si ferma a metà, nella pagina non sembra detto.
+    const prese = await rest(`sonos_messaggi?id=eq.${id}&detto_il=is.null`, {
+      method: 'PATCH', headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({ detto_il: new Date().toISOString(), errore: 'In corso…' }),
+    }) as Record<string, any>[]
+    const m = prese?.[0]
+    if (!m) continue
+    const errori: string[] = [], dette: string[] = []
+    try {
+      const token = await accesso()
+      // Senza voce niente din-don (ai bimbi non direbbe niente): resta "Non detto" con l'errore in rosso.
+      const { url } = await voce(m.testo)
+      const tutte = await casse(token)
+      for (const nome of m.casse as string[]) {
+        const c = tutte.find((x: any) => x.nome === nome)
+        if (!c) { errori.push(`${nome}: cassa non trovata`); continue }
+        const clip = { name: 'Second Brain', appId: 'ch.ceramex.secondbrain', priority: 'HIGH', volume: m.volume, streamUrl: url }
+        try { await sonos(token, `players/${c.id}/audioClip`, clip); dette.push(nome) } catch (e) { errori.push(`${nome}: ${messaggioDi(e)}`) }
+      }
+    } catch (e) { errori.push(messaggioDi(e)) }
+    await rest(`sonos_messaggi?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ dette, errore: errori.join(' | ').slice(0, 300) || null }) }).catch(() => {})
+  }
+}
+
 // Annuncio su una cassa: la frase detta da Laomedeia (senza frase: il din-don di Sonos).
 async function annuncia(token: string, cassa: unknown, testo: unknown, volume?: unknown, stile?: unknown) {
   const tutte = await casse(token)
@@ -629,6 +699,8 @@ async function spegniMusica() {
 
 async function sveglie() {
   await spegniMusica().catch((e) => console.error('spegni musica', e))
+  // Prima i messaggi: hanno un'ora precisa, una sveglia può aspettare la fine della voce prima della musica.
+  await messaggi().catch((e) => console.error('messaggi', e))
   const ids = (await rest('rpc/sonos_sveglie_da_fare', { method: 'POST', body: '{}' }) as number[]) || []
   const oggi = oggiZurigo()
   for (const id of ids) {
@@ -722,7 +794,14 @@ Deno.serve(async (req: Request) => {
         const { items } = await sonos(token, `households/${await casa(token)}/favorites`)
         preferiti = (items || []).map((f: any) => f.name)
       } catch (e) { console.error('elenco completo', e) }
-      return risposta({ ...d, frasi: FRASI, casse: casseNomi, preferiti })
+      // I messaggi solo qui (pagina dell'app), non nell'elenco corto che legge il Capo.
+      const elencoM = await elencoMessaggi().catch((e) => { console.error('messaggi', e); return [] })
+      return risposta({ ...d, frasi: FRASI, casse: casseNomi, preferiti, messaggi: elencoM })
+    }
+    if (azione === 'messaggio_nuovo') return risposta(await nuovoMessaggio(corpoJson))
+    if (azione === 'messaggio_togli') {
+      await rest(`sonos_messaggi?id=eq.${Number(id) || 0}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } })
+      return risposta({ ok: true })
     }
     if (azione === 'sveglia_nuova') return risposta(await nuovaSveglia(corpoJson))
     if (azione === 'sveglia_togli') {

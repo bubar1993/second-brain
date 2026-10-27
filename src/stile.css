@@ -1046,4 +1046,7 @@ a.cita::after { content: ''; position: absolute; inset: -11px -6px; } /* area di
 .nuova-sveglia .chip { white-space: normal; text-align: left; }
 /* Volume delle sveglie (27.10.2026): cursore grande da muovere col dito. */
 .campo-volume b { color: #ff8f45; font-variant-numeric: tabular-nums; }
+/* Messaggi Sonos (27.10.2026). */
+.nuovo-messaggio textarea { color: var(--testo); font-weight: 400; }
+span.sveglia-ora { display: flex; align-items: center; justify-content: center; }
 .campo-volume input[type="range"] { padding: 0; border: 0; background: transparent; height: 36px; accent-color: #ff8f45; }

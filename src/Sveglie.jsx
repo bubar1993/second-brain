@@ -6,6 +6,7 @@ import { useApp, useCarica, chiama, messaggioErrore, Stato, Indietro, useModific
 // Tutto passa dalla funzione `sonos`: le tabelle delle sveglie l'app non le vede.
 // 24.10.2026: "+ Nuova sveglia" (giorni, ora, cassa, una delle frasi standard, musica) e "Togli sveglia" (due tocchi).
 // 27.10.2026: volume voce e volume musica si scelgono qui (toccando l'ora e nella nuova sveglia).
+// 27.10.2026: blocco "Messaggi": una frase scritta da Giovanni, un giorno, un'ora, una o più stanze, detta una volta.
 
 const NOMI_GIORNI = ['', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom']
 const giorni = (g) => {
@@ -18,6 +19,7 @@ const quandoData = (d) => {
   const domani = new Date(Date.now() + 864e5).toLocaleDateString('sv-SE')
   if (d === oggi) return 'oggi'
   if (d === domani) return 'domani'
+  if (d === new Date(Date.now() - 864e5).toLocaleDateString('sv-SE')) return 'ieri'
   return new Date(`${d}T12:00`).toLocaleDateString('it-CH', { weekday: 'long', day: 'numeric', month: 'numeric' })
 }
 const musica = (p) => (p || '').replace(/^this is\s+/i, '')
@@ -26,16 +28,18 @@ export function Sveglie() {
   const { avvisa } = useApp()
   const [aperta, setAperta] = useState(null)
   const [nuova, setNuova] = useState(false)
+  const [nuovoMsg, setNuovoMsg] = useState(false)
   const [lavora, setLavora] = useState(false)
   const { dati, errore, carica, ricarica } = useCarica(() => chiama('sonos', { azione: 'sveglie_elenco', completo: true }), [])
 
   async function fai(corpo, messaggio) {
     setLavora(true)
     try {
-      await chiama('sonos', corpo)
-      avvisa(messaggio)
+      const r = await chiama('sonos', corpo)
+      avvisa(typeof messaggio === 'function' ? messaggio(r) : messaggio)
       setAperta(null)
       setNuova(false)
+      setNuovoMsg(false)
       await ricarica()
     } catch (e) {
       avvisa(messaggioErrore(e))
@@ -113,6 +117,24 @@ export function Sveglie() {
                   salva={(corpo) => fai({ azione: 'sveglia_nuova', ...corpo }, `Nuova sveglia alle ${corpo.ora}`)} />
               : <button type="button" className="tasto-secondario tasto-nuova-sveglia" onClick={() => setNuova(true)}>+ Nuova sveglia</button>}
 
+            <h2>Messaggi</h2>
+            <p className="riga-meta">Una frase tua, detta da Laomedeia una volta sola, a un'ora precisa, in una o più stanze.</p>
+            {dati.messaggi?.length > 0 && (
+              <div className="elenco">
+                {dati.messaggi.map((m) => (
+                  <RigaMessaggio key={m.id} m={m} lavora={lavora}
+                    togli={() => fai({ azione: 'messaggio_togli', id: m.id }, 'Messaggio tolto')} />
+                ))}
+              </div>
+            )}
+            {nuovoMsg
+              ? <NuovoMessaggio casse={dati.casse?.length ? dati.casse : ['Bambini', 'Camera Mia', 'Corridoio', 'Salotto']} lavora={lavora}
+                  chiudi={() => setNuovoMsg(false)}
+                  salva={(corpo) => fai({ azione: 'messaggio_nuovo', ...corpo }, (r) => r?.voce_pronta === false
+                    ? 'Messaggio salvato, ma la voce non è ancora pronta: la riprovo all\'ora giusta'
+                    : `Messaggio pronto: ${quandoData(corpo.data)} alle ${corpo.ora}`)} />
+              : <button type="button" className="tasto-secondario tasto-nuova-sveglia" onClick={() => setNuovoMsg(true)}>+ Nuovo messaggio</button>}
+
             <p className="nota-piccola">Nei giorni di scuola chiusa le sveglie non suonano. Tocca l'ora per cambiare ora e volume. I minuti di musica si cambiano dicendolo al Capo o a Claude.</p>
           </>
         )}
@@ -156,6 +178,78 @@ function CambiaSveglia({ s, salva, chiudi, togli, lavora }) {
         <button type="button" className={'tasto-link pericolo' + (due.armato === 'togli' ? ' pericolo-pieno' : '')} disabled={lavora}
           onClick={() => due.tocca('togli', togli)}>{due.armato === 'togli' ? 'Tocca ancora: togli' : 'Togli sveglia'}</button>
       </div>
+    </div>
+  )
+}
+
+// Messaggio a un'ora precisa (27.10.2026): in attesa, detto, o non detto (il giro lo dice solo entro 15 minuti).
+function RigaMessaggio({ m, togli, lavora }) {
+  const due = useDueTocchi()
+  const ora = m.ora.slice(0, 5)
+  const passato = Date.now() - new Date(`${m.data}T${ora}`).getTime() > 15 * 60e3
+  const detto = m.detto_il && new Date(m.detto_il).toLocaleTimeString('it-CH', { hour: '2-digit', minute: '2-digit' })
+  // dette = stanze dove ha suonato davvero (null mentre lo sta dicendo).
+  const dette = m.dette || []
+  const stato = !detto ? (passato ? 'Non detto' : 'In attesa')
+    : !m.dette ? 'Lo sto dicendo…'
+    : !dette.length ? 'Non detto'
+    : dette.length < m.casse.length ? `Detto alle ${detto} solo in ${dette.join(', ')}` : `Detto alle ${detto}`
+  return (
+    <div className={'riga riga-sveglia' + (m.detto_il || passato ? ' spenta' : '')}>
+      <span className="sveglia-ora">{ora}</span>
+      <div className="riga-corpo">
+        <span className="riga-testo">«{m.testo}»</span>
+        <span className="riga-meta">{quandoData(m.data)} · {m.casse.join(', ')} · volume {m.volume}</span>
+        <span className="riga-meta">{stato}</span>
+        {m.errore && <span className="riga-meta rosso">{m.errore}</span>}
+      </div>
+      {/* Togliere non si annulla: due tocchi. */}
+      <button type="button" className={'tasto-link pericolo' + (due.armato === 'togli' ? ' pericolo-pieno' : '')} disabled={lavora}
+        onClick={() => due.tocca('togli', togli)}>{due.armato === 'togli' ? 'Tocca ancora' : 'Togli'}</button>
+    </div>
+  )
+}
+
+function NuovoMessaggio({ casse, salva, chiudi, lavora }) {
+  const oggi = new Date().toLocaleDateString('sv-SE')
+  const domani = new Date(Date.now() + 864e5).toLocaleDateString('sv-SE')
+  const [data, setData] = useState(domani)
+  const [ora, setOra] = useState('08:00')
+  const [scelte, setScelte] = useState([])
+  const [testo, setTesto] = useState('')
+  const [volume, setVolume] = useState(20)
+  useModifiche(testo.trim().length > 0)
+  const cambiaCassa = (c) => setScelte(scelte.includes(c) ? scelte.filter((x) => x !== c) : [...scelte, c])
+  const passata = data === oggi && ora && ora <= new Date().toTimeString().slice(0, 5)
+  const pronta = data && ora && !passata && scelte.length > 0 && testo.trim()
+  return (
+    <div className="scheda scheda-modulo nuova-sveglia nuovo-messaggio">
+      <h3>Nuovo messaggio</h3>
+      <p className="riga-meta">Giorno</p>
+      <div className="chips">
+        <button type="button" className={'chip' + (data === oggi ? ' attivo' : '')} aria-pressed={data === oggi} onClick={() => setData(oggi)}>Oggi</button>
+        <button type="button" className={'chip' + (data === domani ? ' attivo' : '')} aria-pressed={data === domani} onClick={() => setData(domani)}>Domani</button>
+      </div>
+      <label className="campo">Altro giorno<input type="date" value={data} min={oggi} onChange={(e) => setData(e.target.value)} /></label>
+      <label className="campo">Ora<input type="time" value={ora} onChange={(e) => setOra(e.target.value)} /></label>
+      <p className="riga-meta">Stanze (anche più di una)</p>
+      <div className="chips">
+        {casse.map((c) => (
+          <button key={c} type="button" className={'chip' + (scelte.includes(c) ? ' attivo' : '')} aria-pressed={scelte.includes(c)} onClick={() => cambiaCassa(c)}>{c}</button>
+        ))}
+      </div>
+      <label className="campo">Messaggio
+        <textarea rows={3} maxLength={300} value={testo} onChange={(e) => setTesto(e.target.value)}
+          placeholder="Ciao bimbi, è ora di andare a scuola: mettete le scarpe e preparatevi. Buona giornata!" />
+      </label>
+      <p className="riga-meta">{testo.length}/300</p>
+      <Volume etichetta="Volume" valore={volume} min={5} cambia={setVolume} />
+      <div className="azioni">
+        <button type="button" className="tasto-pieno" disabled={!pronta || lavora}
+          onClick={() => salva({ data, ora, casse: scelte, testo: testo.trim(), volume })}>{lavora ? 'Preparo la voce…' : 'Salva messaggio'}</button>
+        <button type="button" className="tasto-link" onClick={chiudi}>Annulla</button>
+      </div>
+      {passata && <p className="nota-piccola">Quest'ora oggi è già passata.</p>}
     </div>
   )
 }

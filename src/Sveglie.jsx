@@ -5,6 +5,7 @@ import { useApp, useCarica, chiama, messaggioErrore, Stato, Indietro, useModific
 // rapido "Alessia non c'è questa settimana" (giovedì e venerdì come lunedì–mercoledì; la settimana dopo torna normale).
 // Tutto passa dalla funzione `sonos`: le tabelle delle sveglie l'app non le vede.
 // 24.10.2026: "+ Nuova sveglia" (giorni, ora, cassa, una delle frasi standard, musica) e "Togli sveglia" (due tocchi).
+// 27.10.2026: volume voce e volume musica si scelgono qui (toccando l'ora e nella nuova sveglia).
 
 const NOMI_GIORNI = ['', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom']
 const giorni = (g) => {
@@ -80,7 +81,7 @@ export function Sveglie() {
                     <div key={s.id}>
                       <div className={'riga riga-sveglia' + (s.attiva ? '' : ' spenta')}>
                         <button type="button" className="sveglia-ora" onClick={() => setAperta(aperta === s.id ? null : s.id)}
-                          aria-expanded={aperta === s.id} aria-label={`Cambia l'ora, adesso ${s.ora.slice(0, 5)}`}>
+                          aria-expanded={aperta === s.id} aria-label={`Cambia ora e volume, adesso ${s.ora.slice(0, 5)}`}>
                           {s.ora.slice(0, 5)}
                         </button>
                         <div className="riga-corpo">
@@ -97,8 +98,8 @@ export function Sveglie() {
                         </label>
                       </div>
                       {aperta === s.id && (
-                        <CambiaOra s={s} lavora={lavora} chiudi={() => setAperta(null)}
-                          salva={(ora) => fai({ azione: 'sveglia_cambia', id: s.id, ora }, `Sveglia alle ${ora}`)}
+                        <CambiaSveglia s={s} lavora={lavora} chiudi={() => setAperta(null)}
+                          salva={(campi) => fai({ azione: 'sveglia_cambia', id: s.id, ...campi }, 'Sveglia cambiata')}
                           togli={() => fai({ azione: 'sveglia_togli', id: s.id }, 'Sveglia tolta')} />
                       )}
                     </div>
@@ -112,7 +113,7 @@ export function Sveglie() {
                   salva={(corpo) => fai({ azione: 'sveglia_nuova', ...corpo }, `Nuova sveglia alle ${corpo.ora}`)} />
               : <button type="button" className="tasto-secondario tasto-nuova-sveglia" onClick={() => setNuova(true)}>+ Nuova sveglia</button>}
 
-            <p className="nota-piccola">Nei giorni di scuola chiusa le sveglie non suonano. Volumi e minuti si cambiano dicendolo al Capo o a Claude.</p>
+            <p className="nota-piccola">Nei giorni di scuola chiusa le sveglie non suonano. Tocca l'ora per cambiare ora e volume. I minuti di musica si cambiano dicendolo al Capo o a Claude.</p>
           </>
         )}
       </Stato>
@@ -120,16 +121,36 @@ export function Sveglie() {
   )
 }
 
-function CambiaOra({ s, salva, chiudi, togli, lavora }) {
+// Volume da 0 a 100 come nell'app Sonos; qui voce 5–60 e musica 1–60 (oltre è troppo forte per una sveglia).
+function Volume({ etichetta, valore, min, cambia }) {
+  return (
+    <label className="campo campo-volume">
+      <span>{etichetta} <b>{valore}</b></span>
+      <input type="range" min={min} max={60} step={1} value={valore} onChange={(e) => cambia(Number(e.target.value))} />
+    </label>
+  )
+}
+
+// 27.10.2026: oltre all'ora, i due volumi (voce e musica).
+function CambiaSveglia({ s, salva, chiudi, togli, lavora }) {
   const [ora, setOra] = useState(s.ora.slice(0, 5))
+  const [voce, setVoce] = useState(s.volume_voce)
+  const [musicaVol, setMusicaVol] = useState(s.volume_musica)
   const due = useDueTocchi()
-  const cambiato = ora !== s.ora.slice(0, 5)
+  const campi = {
+    ...(ora && ora !== s.ora.slice(0, 5) && { ora }),
+    ...(voce !== s.volume_voce && { volume_voce: voce }),
+    ...(musicaVol !== s.volume_musica && { volume_musica: musicaVol }),
+  }
+  const cambiato = Object.keys(campi).length > 0
   useModifiche(cambiato)
   return (
     <div className="modifica-promemoria">
-      <label className="campo">Nuova ora<input type="time" value={ora} onChange={(e) => setOra(e.target.value)} /></label>
+      <label className="campo">Ora<input type="time" value={ora} onChange={(e) => setOra(e.target.value)} /></label>
+      <Volume etichetta="Volume voce" valore={voce} min={5} cambia={setVoce} />
+      {s.preferito && <Volume etichetta="Volume musica" valore={musicaVol} min={1} cambia={setMusicaVol} />}
       <div className="azioni">
-        {cambiato && ora && <button type="button" className="tasto-piccolo tasto-salva" disabled={lavora} onClick={() => salva(ora)}>Salva</button>}
+        {cambiato && <button type="button" className="tasto-piccolo tasto-salva" disabled={lavora} onClick={() => salva(campi)}>Salva</button>}
         <button type="button" className="tasto-link" onClick={chiudi}>Chiudi</button>
         {/* Togliere non si annulla: due tocchi. */}
         <button type="button" className={'tasto-link pericolo' + (due.armato === 'togli' ? ' pericolo-pieno' : '')} disabled={lavora}
@@ -148,6 +169,12 @@ function NuovaSveglia({ dati, salva, chiudi, lavora }) {
   const [cassa, setCassa] = useState(casse.includes('Bambini') ? 'Bambini' : casse[0])
   const [frase, setFrase] = useState(frasi[0]?.chiave)
   const [preferito, setPreferito] = useState(frasi[0]?.preferito || null)
+  // Volumi di partenza come quelli scelti da Giovanni il 22.10: Camera Mia 15/5, Bambini 20/9.
+  const [voce, setVoce] = useState(null)
+  const [musicaVol, setMusicaVol] = useState(null)
+  const camera = cassa === 'Camera Mia'
+  const voceVista = voce ?? (camera ? 15 : 20)
+  const musicaVista = musicaVol ?? (camera ? 5 : 9)
   useModifiche(scelti.length > 0)
   const cambiaGiorno = (g) => setScelti(scelti.includes(g) ? scelti.filter((x) => x !== g) : [...scelti, g].sort())
   const scegliFrase = (f) => {
@@ -189,9 +216,11 @@ function NuovaSveglia({ dati, salva, chiudi, lavora }) {
         ))}
         <button type="button" className={'chip' + (!preferito ? ' attivo' : '')} aria-pressed={!preferito} onClick={() => setPreferito(null)}>Niente musica</button>
       </div>
+      <Volume etichetta="Volume voce" valore={voceVista} min={5} cambia={setVoce} />
+      {preferito && <Volume etichetta="Volume musica" valore={musicaVista} min={1} cambia={setMusicaVol} />}
       <div className="azioni">
         <button type="button" className="tasto-pieno" disabled={!pronta || lavora}
-          onClick={() => salva({ giorni: scelti, ora, cassa, frase, preferito })}>Salva sveglia</button>
+          onClick={() => salva({ giorni: scelti, ora, cassa, frase, preferito, volume_voce: voceVista, volume_musica: musicaVista })}>Salva sveglia</button>
         <button type="button" className="tasto-link" onClick={chiudi}>Annulla</button>
       </div>
       {!scelti.length && <p className="nota-piccola">Scegli almeno un giorno.</p>}

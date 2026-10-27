@@ -13,7 +13,7 @@
 //        sveglie di sonos_sveglie arrivate all'ora (saluto + meteo scherzoso + battuta, per Giovanni anche 2-3 notizie
 //        di ieri cercate sul web; testo di Claude Haiku coi crediti del piano Max) e poi il Preferito Sonos;
 //      { azione: 'sveglia_prova', id, cassa?, musica? } → la stessa sveglia subito, senza segnarla fatta;
-//      { azione: 'sveglie_elenco' (completo?) | 'sveglia_cambia' | 'senza_alessia' | 'sveglia_nuova' | 'sveglia_togli' }
+//      { azione: 'sveglie_elenco' (completo?) | 'sveglia_cambia' (ora?, attiva?, volume_voce?, volume_musica?) | 'senza_alessia' | 'sveglia_nuova' | 'sveglia_togli' }
 //        → pagina Sveglie dell'app (la nuova sveglia sceglie una delle FRASI standard);
 //      { azione: 'esegui_conferma', id } → solo Giovanni: fa una conferma 'sonos' del Capo dopo i due tocchi.
 // Chi può: Giovanni dall'app (non i connettori) oppure il giro programmato (x-copia-token).
@@ -478,10 +478,24 @@ async function nuovaSveglia(d: Record<string, any>) {
     }
   }
   const camera = cassa.nome === 'Camera Mia'
+  const volumi = campiVolume(d)
   await rest('sonos_sveglie', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({
     nome: `${frase.nome} ${etichettaGiorni(giorni)}`, cassa: cassa.nome, giorni, ora: d.ora, saluto: frase.saluto, per: frase.per,
-    notizie: frase.notizie, preferito, volume_voce: camera ? 15 : 20, volume_musica: camera ? 5 : 9, salta_vacanze: true }) })
+    notizie: frase.notizie, preferito, volume_voce: camera ? 15 : 20, volume_musica: camera ? 5 : 9, ...volumi, salta_vacanze: true }) })
   return await elencoSveglie()
+}
+
+// Volumi delle sveglie (27.10.2026, Giovanni li sceglie nell'app): voce 5–60, musica 1–60, come per il Capo.
+const VOLUMI = [['volume_voce', 5, 60], ['volume_musica', 1, 60]] as const
+function campiVolume(d: Record<string, any>) {
+  const campi: Record<string, number> = {}
+  for (const [k, min, max] of VOLUMI) {
+    if (d[k] == null) continue
+    const n = Math.round(Number(d[k]))
+    if (!(n >= min && n <= max)) throw new Error(`Volume ${k === 'volume_voce' ? 'voce' : 'musica'} tra ${min} e ${max}`)
+    campi[k] = n
+  }
+  return campi
 }
 
 // Giovedì e venerdì di questa settimana (da oggi in avanti) come lunedì, o di nuovo normali.
@@ -723,6 +737,7 @@ Deno.serve(async (req: Request) => {
         campi.ora = ora
       }
       if (attiva != null) campi.attiva = !!attiva
+      try { Object.assign(campi, campiVolume(corpoJson)) } catch (e) { return risposta({ errore: (e as Error).message }, 400) }
       if (!Object.keys(campi).length) return risposta({ errore: 'Niente da cambiare' }, 400)
       await rest(`sonos_sveglie?id=eq.${Number(id) || 0}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(campi) })
       return risposta(await elencoSveglie())

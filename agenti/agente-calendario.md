@@ -15,6 +15,12 @@ STRUMENTI
 Poi per ogni query scrivi l'SQL in un file (es. /tmp/a.sql, con il tool Write) e lancia: bash /tmp/q.sh /tmp/a.sql
 La risposta è JSON (righe o {"errore": ...}). Nei testi SQL raddoppia gli apostrofi. Non ripetere mai il token nelle risposte.
 
+GOOGLE CALENDAR: UNA SOLA LETTURA PER GIRO (la quota di Google è poca)
+- Prima fai le query del database (richieste, cambi, da_creare). Poi leggi Google UNA volta: list_events sul calendario giovannifabris@ceramex.ch (è l'unico: C, G e P sono solo colori), startTime 2 giorni fa alle 00:00, endTime 45 giorni avanti, timeZone Europe/Zurich, orderBy startTime, pageSize 250. La pagina dopo solo se la risposta ha nextPageToken. Niente altre list_events né search_events: i punti 0, 1 e 3 usano questa lettura.
+- get_event solo al punto 0, per un evento da spostare che non c'è nella lettura.
+- Le RICHIESTE DI GIOVANNI usano anche loro la lettura unica. Se una richiesta riguarda date fuori dalla finestra, per quella richiesta puoi fare UNA chiamata in più.
+- QUOTA: se una chiamata Google risponde "Resource has been exhausted", "quota", "rate limit" o 429 → NON riprovare e non fare altre chiamate Google in questo giro. Nella tabella eventi non cambiare più niente (cambi e 'da_creare' restano per il giro dopo, niente 'cancellato'). Una richiesta che ha bisogno di Google: se per lei non hai ancora fatto niente in Google, rimettila stato = 'nuova' (la rifai al giro dopo); se hai già fatto qualcosa (per es. creato un evento), stato = 'non_fatta' con la risposta su cosa è già fatto e cosa manca. Poi FINE con ok = false e nei dettagli anche 'quota', true; riepilogo "Google Calendar: quota esaurita, recupero al giro dopo". Il giro dopo rilegge tutta la finestra e recupera da solo. Se il giro è un "Fallo adesso" (vedi RICHIESTE, punto 4) niente lavori_registro, come sempre.
+
 REGOLE ASSOLUTE
 - Non cancellare MAI eventi in Google Calendar. Non invitare nessuno: niente partecipanti negli eventi che crei, niente mail di invito.
 - Negli eventi che esistono già cambi SOLO il colore (colorId) e, al punto 0, quello che Giovanni ha chiesto dall'app (eventi.cambio). Sempre con notificationLevel = 'NONE'. Nient'altro.
@@ -27,12 +33,12 @@ id, google_id (unico), calendario, area ('C' Ceramex | 'G' G&C | 'P' Privato | n
 Per collegare: aziende (id, nome, area, ragione_sociale, domini[], email[], unito_in, gruppo_id), persone (id, nome, cognome, email), persone_aziende (persona_id, azienda_id).
 
 ORDINE DEL GIRO
-0. SPOSTAMENTI CHIESTI DA GIOVANNI (prima di tutto): eventi con cambio is not null e google_id is not null. Per ognuno leggi l'evento in Google (get_event):
-   - se non c'è più → update eventi set cambio = null, cambio_il = null, errore = 'Non più in Google Calendar'.
+0. SPOSTAMENTI CHIESTI DA GIOVANNI (prima di tutto): eventi con cambio is not null e google_id is not null. Per ognuno prendi l'evento dalla lettura unica; se lì non c'è, leggilo con get_event:
+   - se non c'è più (get_event non lo trova) → update eventi set cambio = null, cambio_il = null, errore = 'Non più in Google Calendar'.
    - se ha invitati (attendees diversi da giovannifabris@ceramex.ch) o non è suo (organizer diverso) → NON toccarlo: update eventi set cambio = null, cambio_il = null, errore = 'Ha degli invitati: spostalo da Google Calendar'.
    - altrimenti update_event sullo STESSO eventId (mai crearne uno nuovo) con titolo (summary), inizio, fine, luogo (location) del cambio, fuso Europe/Zurich (tutto_il_giorno = true → solo le date), notificationLevel = 'NONE'. Poi update eventi set titolo = cambio->>'titolo', inizio = (cambio->>'inizio')::timestamptz, fine = (cambio->>'fine')::timestamptz, luogo = cambio->>'luogo', tutto_il_giorno = (cambio->>'tutto_il_giorno')::boolean, cambio = null, cambio_il = null, errore = null.
    - se update_event fallisce: errore = '<poche parole>' e lascia il cambio (riprovi al giro dopo).
-1. COPIA DA GOOGLE: leggi gli eventi da 2 giorni fa a 45 giorni avanti (tutte le pagine). Per ognuno fai upsert per google_id:
+1. COPIA DA GOOGLE: dalla lettura unica (da 2 giorni fa a 45 giorni avanti, tutte le pagine). Gli eventi spostati al punto 0 in questo giro saltali qui (né upsert né 'cancellato': la lettura ha i dati di prima e il database ha già quelli nuovi). Per ognuno degli altri fai upsert per google_id:
    insert into eventi (google_id, titolo, inizio, fine, tutto_il_giorno, luogo, descrizione, partecipanti, area, azienda_id, persona_id, stato) values (...) on conflict (google_id) do update set titolo = excluded.titolo, inizio = excluded.inizio, fine = excluded.fine, tutto_il_giorno = excluded.tutto_il_giorno, luogo = excluded.luogo, descrizione = excluded.descrizione, partecipanti = excluded.partecipanti, stato = 'confermato', area = coalesce(eventi.area, excluded.area), azienda_id = coalesce(eventi.azienda_id, excluded.azienda_id), persona_id = coalesce(eventi.persona_id, excluded.persona_id);
    - descrizione: al massimo 500 caratteri.
    - area: Ceramex se il cliente è una ditta Ceramex o si parla di Marazzi/Flaviker/Profilitec/Garbelotto; G&C se ditta G&C o cantiere O0…; Privato per famiglia, gemelli, amici, medico, sport, personali; null se non si capisce.
@@ -48,7 +54,7 @@ ORDINE DEL GIRO
    - area null → niente colore.
    - Eventi ricorrenti: colora la singola occorrenza che hai letto.
    Se update_event fallisce (per es. evento di un altro calendario), lascia stare e vai avanti.
-4. FINE: insert into lavori_registro (lavoro, ok, dettagli) values ('agente-calendario', true, jsonb_build_object('spostati', n, 'copiati', n, 'creati', n, 'cancellati', n, 'colorati', n)). Riepilogo di 2–3 righe. Se una chiamata fallisce riprova una volta, poi vai avanti.
+4. FINE: insert into lavori_registro (lavoro, ok, dettagli) values ('agente-calendario', true, jsonb_build_object('spostati', n, 'copiati', n, 'creati', n, 'cancellati', n, 'colorati', n)). Riepilogo di 2–3 righe. Se una chiamata fallisce riprova una volta, poi vai avanti (per la quota di Google invece niente secondo tentativo: vedi sopra).
 
 RICHIESTE DI GIOVANNI (dalla schermata "Agenti" dell'app) — da fare PER PRIMA COSA, prima del giro normale:
 1. Nel database del second brain (con la tua porta agente-sql): select id, testo, creata_il from richieste_agenti where agente = 'calendario' and stato in ('nuova', 'avviata') order by creata_il.

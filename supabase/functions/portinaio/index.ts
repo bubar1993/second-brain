@@ -47,10 +47,11 @@ const AGENTI: Record<string, Agente> = {
     // Senza il permesso Google il giro resta ogni ora (:05): il portinaio sveglia solo per il database.
     routine: 'trig_01ExFtoP2zGTkQDT4mnTdzGD', token: 'ROUTINE_TOKEN_CALENDARIO', tetto: 20,
     fissi: CALENDARIO_REFRESH ? [[6, 5], [12, 5], [18, 5]] : Array.from({ length: 18 }, (_, i) => [6 + i, 5] as [number, number]),
-    motivi: ['da_creare', 'cambi', 'richieste', 'google'],
-    ritardati: [],
+    // 28.10.2026 (quota di Google Calendar esaurita): le novità di Google svegliano al massimo una volta all'ora.
+    motivi: ['da_creare', 'cambi', 'richieste', 'recupero'],
+    ritardati: ['google'],
     nomi: { da_creare: 'appuntamenti da creare', cambi: 'appuntamenti da spostare', richieste: 'richieste',
-      google: 'novità in Google Calendar' },
+      google: 'novità in Google Calendar', recupero: 'giro da recuperare dopo la quota di Google' },
   },
 }
 
@@ -133,10 +134,29 @@ async function controlla(codice: string, a: Agente, adesso: number, prova: boole
   // Il calendario gira ancora anche a orario: niente sveglia subito dopo un suo giro.
   if (codice === 'calendario' && adesso - registro < PAUSA) return fuori('giro appena finito')
 
+  // Calendario (28.10.2026): dopo un giro con la quota di Google esaurita un'ora di pausa (ogni sveglia è una lettura in
+  // più), poi UNA sveglia di recupero (le cose rimaste indietro non contano più come nuove: il registro è andato avanti).
+  // Due giri di fila con la quota: niente sveglie fino al giro fisso. Le novità di Google si contano dall'ultimo giro
+  // RIUSCITO: quelle perse durante il blocco si recuperano.
+  let registroOk = registro
+  if (codice === 'calendario') {
+    type Giro = { iniziata_il: string, ok: boolean, dettagli: { quota?: boolean } | null }
+    const giri: Giro[] = await rest('lavori_registro?lavoro=eq.agente-calendario&order=iniziata_il.desc&limit=20&select=iniziata_il,ok,dettagli') || []
+    let quote = 0
+    while (quote < giri.length && !giri[quote].ok && giri[quote].dettagli?.quota) quote++
+    if (quote >= 2) return fuori('quota di Google esaurita due volte di fila: aspetto il giro fisso')
+    if (quote === 1) {
+      if (adesso - ms(giri[0].iniziata_il) < 60 * 60000) return fuori('quota di Google esaurita: aspetto un\'ora')
+      lavoro.recupero = 1
+    }
+    const ok = giri.find((g) => g.ok)
+    registroOk = ok ? ms(ok.iniziata_il) : 0
+  }
+
   // Google solo per il calendario e solo col permesso; se Google non risponde valgono le cose del database.
   if (codice === 'calendario' && CALENDARIO_REFRESH) {
     try {
-      lavoro.google = await novitaGoogle(registro, adesso)
+      lavoro.google = await novitaGoogle(registroOk, adesso)
     } catch (e) {
       lavoro.google = 0
       lavoro.google_errore = String((e as Error)?.message || e).slice(0, 200)

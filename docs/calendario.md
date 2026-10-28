@@ -51,4 +51,10 @@ Agente calendario, Google Calendar, spostare appuntamenti, inviti a call, appunt
 - Senza il segreto la routine va ogni ora (`5 6-23`) e il portinaio non sveglia nei 20 minuti intorno ai giri. Col segreto (dal 26.10.2026) la routine va a `5 6,12,18` (giri fissi della funzione); il guardiano passa da solo a `max` 400.
 - Nel prompt della routine calendario c'è la regola PORTINAIO-GIRO-COMPLETO prima di quella del `<routine-fire-payload>`.
 
+### Quota di Google Calendar (28.10.2026, ok di Giovanni)
+- Problema: il connettore Google Calendar di claude.ai rispondeva "Resource has been exhausted (e.g. check quota)" (26.10 16:08 e 17:09, 27.10 12:15, 28.10 7:04). Ogni giro faceva già una sola `list_events`; la quota è quella del connettore (non il client del portinaio, che ha la sua), quindi si riducono le chiamate e si salta il giro senza riprovare.
+- Agente: una sola `list_events` per giro (−2/+45 giorni, pageSize 250, pagina dopo solo con nextPageToken); il punto 0 usa quella lettura (get_event solo se l'evento non c'è); il punto 1 salta gli eventi spostati nello stesso giro. Quota → niente secondo tentativo, niente altre chiamate Google, niente cambi in `eventi`, richieste che servono Google di nuovo 'nuova', registro `ok = false` con `dettagli.quota = true`. Il giro dopo rilegge tutto e recupera.
+- Il connettore non ha `updatedMin`: "solo le modifiche" non si può fare dalla routine; le modifiche le guarda il portinaio con il suo client.
+- Portinaio: le novità di Google svegliano al massimo una volta all'ora (motivo "ritardato"); dopo un giro con la quota un'ora di pausa; le novità si contano dall'ultimo giro RIUSCITO, così quelle perse durante il blocco svegliano dopo la pausa. Orari fissi invariati (6:05, 12:05, 18:05), di notte (23–6) niente.
+
 Vedi anche: `privato-gemelli.md` (vacanze "Scuola chiusa", pianoforte), `schermate.md` (Oggi a lista unica, spunta sugli appuntamenti).

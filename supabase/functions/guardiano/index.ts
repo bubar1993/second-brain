@@ -41,6 +41,8 @@ const GIRI: Giro[] = [
   { lavoro: 'agente-gc', nome: 'L\'agente G&C', da: 6, a: 24, max: 720 },
   // Calendario (26.10.2026): col permesso Google ha solo i giri fissi delle 6:05, 12:05 e 18:05 + portinaio.
   { lavoro: 'agente-calendario', nome: 'L\'agente calendario', da: 6, a: 24, max: Deno.env.get('CALENDARIO_REFRESH_TOKEN') ? 400 : 150 },
+  // Copia da Google Calendar (28.10.2026): ogni 10 minuti, una riga nel registro almeno ogni ora.
+  { lavoro: 'calendario-copia', nome: 'La copia da Google Calendar', da: 6, a: 23, max: 90 },
   { lavoro: 'agente-lavoro', nome: 'L\'agente note lavoro', da: 6, a: 23, max: 150 },
   { lavoro: 'agente-privato', nome: 'L\'agente privato', da: 6, a: 23, max: 150 },
   { lavoro: 'agente-gc-archiviazione', nome: 'L\'archiviazione email G&C', da: 6, a: 23, max: 210 },

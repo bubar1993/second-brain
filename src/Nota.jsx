@@ -103,7 +103,7 @@ export default function Nota({ id }) {
       inizio: inizio.toISOString(), fine: new Date(inizio.getTime() + 30 * 60000).toISOString(),
       nota_id: id, promemoria_id: p.id, motivo: 'dal promemoria della nota',
     }))
-  }, 'Va in calendario al prossimo giro (entro un\'ora)')
+  }, 'Va in calendario entro 10 minuti (di notte alle 6)')
 
   const fatto = (p) => esegui(async () => {
     chk(await sb.from('promemoria').update({ fatto_il: p.fatto_il ? null : new Date().toISOString() }).eq('id', p.id))

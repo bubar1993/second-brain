@@ -8,8 +8,8 @@
 // - dopo una sveglia l'agente deve scrivere lavori_registro entro 25 minuti: se no il portinaio non lo sveglia
 //   più (errore nella tabella portinaio, lo vede il guardiano) finché non compare un giro nel registro.
 // Il messaggio di avvio è sempre lo stesso testo fisso: niente dati del database (mail di estranei) dentro.
-// Dal 26.10.2026 anche l'agente calendario: eventi approvati da creare, spostamenti chiesti dall'app ed eventi nuovi
-// copiati da Google (dal 28.10.2026 la copia la fa la funzione calendario-copia: il portinaio guarda solo il database).
+// Dal 26.10.2026 anche l'agente calendario: dal 28.10.2026 Google lo legge e lo scrive la funzione calendario-copia,
+// e il portinaio sveglia l'agente solo per le richieste e gli eventi nuovi da abbinare (guarda solo il database).
 // Il segreto CALENDARIO_REFRESH_TOKEN (permesso calendar.readonly) decide i giri fissi: senza, il calendario ha
 // ancora il giro ogni ora.
 // Con { "prova": true } dice chi sveglierebbe, senza svegliare né scrivere.
@@ -47,11 +47,11 @@ const AGENTI: Record<string, Agente> = {
     // Senza il permesso Google il giro resta ogni ora (:05): il portinaio sveglia solo per il database.
     routine: 'trig_01ExFtoP2zGTkQDT4mnTdzGD', token: 'ROUTINE_TOKEN_CALENDARIO', tetto: 20,
     fissi: CALENDARIO_REFRESH ? [[6, 5], [12, 5], [18, 5]] : Array.from({ length: 18 }, (_, i) => [6 + i, 5] as [number, number]),
-    // 28.10.2026 (quota del connettore Google Calendar): gli eventi nuovi svegliano al massimo una volta all'ora.
-    motivi: ['da_creare', 'cambi', 'richieste', 'recupero'],
+    // 28.10.2026: creare e spostare in Google li fa la funzione calendario-copia (tappa 2), non più l'agente: lo si
+    // sveglia per le richieste e, al massimo una volta all'ora, per gli eventi nuovi da abbinare a ditta e area.
+    motivi: ['richieste'],
     ritardati: ['nuovi'],
-    nomi: { da_creare: 'appuntamenti da creare', cambi: 'appuntamenti da spostare', richieste: 'richieste',
-      nuovi: 'appuntamenti nuovi da Google', recupero: 'giro da recuperare dopo la quota di Google' },
+    nomi: { richieste: 'richieste', nuovi: 'appuntamenti nuovi da Google' },
   },
 }
 
@@ -105,21 +105,6 @@ async function controlla(codice: string, a: Agente, adesso: number, prova: boole
   if (adesso - partenza < PAUSA) return fuori('partito da poco')
   // Il calendario gira ancora anche a orario: niente sveglia subito dopo un suo giro.
   if (codice === 'calendario' && adesso - registro < PAUSA) return fuori('giro appena finito')
-
-  // Calendario (28.10.2026): dopo un giro con la quota del connettore Google esaurita un'ora di pausa, poi UNA sveglia
-  // di recupero (le cose rimaste indietro non contano più come nuove: il registro è andato avanti).
-  // Due giri di fila con la quota: niente sveglie fino al giro fisso.
-  if (codice === 'calendario') {
-    type Giro = { iniziata_il: string, ok: boolean, dettagli: { quota?: boolean } | null }
-    const giri: Giro[] = await rest('lavori_registro?lavoro=eq.agente-calendario&order=iniziata_il.desc&limit=20&select=iniziata_il,ok,dettagli') || []
-    let quote = 0
-    while (quote < giri.length && !giri[quote].ok && giri[quote].dettagli?.quota) quote++
-    if (quote >= 2) return fuori('quota di Google esaurita due volte di fila: aspetto il giro fisso')
-    if (quote === 1) {
-      if (adesso - ms(giri[0].iniziata_il) < 60 * 60000) return fuori('quota di Google esaurita: aspetto un\'ora')
-      lavoro.recupero = 1
-    }
-  }
 
   const lontano = adesso - partenza > 60 * 60000
   const trovati = [...a.motivi, ...(lontano ? a.ritardati : [])].filter((m) => Number(lavoro[m]) > 0)

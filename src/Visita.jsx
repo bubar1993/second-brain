@@ -5,7 +5,7 @@ import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, Icona, useDet
 // ---------- Spostare o correggere un appuntamento ----------
 // Resta lo STESSO appuntamento: appunti, note e collegamenti non si perdono.
 // Quelli di Google Calendar: il cambio va in eventi.cambio, l'app lo mostra subito
-// e l'agente calendario lo porta in Google (lo sveglia il portinaio: di giorno entro un'ora, di notte alle 6). Gli altri (proposti, da creare) si cambiano e basta.
+// e la funzione calendario-copia lo porta in Google (dal 28.10.2026: di giorno entro 10 minuti, di notte alle 6). Gli altri (proposti, da creare) si cambiano e basta.
 export const CAMPI_EVENTO = 'id,google_id,titolo,inizio,fine,tutto_il_giorno,luogo,descrizione,area,stato,motivo,errore,cambio,cambio_il,nota_id,automatico,aziende(id,nome),persone(id,nome,cognome,telefono)'
 
 // Link per entrare in una call (Teams, Zoom, Meet, Webex) scritto nel luogo o nella descrizione (14.10.2026).
@@ -71,7 +71,7 @@ export function ModificaAppuntamento({ e, fatto, chiudi }) {
     try {
       const annulla = await cambiaEvento(e, nuovo)
       const google = !!(e.originale || e).google_id
-      avvisa(google ? `${messaggio}: in Google entro un'ora` : messaggio, {
+      avvisa(google ? `${messaggio}: in Google entro 10 minuti` : messaggio, {
         etichetta: 'Annulla',
         fai: async () => {
           try { await annulla(); avvisa('Come prima'); fatto() } catch (err) { avvisa(messaggioErrore(err)) }
@@ -139,7 +139,7 @@ export function ModificaAppuntamento({ e, fatto, chiudi }) {
         {chiudi && <button type="button" className="tasto-link" onClick={chiudi}>Chiudi</button>}
       </div>
       {(e.originale || e).google_id && (
-        <p className="nota-piccola">Resta lo stesso appuntamento: appunti e note non si perdono. In Google Calendar lo sposta l'agente entro un'ora.</p>
+        <p className="nota-piccola">Resta lo stesso appuntamento: appunti e note non si perdono. In Google Calendar si sposta entro 10 minuti (di notte alle 6).</p>
       )}
     </div>
   )

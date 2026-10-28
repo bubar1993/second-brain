@@ -4,6 +4,8 @@
 // Google non fa più scaricare la chiave del client: lo scambio del codice lo fa la funzione `collega-calendario`
 // (che la chiave ce l'ha), con PKCE. Qui servono solo il clic di Giovanni e SUPABASE_ACCESS_TOKEN.
 // Uso: node scripts/collega-calendario.mjs   → si apre Google, Giovanni clicca Consenti.
+//      node scripts/collega-calendario.mjs scrittura   → (28.10.2026, tappa 2) permesso di creare e cambiare eventi
+//      (calendar.events + email per controllare l'account), segreto CALENDARIO_SCRIVI_TOKEN.
 // Non stampa mai valori segreti.
 import { createServer } from 'node:http'
 import { exec } from 'node:child_process'
@@ -12,8 +14,9 @@ import { randomBytes, createHash } from 'node:crypto'
 const FUNZIONE = 'https://vgurncqvgulldolhetyr.supabase.co/functions/v1/collega-calendario'
 const SB = process.env.SUPABASE_ACCESS_TOKEN
 if (!SB) { console.log('Manca SUPABASE_ACCESS_TOKEN'); process.exit(1) }
+const tipo = process.argv[2] === 'scrittura' ? 'scrittura' : 'lettura'
 const chiama = async (corpo) => (await fetch(FUNZIONE, {
-  method: 'POST', headers: { 'x-supabase-pat': SB, 'Content-Type': 'application/json' }, body: JSON.stringify(corpo),
+  method: 'POST', headers: { 'x-supabase-pat': SB, 'Content-Type': 'application/json' }, body: JSON.stringify({ ...corpo, tipo }),
 })).json()
 
 const inizio = await chiama({ azione: 'inizio' })

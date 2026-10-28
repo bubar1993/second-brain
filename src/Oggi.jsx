@@ -534,7 +534,7 @@ function useAzioniEventi(ricarica, chiudi) {
           } catch (err) { avvisa(messaggioErrore(err)) }
         },
       }
-      avvisa(si ? 'Lo metto nel calendario entro un\'ora' : 'Scartato', annulla)
+      avvisa(si ? 'Lo metto nel calendario entro 10 minuti (di notte alle 6)' : 'Scartato', annulla)
       ricarica()
     } catch (err) {
       avvisa(messaggioErrore(err))

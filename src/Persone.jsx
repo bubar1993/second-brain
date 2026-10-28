@@ -289,7 +289,7 @@ export function Persona({ id }) {
       .sort((a, b) => (b.data || b.creata_il).localeCompare(a.data || a.creata_il))
     const messaggi = chk(wa).flatMap((c) => c.wa_messaggi.map((m) => ({ ...m, area: c.area })))
       .sort((a, b) => b.data.localeCompare(a.data))
-    // Appuntamenti spostati dall'app: con la data nuova (in Google arriva entro un'ora).
+    // Appuntamenti spostati dall'app: con la data nuova (in Google arriva entro 10 minuti).
     const eventi = chk(ev).map((e) => ({ ...e, ...(e.cambio || {}) })).sort((a, b) => a.inizio.localeCompare(b.inizio))
     return { p, note, riassunti: chk(riassunti), messaggi, posta: chk(posta), chat: chk(wa).map((c) => c.wa_id), eventi, contatto: chk(rub)[0] || null }
   }, [id])

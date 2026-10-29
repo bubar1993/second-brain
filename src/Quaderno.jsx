@@ -9,14 +9,14 @@ import Nota from './Nota'
 // Privato (capitoli per persona e per tema, li sceglie Giovanni: tabelle quaderno_capitoli e note_temi).
 // Di solito si vedono solo le note di Giovanni (scritte, dettate, foto, condivise); il tasto "Anche quelle degli
 // agenti" mostra anche quelle nate dalle mail e da WhatsApp. Sul PC: capitoli, note e nota aperta una accanto all'altra.
-// Indirizzi: #/quaderno, #/quaderno/C, #/quaderno/C/<azienda>?m=<mandante>, #/quaderno/G/<azienda>?cantiere=<id|generale>,
+// Indirizzi: #/quaderno, #/quaderno/C, #/quaderno/C/<azienda>?m=<mandante>, #/quaderno/G/<azienda>?cantiere=<id|generale>, #/quaderno/G/fornitore/<id>,
 // #/quaderno/P/persona/<id>, #/quaderno/P/tema/<id>, #/quaderno/<area>/senza; sul PC ?nota=<id> apre la nota a destra.
 
 const MIE = ['scritta', 'voce', 'foto', 'condivisa']
 const mia = (n) => MIE.includes(n.fonte)
 const QUADERNI = [
   { codice: 'C', sotto: 'Clienti, poi le note per mandante' },
-  { codice: 'G', sotto: 'Clienti, cantieri, poi le note' },
+  { codice: 'G', sotto: 'Clienti, cantieri e fornitori' },
   { codice: 'P', sotto: 'Persone e temi, li scegli tu' },
 ]
 const GIORNI_SETTIMANA = ['', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
@@ -56,11 +56,26 @@ function perGiorno(note) {
 }
 const ordinaNote = (note) => [...note].sort((a, b) => giornoDi(b).localeCompare(giornoDi(a)) || (b.creata_il || '').localeCompare(a.creata_il || ''))
 
-// "Anche quelle degli agenti": scelta ricordata sul telefono.
+// Note degli agenti: dal 29.10.2026 si vedono sempre (Giovanni: "le note importanti le voglio vedere sempre");
+// il tasto "Solo le mie" le nasconde, scelta ricordata sul telefono.
 function useAgenti() {
-  const [si, setSi] = useState(() => leggi('quaderno-agenti') === '1')
-  return [si, (v) => { setSi(v); scrivi('quaderno-agenti', v ? '1' : '') }]
+  const [si, setSi] = useState(() => leggi('quaderno-solo-mie') !== '1')
+  return [si, (v) => { setSi(v); scrivi('quaderno-solo-mie', v ? '' : '1') }]
 }
+function SoloMie({ agenti, setAgenti }) {
+  return (
+    <label className="interruttore-agenti">
+      <input type="checkbox" checked={!agenti} onChange={(e) => setAgenti(!e.target.checked)} />
+      Solo le mie
+    </label>
+  )
+}
+
+// Fornitori G&C (29.10.2026): una nota è del fornitore se il suo mandante è il nome_breve di un fornitore.
+// Le note nate da una mail solo col fornitore (senza cliente) stanno nel suo capitolo e non in "Senza cliente".
+const leggiFornitori = () => tutte(() => sb.from('fornitori').select('id,nome,nome_breve').eq('area', 'G')
+  .is('eliminata_il', null).not('nome_breve', 'is', null).order('nome_breve'))
+const delFornitore = (n, brevi) => !n.azienda_id && n.fonte === 'mail' && brevi.has(n.mandante)
 
 // Link a una nota: sul PC si apre nella colonna a destra, sul telefono a tutta pagina.
 function useLinkNota() {
@@ -81,6 +96,7 @@ export function Quaderno({ parti, query }) {
   const contenuto = !area ? <Copertina />
     : area === 'persona' ? <NotePersona key={a} id={a} />
     : area === 'P' && (a === 'persona' || a === 'tema') ? <CapitoloPrivato key={b} tipo={a} id={b} />
+      : area === 'G' && a === 'fornitore' ? <Fornitore key={b} id={b} />
       : a === 'senza' ? <SenzaCapitolo key={area} area={area} />
         : a ? <Cliente key={a} area={area} id={a} query={query} />
           : <Capitoli key={area} area={area} />
@@ -185,7 +201,7 @@ function Ricerca({ q, area: soloArea }) {
   useEffect(() => {
     const t = setTimeout(async () => {
       const parole = q.trim().replace(/[%_,()*]/g, ' ').split(/\s+/).filter((p) => p.length > 1).slice(0, 4)
-      if (!parole.length) { setTrovati({ persone: [], ditte: [] }); return }
+      if (!parole.length) { setTrovati({ persone: [], ditte: [], cantieri: [], fornitori: [] }); return }
       let qp = sb.from('persone').select(CAMPI_PERSONA).is('eliminata_il', null).order('nome').limit(30)
       let qa = sb.from('aziende').select('id,nome,area').is('eliminata_il', null).is('unito_in', null).in('area', aree).order('nome').limit(20)
       for (const p of parole) {
@@ -194,8 +210,11 @@ function Ricerca({ q, area: soloArea }) {
       }
       let qc = sb.from('cantieri').select('id,nome,azienda_id,aziende(nome)').is('eliminata_il', null).in('area', aree).order('nome').limit(15)
       for (const p of parole) qc = qc.or(`nome.ilike.%${p}%,descrizione.ilike.%${p}%`)
-      const [{ data: persone }, { data: ditte }, { data: cantieri }, { data: capitoli }] = await Promise.all([qp, qa, qc,
-        sb.from('quaderno_capitoli').select('id,persona_id').eq('tipo', 'persona').is('eliminata_il', null)])
+      let qf = sb.from('fornitori').select('id,nome,nome_breve').eq('area', 'G').is('eliminata_il', null).not('nome_breve', 'is', null).order('nome_breve').limit(10)
+      for (const p of parole) qf = qf.or(`nome.ilike.%${p}%,nome_breve.ilike.%${p}%,ragione_sociale.ilike.%${p}%`)
+      const [{ data: persone }, { data: ditte }, { data: cantieri }, { data: capitoli }, { data: fornitori }] = await Promise.all([qp, qa, qc,
+        sb.from('quaderno_capitoli').select('id,persona_id').eq('tipo', 'persona').is('eliminata_il', null),
+        aree.includes('G') ? qf : { data: [] }])
       const capitolo = Object.fromEntries((capitoli || []).map((c) => [c.persona_id, c.id]))
       // Persone: solo quelle che stanno in una delle aree scelte; le ditte mostrate sono quelle di queste aree.
       const tenute = (persone || []).map((p) => ({
@@ -205,7 +224,7 @@ function Ricerca({ q, area: soloArea }) {
       tenute.forEach((p) => p.ditte.forEach((d) => { if (!tutte.has(d.id)) tutte.set(d.id, d) }))
       // Persona con un capitolo nel Privato (es. Leonardo): si apre quel capitolo; le altre: le loro note nel quaderno.
       tenute.forEach((p) => { p.link = capitolo[p.id] && aree.includes('P') ? `#/quaderno/P/persona/${capitolo[p.id]}` : `#/quaderno/persona/${p.id}` })
-      setTrovati({ persone: tenute, ditte: [...tutte.values()].filter((d) => d.area === 'C' || d.area === 'G'), cantieri: cantieri || [] })
+      setTrovati({ persone: tenute, ditte: [...tutte.values()].filter((d) => d.area === 'C' || d.area === 'G'), cantieri: cantieri || [], fornitori: fornitori || [] })
     }, 300)
     return () => clearTimeout(t)
   }, [q, aree.join()])  // eslint-disable-line react-hooks/exhaustive-deps
@@ -256,9 +275,23 @@ function Ricerca({ q, area: soloArea }) {
           </div>
         </section>
       )}
+      {trovati?.fornitori.length > 0 && (
+        <section className="blocco">
+          <h3>Fornitori</h3>
+          <div className="elenco">
+            {trovati.fornitori.map((f) => (
+              <a key={f.id} href={`#/quaderno/G/fornitore/${f.id}`} className="riga capitolo">
+                <span className="pallino" style={{ background: areaDa('G').colore }} aria-hidden="true" />
+                <span className="riga-corpo"><span className="riga-testo">{f.nome_breve}</span>{f.nome !== f.nome_breve && <span className="riga-meta">{f.nome}</span>}</span>
+                <Icona nome="freccia" size={18} />
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
       {q.trim().length >= 3 && (
         <section className="blocco">
-          {(trovati?.persone.length > 0 || trovati?.ditte.length > 0 || trovati?.cantieri.length > 0) && <h3>Note</h3>}
+          {(trovati?.persone.length > 0 || trovati?.ditte.length > 0 || trovati?.cantieri.length > 0 || trovati?.fornitori.length > 0) && <h3>Note</h3>}
           <Trovate q={q} area={soloArea} />
         </section>
       )}
@@ -327,16 +360,29 @@ function CapitoliClienti({ area, compatto }) {
   const [cerca, setCerca] = useState('')
   const [agenti] = useAgenti()
   const { dati, errore, carica } = useCarica(async () => {
-    const [aziende, note] = await Promise.all([
+    const [aziende, note, fornitori] = await Promise.all([
       tutte(() => sb.from('aziende').select('id,nome,gruppo_id').eq('area', area).is('eliminata_il', null).is('unito_in', null).order('nome')),
       tutte(() => sb.from('note').select('azienda_id,fonte,data,creata_il,sezione,risolto_il,mandante').eq('area', area)
         .is('eliminata_il', null).is('scartata_il', null)),
+      area === 'G' ? leggiFornitori() : [],
     ])
     const info = Object.fromEntries(aziende.map((x) => [x.id, { ...x, mie: 0, tutte: 0, ultima: '', aperti: {}, filiali: [] }]))
+    // Fornitori: tutte le note col loro nome (anche dei clienti); "con" = quelle solo col fornitore.
+    const forn = Object.fromEntries(fornitori.map((f) => [f.nome_breve, { ...f, mie: 0, tutte: 0, con: 0, ultima: '', aperti: 0 }]))
+    const brevi = new Set(Object.keys(forn))
     let senza = 0
     for (const n of note) {
+      const f = forn[n.mandante]
+      if (f) {
+        f.tutte++
+        if (mia(n)) f.mie++
+        if (!n.azienda_id) f.con++
+        const g = giornoDi(n)
+        if (g > f.ultima) f.ultima = g
+        if (!n.azienda_id && n.sezione === 'problemi' && !n.risolto_il) f.aperti++
+      }
       const i = info[n.azienda_id]
-      if (!i) { if (!n.azienda_id && (agenti || mia(n))) senza++; continue }
+      if (!i) { if (!n.azienda_id && !delFornitore(n, brevi) && (agenti || mia(n))) senza++; continue }
       i.tutte++
       if (mia(n)) i.mie++
       const g = giornoDi(n)
@@ -356,12 +402,17 @@ function CapitoliClienti({ area, compatto }) {
       c.ultimaGruppo = [c.ultima, ...c.filiali.map((f) => f.ultima)].sort().pop() || ''
     }
     capi.sort((p, q) => q.ultimaGruppo.localeCompare(p.ultimaGruppo) || p.nome.localeCompare(q.nome, 'it'))
-    return { capi, senza, info }
+    const fornitoriOrdinati = Object.values(forn).sort((p, q) => q.ultima.localeCompare(p.ultima) || p.nome_breve.localeCompare(q.nome_breve, 'it'))
+    return { capi, senza, info, fornitori: fornitoriOrdinati }
   }, [area, agenti])
 
   const q = cerca.trim().toLowerCase()
   const visibili = (dati?.capi || []).filter((c) => !q || [c.nome, ...c.filiali.map((f) => f.nome)].some((n) => n.toLowerCase().includes(q)))
-  const aperti = Object.values(dati?.info || {}).flatMap((x) => Object.entries(x.aperti).map(([m, n]) => ({ x, m, n })))
+  const fornVisibili = (dati?.fornitori || []).filter((f) => !q || [f.nome_breve, f.nome].some((n) => n.toLowerCase().includes(q)))
+  const aperti = [
+    ...Object.values(dati?.info || {}).flatMap((x) => Object.entries(x.aperti).map(([m, n]) => ({ x, m, n }))),
+    ...(dati?.fornitori || []).filter((f) => f.aperti).map((f) => ({ x: f, m: '', n: f.aperti, fornitore: true })),
+  ]
 
   const riga = (c, filiale) => {
     const quante = agenti ? c.tutte : c.mie
@@ -386,7 +437,7 @@ function CapitoliClienti({ area, compatto }) {
     <div className="schermata quaderno">
       <TestaQuaderno area={area} />
       <input type="search" value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca un cliente o una parola" />
-      {cerca.trim().length >= 3 && !visibili.length ? <Ricerca q={cerca} area={area} /> : (
+      {cerca.trim().length >= 3 && !visibili.length && !fornVisibili.length ? <Ricerca q={cerca} area={area} /> : (
         <Stato carica={carica} errore={errore}>
           {dati && (
             <>
@@ -394,9 +445,9 @@ function CapitoliClienti({ area, compatto }) {
                 <section className="blocco">
                   <h3 className="rosso">Problemi aperti</h3>
                   <div className="elenco">
-                    {aperti.map(({ x, m, n }) => (
-                      <a key={x.id + m} href={`#/quaderno/${area}/${x.gruppo_id && dati.info[x.gruppo_id] ? x.gruppo_id : x.id}${m ? `?m=${encodeURIComponent(m)}` : ''}`} className="riga capitolo aperto">
-                        <span className="riga-corpo"><span className="riga-testo">{m ? `${x.nome} · ${m}` : x.nome}</span></span>
+                    {aperti.map(({ x, m, n, fornitore }) => (
+                      <a key={x.id + m} href={fornitore ? `#/quaderno/G/fornitore/${x.id}` : `#/quaderno/${area}/${x.gruppo_id && dati.info[x.gruppo_id] ? x.gruppo_id : x.id}${m ? `?m=${encodeURIComponent(m)}` : ''}`} className="riga capitolo aperto">
+                        <span className="riga-corpo"><span className="riga-testo">{fornitore ? `${x.nome_breve} (fornitore)` : m ? `${x.nome} · ${m}` : x.nome}</span></span>
                         <span className="rosso conto-capitolo">{n} {n === 1 ? 'aperto' : 'aperti'}</span>
                       </a>
                     ))}
@@ -415,7 +466,30 @@ function CapitoliClienti({ area, compatto }) {
                   )}
                 </div>
               </section>
-              {!compatto && <p className="nota-piccola">Un capitolo per cliente; le filiali stanno sotto il loro gruppo. Le note scritte da dentro un cliente vanno già lì.</p>}
+              {fornVisibili.length > 0 && (
+                <section className="blocco">
+                  <h3>Fornitori</h3>
+                  <div className="elenco">
+                    {fornVisibili.map((f) => {
+                      const quante = agenti ? f.tutte : f.mie
+                      return (
+                        <a key={f.id} href={`#/quaderno/G/fornitore/${f.id}`} className="riga capitolo">
+                          <span className="riga-corpo">
+                            <span className="riga-testo">{f.nome_breve}</span>
+                            <span className="riga-meta">
+                              {f.ultima ? `ultima nota ${nomeGiorno(f.ultima).toLowerCase()}` : 'ancora nessuna nota'}
+                              {f.con > 0 && ` · ${f.con} col fornitore`}
+                            </span>
+                          </span>
+                          {f.aperti > 0 ? <span className="rosso conto-capitolo">{f.aperti} {f.aperti === 1 ? 'aperto' : 'aperti'}</span>
+                            : <span className="conto-capitolo">{quante || ''}</span>}
+                        </a>
+                      )
+                    })}
+                  </div>
+                </section>
+              )}
+              {!compatto && <p className="nota-piccola">Un capitolo per cliente; le filiali stanno sotto il loro gruppo. Le note scritte da dentro un cliente vanno già lì.{area === 'G' && ' Nei fornitori: le note col fornitore e quelle dei clienti con la sua merce.'}</p>}
             </>
           )}
         </Stato>
@@ -529,10 +603,7 @@ function Cliente({ area, id, query }) {
         )
       )}
 
-      <label className="interruttore-agenti">
-        <input type="checkbox" checked={agenti} onChange={(e) => setAgenti(e.target.checked)} />
-        Anche le note degli agenti
-      </label>
+      <SoloMie agenti={agenti} setAgenti={setAgenti} />
 
       {!dellaScheda.length ? <p className="msg">Ancora nessuna nota qui. Tocca "+ Nota qui" per scrivere la prima.</p>
         : !mostrate.length ? (
@@ -546,6 +617,91 @@ function Cliente({ area, id, query }) {
         )}
       {mostrate.length > 0 && nascoste > 0 && (
         <button type="button" className="tasto-link" onClick={() => setAgenti(true)}>Ci sono anche {nascoste} note degli agenti: mostrale</button>
+      )}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Un fornitore G&C (29.10.2026): note col fornitore, note dei clienti con la sua merce, circolari */
+/* ------------------------------------------------------------------ */
+function Fornitore({ id }) {
+  const [agenti, setAgenti] = useAgenti()
+  const [tutteClienti, setTutteClienti] = useState(false)
+  const { dati, errore, carica, ricarica } = useCarica(async () => {
+    const f = chk(await sb.from('fornitori').select('id,nome,nome_breve').eq('id', id).single())
+    if (!f.nome_breve) return { f, note: [], circolari: [] }
+    const [note, circolari] = await Promise.all([
+      tutte(() => sb.from('note').select(`${CAMPI_NOTA},aziende(nome),cantieri(nome)`).eq('area', 'G').eq('mandante', f.nome_breve)
+        .is('eliminata_il', null).is('scartata_il', null)),
+      sb.from('circolari').select('id,data,oggetto,riassunto').eq('area', 'G').eq('mandante', f.nome_breve)
+        .order('data', { ascending: false }).limit(20).then(chk),
+    ])
+    return { f, note: ordinaNote(note), circolari }
+  }, [id])
+  const risolvi = useRisolvi(ricarica)
+
+  if (!dati) return <div className="schermata quaderno"><TestaQuaderno area="G" titolo=" " indietro="#/quaderno/G" /><Stato carica={carica} errore={errore} /></div>
+
+  const { f, note, circolari } = dati
+  const aperti = note.filter((n) => n.sezione === 'problemi' && !n.risolto_il)
+  const altre = note.filter((n) => !aperti.includes(n))
+  const visibili = altre.filter((n) => agenti || mia(n))
+  const conFornitore = visibili.filter((n) => !n.azienda_id)
+  const conClienti = visibili.filter((n) => n.azienda_id)
+  const mostrateClienti = tutteClienti ? conClienti : conClienti.slice(0, 60)
+  const nascoste = altre.length - visibili.length
+  const cliente = (n) => [n.aziende?.nome, n.cantieri?.nome].filter(Boolean).join(' · ') || null
+
+  return (
+    <div className="schermata quaderno">
+      <TestaQuaderno area="G" titolo={f.nome_breve || f.nome} indietro="#/quaderno/G" />
+      {f.nome !== f.nome_breve && <p className="nota-piccola">{f.nome} · fornitore</p>}
+
+      {aperti.length > 0 && (
+        <section className="blocco problemi-quaderno">
+          <h3 className="rosso">Problemi aperti ({aperti.length})</h3>
+          <PagineNote note={aperti} risolvi={risolvi} sede={(n) => cliente(n) || 'col fornitore'} />
+        </section>
+      )}
+
+      <SoloMie agenti={agenti} setAgenti={setAgenti} />
+
+      {!note.length && !circolari.length && <p className="msg">Ancora nessuna nota su questo fornitore.</p>}
+      {nascoste > 0 && !visibili.length && (
+        <div className="scheda vuota-mie">
+          <p className="msg">Qui non hai ancora scritto niente tu.</p>
+          <button type="button" className="tasto-piccolo" onClick={() => setAgenti(true)}>Mostra le {nascoste} note degli agenti</button>
+        </div>
+      )}
+
+      {conFornitore.length > 0 && (
+        <section className="blocco">
+          <h3>Col fornitore</h3>
+          <PagineNote note={conFornitore} risolvi={risolvi} />
+        </section>
+      )}
+      {conClienti.length > 0 && (
+        <section className="blocco">
+          <h3>Con i clienti</h3>
+          <PagineNote note={mostrateClienti} risolvi={risolvi} sede={cliente} />
+          {mostrateClienti.length < conClienti.length && (
+            <button type="button" className="tasto-link" onClick={() => setTutteClienti(true)}>Mostra tutte ({conClienti.length})</button>
+          )}
+        </section>
+      )}
+      {circolari.length > 0 && (
+        <section className="blocco">
+          <h3>Circolari</h3>
+          {circolari.map((c) => (
+            <article key={c.id} className="pagina-nota">
+              <a href="#/circolari" className="pagina-apri">
+                <span className="riga-meta">{[nomeGiorno((c.data || '').slice(0, 10)), c.oggetto].filter(Boolean).join(' · ')}</span>
+                <span className="pagina-testo">{c.riassunto}</span>
+              </a>
+            </article>
+          ))}
+        </section>
       )}
     </div>
   )
@@ -599,8 +755,12 @@ function SenzaCapitolo({ area }) {
         .map((n) => ({ ...n, temi: [] }))
       return { note: ordinaNote(libere), temi: capitoli.filter((c) => c.tipo === 'tema') }
     }
-    const note = await tutte(() => sb.from('note').select(CAMPI_NOTA).eq('area', area).is('azienda_id', null).is('eliminata_il', null).is('scartata_il', null))
-    return { note: ordinaNote(note), temi: null }
+    const [note, fornitori] = await Promise.all([
+      tutte(() => sb.from('note').select(CAMPI_NOTA).eq('area', area).is('azienda_id', null).is('eliminata_il', null).is('scartata_il', null)),
+      area === 'G' ? leggiFornitori() : [],
+    ])
+    const brevi = new Set(fornitori.map((f) => f.nome_breve))
+    return { note: ordinaNote(note.filter((n) => !delFornitore(n, brevi))), temi: null }
   }, [area])
   const risolvi = useRisolvi(ricarica)
   const cambiaTema = async (n, t) => {
@@ -648,10 +808,7 @@ function NotePersona({ id }) {
         <a href={`#/persona/${id}`} className="tasto-piccolo">Scheda</a>
       </div>
       <h1 className="titolo-quaderno">{dati ? nomePersona(dati.p) : ' '}</h1>
-      <label className="interruttore-agenti">
-        <input type="checkbox" checked={agenti} onChange={(e) => setAgenti(e.target.checked)} />
-        Anche le note degli agenti
-      </label>
+      <SoloMie agenti={agenti} setAgenti={setAgenti} />
       <Stato carica={carica} errore={errore} vuoto={dati && !dati.note.length ? 'Nessuna nota con questa persona.' : null}>
         {dati && (!mostrate.length ? (
           <div className="scheda vuota-mie">

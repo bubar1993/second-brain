@@ -109,7 +109,8 @@ function bozzaSalvata(k) {
 
 // Aggiungi: scrivi, parla o foto. Senza area la nota va nell'Inbox.
 // Dal quaderno Note (13.10.2026): "+ Nota qui" porta anche il cantiere (G&C), il tema (Privato) e l'area del quaderno.
-export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata, detta, cantiereId, temaId, areaQuaderno }) {
+// Dal Capo ("Nuova richiesta", "Nuovo argomento", 30.10.2026): `#/aggiungi?capo=1`, il Capo è già scelto.
+export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata, detta, cantiereId, temaId, areaQuaderno, capo }) {
   const { area, avvisa, utente, vai } = useApp()
   const [condiviso] = useState(() => usaCondiviso())
   const chiave = chiaveBozza(personaId, aziendaId, cantiereId, temaId)
@@ -125,9 +126,10 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
   const [salvo, setSalvo] = useState(false)
   // "No, è una nota": il testo non va nella lista / non diventa una garanzia.
   const [soloNota, setSoloNota] = useState(false)
-  // Nota o Capo scelto a mano (sotto il testo); null = lo decide l'app (perIlCapo).
-  const [scelta, setScelta] = useState(null)
-  useEffect(() => { if (!testo.trim()) setScelta(null) }, [testo])
+  // Nota o Capo scelto a mano (sotto il testo); null = lo decide l'app (perIlCapo). Arrivando dal Capo: il Capo.
+  const sceltaIniziale = capo ? 'capo' : null
+  const [scelta, setScelta] = useState(sceltaIniziale)
+  useEffect(() => { if (!testo.trim()) setScelta(sceltaIniziale) }, [testo, sceltaIniziale])
   const scattaRif = useRef(null)
   const testoRif = useRef(null)
   // Nota già creata ma foto non tutte caricate: "Salva" riprova solo le foto (niente note doppie).
@@ -196,7 +198,7 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
     setConPromemoria(false)
     setFonte('scritta')
     setSoloNota(false)
-    setScelta(null)
+    setScelta(sceltaIniziale)
     notaFatta.current = null
     scrivi(chiave, '')
     testoRif.current?.focus()
@@ -226,7 +228,8 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
         .catch(() => chiama('agente-subito', { id: r.id }))
         .catch((e) => ({ ok: false, errore: messaggioErrore(e) }))
       avvisa(esito.veloce || esito.ok ? 'Passato al Capo' : 'Il Capo non è partito. Riprova tra un minuto; se succede ancora, dillo a Claude')
-      vai('/capo')
+      // Al posto di Aggiungi (30.10.2026): indietro non riporta ad Aggiungi vuoto.
+      location.replace('#/capo')
     } catch (e) {
       avvisa(messaggioErrore(e))
     } finally {
@@ -289,7 +292,9 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
         svuota()
         return
       }
-      avvisa(dove + avvisaDetto(detto))
+      // "Apri" porta alla nota appena salvata (30.10.2026), come per liste e garanzie.
+      const salvata = nota.id
+      avvisa(dove + avvisaDetto(detto), { etichetta: 'Apri', fai: () => vai(`/nota/${salvata}`) })
       svuota()
     } catch (e) {
       if (dopoCoda && senzaRete(e)) {

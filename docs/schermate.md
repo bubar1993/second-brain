@@ -46,6 +46,16 @@ Stile, Oggi, Aggiungi, Chiedi, Dentro, schede persona, Quaderno, Bozze, Riordino
 - **Chiedi:** i risultati per parole arrivano subito, "per significato" dopo ("Cerco anche per significato…"); microfono accanto alla ricerca (cerca da solo quando finisci di parlare).
 - **Grafica:** spunte e cerchi 34 px con area di tocco 46 px, chip e tasti ≥ 40 px, stelle 24 px, scritte piccole portate a 13–15 px, `--grigio` #8a90ad, Salva pieno, parole semplici (niente "giro", "Tieni in vista" → "Lascia in casella", "Modifiche per Claude Code" → "Cambi alle app").
 
+### Comodità dal controllo dell'app (30.10.2026)
+- **Capo → "Nuova richiesta" / "Nuovo argomento"**: aprono `#/aggiungi?capo=1`, Aggiungi parte col Capo già scelto (prop `capo`, `sceltaIniziale`); prima la frase poteva finire salvata come nota.
+- **Numeri dei tasti** (`App.jsx`, `ultimoConto`): si rileggono al massimo una volta al minuto, subito quando cambi area o l'app torna in primo piano (`giro`); prima a ogni cambio schermata. Cosa contano non è cambiato.
+- **Chiedi**: l'AI parte da sola solo se il testo ha almeno 3 parole o un "?" (`eDomanda`); altrimenti solo la ricerca e il tasto "Chiedi all'AI".
+- **Ordini Marazzi → Cerca**: niente elenco finché non scrivi almeno 2 lettere (o scegli un filtro: m², disponibilità, date); poi al massimo 50 con "Trovati: N". Tutti gli ordini si scaricano solo la prima volta che servono.
+- **Appunti visita**: "Fine visita" ha la classe `tasto-salva-fisso` come Salva di Aggiungi (in vista con la tastiera aperta).
+- **Tasto indietro**: "Fine visita" (→ Oggi) e "Manda al Capo" da Aggiungi (→ Capo) usano `location.replace`: indietro non riporta alla visita chiusa o ad Aggiungi vuoto.
+- **Agenti**: gli agenti con `spento: true` in `AGENTI` non si vedono nell'elenco (ora "Cestina Riepilogo Ceramex", in pausa per scelta di Giovanni).
+- **Aggiungi**: dopo Salva di una nota l'avviso ha "Apri" (`#/nota/<id>`), come liste e garanzie.
+
 ### Sveglie Sonos (22.10.2026, ok di Giovanni)
 - `#/sveglie` (`src/Sveglie.jsx`, Dentro solo Privato): orari, accese/spente e tasto "Alessia non c'è questa settimana"; in Oggi la riga della prossima sveglia. Dettagli in `docs/privato-gemelli.md` (Sonos).
 

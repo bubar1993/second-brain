@@ -6,6 +6,8 @@ import { RispostaAI, useAttesaAI } from './RispostaAI'
 
 const pulisci = (s) => s.replace(/[,()%*\\.:]/g, '')
 const STATI = { offerta: 'offerta', active: 'in corso', completed: 'finito', persa: 'persa' }
+// Una domanda vera (almeno 3 parole o un "?"): l'AI parte da sola. Un nome o due parole: solo la ricerca.
+const eDomanda = (t) => t.includes('?') || t.trim().split(/\s+/).length >= 3
 const TIPI = { nota: 'Nota', mail: 'Mail', persona: 'Persona', whatsapp: 'WhatsApp' }
 // Parole delle domande che non sono nomi.
 const VUOTE = new Set(['cosa', 'che', 'chi', 'come', 'quando', 'dove', 'perché', 'per', 'con', 'sui', 'sul', 'sulla', 'della',
@@ -17,7 +19,8 @@ function Evidenzia({ testo }) {
     ? <mark key={i}>{p.slice(1, -1)}</mark> : p))
 }
 
-// Chiedi (fase 4): clienti e cantieri mentre scrivi; con Invio cerca per parole simili ovunque e l'AI risponde.
+// Chiedi (fase 4): clienti e cantieri mentre scrivi; con Invio cerca per parole simili ovunque e l'AI risponde
+// (da sola solo alle domande vere, altrimenti col tasto "Chiedi all'AI", 30.10.2026).
 // Tornando da una scheda ritrovi domanda, risultati e risposta; toccando Chiedi riparti da zero.
 export default function Chiedi() {
   const { area } = useApp()
@@ -25,7 +28,8 @@ export default function Chiedi() {
   const [domanda, setDomanda] = useState(tenuta?.domanda || '')
   const [risultati, setRisultati] = useState(tenuta?.risultati || null)
   const [ai, setAi] = useState(tenuta?.ai || null)
-  useEffect(() => { tieniQui('chiedi', { domanda, risultati, ai }) }, [domanda, risultati, ai])
+  // L'AI appena chiesta col tasto (ancora senza id) non si tiene: tornando non resterebbe ferma su "Ci penso…".
+  useEffect(() => { tieniQui('chiedi', { domanda, risultati, ai: ai?.stato === 'in_corso' && !ai.id ? null : ai }) }, [domanda, risultati, ai])
   const [msg, setMsg] = useState('')
   const [lavoro, setLavoro] = useState(false)
   const ricerca = useRef(0)
@@ -54,6 +58,14 @@ export default function Chiedi() {
     .sort((x, y) => y.nome.toLowerCase().startsWith(testo) - x.nome.toLowerCase().startsWith(testo))
     .slice(0, 6)
 
+  // Risposta dell'AI. Senza chiave risponde { pronta: false } e non si vede niente.
+  function chiediAI(mia = ricerca.current) {
+    if (domanda.trim().length < 3) return
+    chiama('chiedi-ai', { domanda: domanda.trim(), area: area === 'T' ? null : area })
+      .then((r) => { if (mia === ricerca.current) setAi(r?.id ? { id: r.id, stato: 'in_corso' } : null) })
+      .catch((e) => { if (mia === ricerca.current) setAi({ stato: 'errore', testo: messaggioErrore(e) }) })
+  }
+
   // Cerca in note, mail, schede persona e WhatsApp (funzione "cerca" del database: italiano, parole simili).
   async function cerca(e) {
     e.preventDefault()
@@ -62,13 +74,10 @@ export default function Chiedi() {
     setLavoro(true)
     setMsg('')
     const mia = ++ricerca.current
-    // L'AI parte subito, insieme alla ricerca. Senza chiave risponde { pronta: false } e non si vede niente.
+    // L'AI parte subito, insieme alla ricerca, solo per le domande vere (30.10.2026: costa crediti e ci mette 10-30 s).
+    // Per un nome solo i risultati, e sotto il tasto "Chiedi all'AI".
     setAi(null)
-    if (domanda.trim().length >= 3) {
-      chiama('chiedi-ai', { domanda: domanda.trim(), area: area === 'T' ? null : area })
-        .then((r) => { if (r?.id && mia === ricerca.current) setAi({ id: r.id, stato: 'in_corso' }) })
-        .catch((e) => { if (mia === ricerca.current) setAi({ stato: 'errore', testo: messaggioErrore(e) }) })
-    }
+    if (eDomanda(domanda)) chiediAI(mia)
     try {
       // Persone per nome: tutte le parole della domanda che somigliano a un nome.
       const qp = parole.length
@@ -143,6 +152,11 @@ export default function Chiedi() {
       </p>
 
       {ai && <RispostaAI ai={ai} />}
+      {!ai && risultati && !lavoro && domanda.trim().length >= 3 && (
+        <button type="button" className="tasto-piccolo" onClick={() => { setAi({ stato: 'in_corso' }); chiediAI() }}>
+          Chiedi all'AI
+        </button>
+      )}
 
       {clienti.length > 0 && (
         <>

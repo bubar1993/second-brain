@@ -13,7 +13,8 @@ export const AGENTI = [
   { codice: 'ceramex', nome: 'Bozze mail Ceramex', cosa: 'Bozze di risposta nella tua Gmail e note dalle mail Ceramex', registro: 'agente-ceramex', aree: ['C'], orari: 'ogni mezz\'ora nei giorni feriali e ogni 2 ore nel weekend, dalle 6 alle 23' },
   { codice: 'ordini', nome: 'Ordini Marazzi', cosa: 'Legge le conferme d\'ordine Marazzi (cliente, articoli, disponibilità) e le mette nella scheda del cliente', registro: 'agente-ceramex-ordini', aree: ['C'], orari: 'ogni ora alle :20, dalle 6 alle 22', senzaRichieste: true },
   { codice: 'liste', nome: 'Liste di carico', cosa: 'Archivia nella cartella giusta le liste di carico automatiche (Marazzi, Flaviker) e le segna come lette', registro: 'agente-ceramex-liste', aree: ['C'], orari: 'ogni giorno alle 6:52', senzaRichieste: true },
-  { codice: 'riepilogo', nome: 'Cestina Riepilogo Ceramex', cosa: 'Mette nel cestino la mail automatica "Riepilogo Ceramex" del mattino', registro: 'agente-ceramex-riepilogo', aree: ['C'], orari: 'ogni giorno alle 7:49', senzaRichieste: true },
+  // In pausa per scelta di Giovanni: non si vede nell'elenco (spento, 30.10.2026). Non riaccenderla senza chiedere.
+  { codice: 'riepilogo', nome: 'Cestina Riepilogo Ceramex', cosa: 'Mette nel cestino la mail automatica "Riepilogo Ceramex" del mattino', registro: 'agente-ceramex-riepilogo', aree: ['C'], orari: 'ogni giorno alle 7:49', senzaRichieste: true, spento: true },
   { codice: 'gc', nome: 'Agente G&C', cosa: 'Mail di info@: note e bozze di risposta', registro: 'agente-gc', aree: ['G'], orari: 'ogni mezz\'ora, dalle 6 alle 23' },
   { codice: 'archiviazione', nome: 'Archiviazione mail G&C', cosa: 'Archivia nel gestionale G&C le mail di info@ (cantiere, cliente o fornitore), collega le fatture ai costi e ti lascia i dubbi in "Da controllare"', registro: 'agente-gc-archiviazione', aree: ['G'], orari: 'ogni 2 ore, dalle 6 alle 22' },
   { codice: 'abaninja', nome: 'Copia AbaNinja serale', cosa: 'Copia nel gestionale G&C le offerte e le fatture nuove o cambiate in AbaNinja (fino al 31.12.2026). Qui il suo riassunto, con i dubbi; se non c\'è niente da copiare non scrive', registro: 'agente-gc-abaninja', aree: ['G'], orari: 'ogni sera alle 19:20', senzaRichieste: true },
@@ -36,7 +37,8 @@ function riepilogo(r) {
 
 export function Agenti() {
   const { area } = useApp()
-  const visibili = AGENTI.filter((a) => area === 'T' || a.aree.includes(area))
+  // Gli agenti spenti o in pausa (spento: true) non si vedono.
+  const visibili = AGENTI.filter((a) => !a.spento && (area === 'T' || a.aree.includes(area)))
   const { dati, errore, carica } = useCarica(async () => {
     const [giri, richieste] = await Promise.all([
       Promise.all(visibili.map((a) => sb.from('lavori_registro').select('lavoro,iniziata_il,ok,errore,dettagli')

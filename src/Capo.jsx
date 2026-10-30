@@ -155,16 +155,17 @@ export function Capo() {
         )}
       </Stato>
 
-      {/* Il riquadro per scrivere c'è solo dentro un argomento aperto (per rispondere); "Nuovo argomento" porta al "+". */}
+      {/* Il riquadro per scrivere c'è solo dentro un argomento aperto (per rispondere); "Nuovo argomento" porta al "+"
+          col Capo già scelto (?capo=1, 30.10.2026: prima la frase poteva finire salvata come nota). */}
       {!sez.attiva ? (
         <div className="scrivi-capo">
-          <button type="button" className="tasto-grande" onClick={() => vai('/aggiungi')}>Nuova richiesta</button>
+          <button type="button" className="tasto-grande" onClick={() => vai('/aggiungi?capo=1')}>Nuova richiesta</button>
         </div>
       ) : (
       <div className="scrivi-capo">
         <div className="scrivi-sopra">
           <span className="nota-piccola">Continui: {titoloCapo(sez.attiva.righe[0])}</span>
-          <button type="button" className="tasto-link" onClick={() => { sez.nuovoArgomento(); vai('/aggiungi') }}>Nuovo argomento</button>
+          <button type="button" className="tasto-link" onClick={() => { sez.nuovoArgomento(); vai('/aggiungi?capo=1') }}>Nuovo argomento</button>
         </div>
         <textarea ref={scrivi} value={testo} onChange={(e) => setTesto(e.target.value)} rows={2}
           placeholder={dettatura.attiva ? 'Ti ascolto…' : 'Rispondi al Capo…'} />

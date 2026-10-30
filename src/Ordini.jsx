@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { sb, quando } from './supabase'
 import { useCarica, chk, Stato, Indietro, Icona } from './componenti'
 
@@ -53,22 +53,28 @@ function filtra(ordini, f) {
 export function Ordini() {
   const [cerca, setCerca] = useState(false)
   const [f, setF] = useState(VUOTO)
-  const attivo = cerca && Object.values(f).some((v) => v !== '')
+  // Cerca (30.10.2026): niente elenco finché non scrivi almeno 2 lettere (o scegli un filtro); poi al massimo 50.
+  // Tutti gli ordini si scaricano solo la prima volta che serve (prima: 2000 ordini all'apertura).
+  const pronto = cerca && (f.cliente.trim().length >= 2 || f.articolo.trim().length >= 2 || [f.da, f.a, f.disp, f.dal, f.al].some((v) => v !== ''))
+  const [tutti, setTutti] = useState(false)
+  useEffect(() => { if (pronto) setTutti(true) }, [pronto])
   const { dati, errore, carica } = useCarica(async () => {
+    if (cerca && !tutti) return null
     let q = sb.from('ordini_marazzi')
       .select('id,data,oggetto,numeri,riferimento,cliente,righe,riepilogo,disponibile,stato,errore,gmail_thread_id,aziende(id,nome)')
       .order('data', { ascending: false })
     if (!cerca) q = q.gte('data', inizioDueGiorniLavorativi().toISOString())
     return chk(await q.limit(2000))
-  }, [cerca])
-  const mostrati = dati ? (attivo ? filtra(dati, f) : dati) : null
+  }, [cerca, tutti])
+  const trovati = dati && cerca ? (pronto ? filtra(dati, f) : null) : null
+  const mostrati = cerca ? trovati?.slice(0, 50) || null : dati
   const metti = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
 
   return (
     <div className="schermata">
       <div className="testata-con-tasto">
         <Indietro titolo="Ordini Marazzi" />
-        <button type="button" className={'tasto-piccolo' + (cerca ? ' attivo' : '')} onClick={() => { setCerca(!cerca); setF(VUOTO) }}>
+        <button type="button" className={'tasto-piccolo' + (cerca ? ' attivo' : '')} onClick={() => { setCerca(!cerca); setF(VUOTO); setTutti(false) }}>
           {cerca ? 'Chiudi' : <><Icona nome="cerca" size={16} /> Cerca</>}
         </button>
       </div>
@@ -91,14 +97,16 @@ export function Ordini() {
           </div>
           <p className="nota-piccola">
             Cerca in tutti gli ordini. I metri quadri valgono per la riga dell'articolo cercato; senza articolo, per tutto l'ordine.
-            {mostrati && attivo && ` Trovati: ${mostrati.length}.`}
+            {!pronto && ' Scrivi almeno 2 lettere per vedere gli ordini.'}
+            {trovati && ` Trovati: ${trovati.length}.`}
+            {trovati?.length > 50 && ' Ti mostro i primi 50: scrivi di più per restringere.'}
           </p>
         </form>
       ) : (
         <p className="nota-piccola">Le conferme d'ordine di oggi e del giorno lavorativo prima. Le più vecchie restano nella scheda del cliente, sezione Ordini, e si trovano con Cerca.</p>
       )}
       <Stato carica={carica} errore={errore}
-        vuoto={mostrati?.length === 0 ? (cerca ? (attivo ? 'Nessun ordine con questi filtri.' : 'Ancora nessun ordine.') : 'Nessuna conferma d\'ordine negli ultimi 2 giorni lavorativi.') : null}>
+        vuoto={mostrati?.length === 0 ? (cerca ? 'Nessun ordine con questi filtri.' : 'Nessuna conferma d\'ordine negli ultimi 2 giorni lavorativi.') : null}>
         {mostrati && (
           <div className="ordini">
             {mostrati.map((o) => {

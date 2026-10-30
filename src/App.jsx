@@ -183,7 +183,8 @@ function Guscio({ utente, condiviso }) {
     return () => document.removeEventListener('visibilitychange', cambia)
   }, [])
 
-  // Numero di cose nell'Inbox e di bozze da approvare, aggiornati a ogni cambio schermata.
+  // Numero di cose nell'Inbox e di bozze da approvare. Dal 30.10.2026 non più a ogni cambio schermata (Da seguire
+  // scarica fino a 500 note): al massimo una volta al minuto, e subito quando cambi area o l'app torna in primo piano (giro).
   const [bozze, setBozze] = useState(0)
   const [domande, setDomande] = useState(0)
   const [risposte, setRisposte] = useState(0)
@@ -191,7 +192,11 @@ function Guscio({ utente, condiviso }) {
   const [seguire, setSeguire] = useState(0)
   const [circolari, setCircolari] = useState(0)
   const [conferme, setConferme] = useState(0)
+  const ultimoConto = useRef({ ora: 0, giro: -1, area: null })
   useEffect(() => {
+    const u = ultimoConto.current
+    if (u.giro === giro && u.area === area && Date.now() - u.ora < 60000) return
+    ultimoConto.current = { ora: Date.now(), giro, area }
     // Capo: cose da confermare (le risposte e le domande si contano sotto).
     contaConferme().then(setConferme).catch(() => {})
     // Da seguire (promesse scadute + problemi fermi) e circolari non lette, solo Ceramex e G&C.
@@ -269,7 +274,7 @@ function Guscio({ utente, condiviso }) {
   } else switch (primo) {
     case 'aggiungi': schermata = <Aggiungi key={rotta.query.toString()} usaCondiviso={usaCondiviso} personaId={rotta.query.get('persona')}
       aziendaId={rotta.query.get('azienda')} chiamata={rotta.query.has('chiamata')} detta={rotta.query.has('detta')}
-      cantiereId={rotta.query.get('cantiere')} temaId={rotta.query.get('tema')} areaQuaderno={rotta.query.get('area')} />; break
+      cantiereId={rotta.query.get('cantiere')} temaId={rotta.query.get('tema')} areaQuaderno={rotta.query.get('area')} capo={rotta.query.has('capo')} />; break
     case 'chiedi': schermata = <Chiedi />; break
     case 'dentro': schermata = <Dentro inbox={inbox} bozze={bozze} riordino={riordino} seguire={seguire} circolari={circolari} />; break
     case 'riordino': schermata = <Riordino />; break

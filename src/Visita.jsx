@@ -169,7 +169,7 @@ export function visiteAperte() {
 }
 
 export function Visita({ id }) {
-  const { avvisa, vai, utente } = useApp()
+  const { avvisa, utente } = useApp()
   const [testo, setTesto] = useState(() => bozzaVisita(id)?.testo || '')
   const [foto, setFoto] = useState([])
   const [dettata, setDettata] = useState(false)
@@ -249,7 +249,8 @@ export function Visita({ id }) {
       chk(await sb.from('eventi').update({ fatto_il: new Date().toISOString(), nota_id: nota.id }).eq('id', id))
       scrivi(chiave(id), '')
       avvisa('Visita salvata: l\'agente la mette nella scheda')
-      vai('/oggi')
+      // Al posto della visita (30.10.2026): indietro non riporta alla visita già chiusa.
+      location.replace('#/oggi')
     } catch (err) {
       avvisa(notaFatta.current ? `Appunti salvati, ma una foto non è partita: tocca Fine visita per riprovare. (${messaggioErrore(err)})` : messaggioErrore(err))
       setSalvo(false)
@@ -325,7 +326,8 @@ export function Visita({ id }) {
               </>
             )}
 
-            <button type="button" className="tasto-grande" onClick={fine} disabled={salvo}>
+            {/* Come Salva in Aggiungi: resta in vista anche con la tastiera aperta (30.10.2026). */}
+            <button type="button" className="tasto-grande tasto-salva-fisso" onClick={fine} disabled={salvo}>
               {salvo ? 'Salvo…' : 'Fine visita'}
             </button>
           </>

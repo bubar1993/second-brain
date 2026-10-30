@@ -62,4 +62,9 @@ Piano in 5 passi: 1 controllo, 2 stacco, 3 backup su Drive, 4 link al brain nell
 
 - Circolari aumenti prezzi in info@ (13.10.2026 notte, richiesta di Giovanni): messe a mano Marazzi/Ragno (Silvia Leoni, dal 1.12), Savoia (dal 2.11), ABK contributo energetico (dal 1.11), Gambini energy surcharge. Polis: nessuna mail di aumenti trovata in info@. L'agente ora riconosce il fornitore anche dal dominio del mittente (`fornitori.domini`), non solo da `posta.fornitore_id`: regola cambiata in `agenti/agente-seguire.md`; routine "Agente da seguire" aggiornata il 13.10.2026 sera.
 
+### Note dei mandanti (30.10.2026, ok di Giovanni, piano controllato dall'antagonista)
+- Nel Quaderno Ceramex c'è la sezione "Mandanti" (vedi `schermate.md`).
+- Agente Ceramex, punto 4b del PASSO 5 (md + le 3 routine "Bozze mail Ceramex", aggiornate e confrontate IDENTICO il 30.10): le mail solo tra Giovanni e un mandante, senza cliente, diventano note con `azienda_id` null e `mandante` = il mandante. Le mail a tutti gli agenti, listini, aumenti, fiere e ferie restano circolari (agente "da seguire"); provvigioni fuori.
+- Recupero 29.07–30.10.2026 fatto da Claude in chat (6 aiutanti in sola lettura sulla Gmail, poi controllo doppioni): 29 note (Marazzi 20, Flaviker 6, Profilitec 3, Garbelotto 0) e 24 circolari di agosto–settembre (messe già "lette", per non far salire il numero). La ricerca Gmail si ferma a 50 risultati per volta: la copertura non è totale, soprattutto Flaviker.
+
 Vedi anche: `agenti-routine.md` (routine "Bozze mail Ceramex", liste di carico, Riepilogo), `schermate.md` (Bozze, Riordino casella), `capo.md` (mail private dalla Gmail).

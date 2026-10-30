@@ -17,7 +17,8 @@ const ultimaNovita = (n) => [n.data, n.creata_il, n.rivisto_il].filter(Boolean).
 function problemiFermi(note) {
   const gruppi = new Map()
   for (const n of note) {
-    const k = `${n.azienda_id || n.id}|${n.mandante || ''}`
+    // Senza cliente ma con un mandante o fornitore (30.10.2026): un gruppo per mandante, non uno per nota.
+    const k = `${n.azienda_id || (n.mandante ? `senza-${n.area}` : n.id)}|${n.mandante || ''}`
     if (!gruppi.has(k)) gruppi.set(k, [])
     gruppi.get(k).push(n)
   }

@@ -54,8 +54,9 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
       .is('fatto_il', null).is('eliminata_il', null)
       .order('scade_il', { ascending: true, nullsFirst: false }).limit(50)
     // Le note dei clienti stanno nelle schede delle aziende: qui solo quelle scritte da Giovanni.
+    // Le note dalla mail su un fornitore o mandante (30.10.2026) stanno nel Quaderno, non qui.
     let qn = sb.from('note').select('id,area,testo,fonte,creata_il,note_persone(persone(id,nome,cognome)),allegati(id)')
-      .is('eliminata_il', null).not('area', 'is', null).is('azienda_id', null)
+      .is('eliminata_il', null).not('area', 'is', null).is('azienda_id', null).or('fonte.neq.mail,mandante.is.null')
       .order('creata_il', { ascending: false }).limit(5)
     if (area !== 'T') {
       qp = qp.or(`area.eq.${area},area.is.null`)

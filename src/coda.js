@@ -3,9 +3,13 @@
 import { sb, leggi, scrivi } from './supabase'
 
 const CHIAVE = 'coda-senza-rete'
+// Le cose rifiutate per un errore vero restano qui sul telefono, mai buttate (30.10.2026, scelta di Giovanni).
+const NON_PARTITE = 'coda-non-partite'
 
 // Errore "già c'è" (stesso id già salvato): per la coda vuol dire che era già partita.
 export const giaFatto = (error) => error?.code === '23505'
+// Accesso scaduto: la cosa resta in coda e riparte da sola dopo che sei rientrato.
+const accessoScaduto = (e) => /^PGRST30/.test(e?.code || '') || e?.status === 401 || /jwt|not authenticated/i.test(String(e?.message || ''))
 const ok = ({ error }) => { if (error && !giaFatto(error)) throw error }
 
 const lavori = { // tipo → async (dati) => void ('nota' lo registra Aggiungi)
@@ -16,11 +20,19 @@ const lavori = { // tipo → async (dati) => void ('nota' lo registra Aggiungi)
 export const senzaRete = (e) => (typeof navigator !== 'undefined' && !navigator.onLine)
   || /failed to fetch|networkerror|load failed|network request failed|fetch failed/i.test(String(e?.message || e || ''))
 
-function leggiCoda() {
-  try { return JSON.parse(leggi(CHIAVE) || '[]') } catch { return [] }
+function leggiCoda(chiave = CHIAVE) {
+  try { return JSON.parse(leggi(chiave) || '[]') } catch { return [] }
 }
 
 export const inCoda = () => leggiCoda().length
+export const nonPartite = () => leggiCoda(NON_PARTITE)
+
+// "Riprova": le non partite tornano in coda (gli id sono gli stessi, quindi niente doppioni).
+export function riprovaNonPartite() {
+  const ko = nonPartite().map(({ errore, ...x }) => x)
+  scrivi(CHIAVE, JSON.stringify([...leggiCoda(), ...ko]))
+  scrivi(NON_PARTITE, '[]')
+}
 
 export function mettiInCoda(tipo, dati) {
   scrivi(CHIAVE, JSON.stringify([...leggiCoda(), { tipo, dati, ora: Date.now() }]))
@@ -42,15 +54,18 @@ export async function svuotaCoda() {
       if (!primo) break
       const fn = lavori[primo.tipo]
       if (!fn) break // la schermata che lo sa fare non è ancora caricata: riprovo dopo
+      let partita = true
       try {
         await fn(primo.dati)
       } catch (e) {
-        if (senzaRete(e)) break
-        // Errore vero (dato rifiutato): non blocca la coda per sempre.
-        console.warn('Coda senza rete: scartato', primo, e)
+        if (senzaRete(e) || accessoScaduto(e)) break
+        // Errore vero (dato rifiutato): non blocca la coda, ma la cosa resta da parte e App lo dice.
+        console.warn('Coda senza rete: non partita', primo, e)
+        scrivi(NON_PARTITE, JSON.stringify([...nonPartite(), { ...primo, errore: String(e?.message || e) }]))
+        partita = false
       }
       scrivi(CHIAVE, JSON.stringify(leggiCoda().slice(1)))
-      fatti++
+      if (partita) fatti++
     }
   } finally {
     inCorso = false

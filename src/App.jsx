@@ -12,7 +12,7 @@ import { Seguire, contaDaSeguire } from './Seguire'
 import { Circolari, contaCircolari } from './Circolari'
 import { Capo, contaConferme } from './Capo'
 import { Notifiche } from './Notifiche'
-import { svuotaCoda } from './coda'
+import { svuotaCoda, nonPartite, riprovaNonPartite } from './coda'
 
 // Le schermate usate meno si scaricano a parte (13.10.2026): l'app si apre prima. Dopo l'avvio si scaricano
 // comunque in sottofondo (precarica), così ci sono anche senza rete.
@@ -225,7 +225,11 @@ function Guscio({ utente, condiviso }) {
   // Note e spesa scritte senza rete (coda.js): partono all'avvio, quando torna la rete e quando riapri l'app.
   useEffect(() => {
     const manda = () => svuotaCoda().then((n) => {
-      if (n) avvisa(n === 1 ? 'Tornata la rete: ho mandato la cosa scritta senza rete' : `Tornata la rete: ho mandato le ${n} cose scritte senza rete`)
+      const ko = nonPartite()
+      if (ko.length) {
+        const cosa = ko.length === 1 ? 'Una cosa scritta senza rete non è partita' : `${ko.length} cose scritte senza rete non sono partite`
+        avvisa(`${cosa} (${String(ko[0].errore).slice(0, 80)}). È ancora sul telefono.`, { etichetta: 'Riprova', fai: () => { riprovaNonPartite(); manda() } })
+      } else if (n) avvisa(n === 1 ? 'Tornata la rete: ho mandato la cosa scritta senza rete' : `Tornata la rete: ho mandato le ${n} cose scritte senza rete`)
     }).catch(() => {})
     const t = setTimeout(manda, 3000)
     const visibile = () => { if (!document.hidden) manda() }

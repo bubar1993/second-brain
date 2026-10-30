@@ -12,6 +12,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["C:/Users/giova/Documents/gestionale-gc/test/prova-locale/server.mjs", "5178"],
       "port": 5178
+    },
+    {
+      "name": "sito-gc",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["C:/Users/giova/Documents/sito-gc/prova/server.mjs", "5180"],
+      "port": 5180
     }
   ]
 }

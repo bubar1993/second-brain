@@ -7,6 +7,7 @@ Valgono quando cambi le regole degli agenti. I dettagli stanno in `docs/agenti-r
 - Aggiornare il prompt: get → `node scripts/routine-prompt.mjs estrai <risposta> <prompt.txt>` → modifica → update con il testo INTERO → `confronta` deve dire IDENTICO. I file col prompt contengono token: solo nella cartella temporanea, mai qui né su git.
 - Nei file di questa cartella mai il token vero (si scrive `<TOKEN>`). Il Capo non ha token nel prompt: glielo aggiunge `agente-subito` al messaggio di avvio.
 - Le 3 routine "Bozze mail Ceramex" non sono uguali: mezz'ora ha un PASSO 6 più vecchio e niente blocco RICHIESTE, weekend senza blocco RICHIESTE.
+- Il PASSO 7 (prova del prefiltro fatture, 05.11.2026) e i contatori `fatture_*` della FINE stanno solo nella routine delle ore piene: non vanno copiati nelle altre due (`docs/ceramex.md`).
 - Il blocco "RICHIESTE DI GIOVANNI" sta in fondo alle regole: calendario, lavoro, privato, G&C ore piene, Ceramex ore piene, archiviazione (blocco 00).
 - Lavoro e Privato separati: gli agenti di lavoro non leggono il Privato; l'agente privato vede solo P.
 - Posta: gli agenti leggono e propongono (anche il Cestino, solo come proposta). Nessuna mail si sposta, etichetta o cestina se Giovanni non l'ha scelta nell'app. Unica eccezione: le liste di carico.

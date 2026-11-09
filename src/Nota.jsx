@@ -170,7 +170,9 @@ export default function Nota({ id }) {
         </p>
       )}
 
-      <textarea value={testo} onChange={(e) => setTesto(e.target.value)} rows={6} />
+      {/* Alta quanto il testo (10.11.2026): una nota lunga si legge tutta, senza scorrere dentro il riquadro. */}
+      <textarea value={testo} onChange={(e) => setTesto(e.target.value)} rows={6}
+        ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight + 2}px` } }} />
       {(statoTesto || testo.trim() !== originale) && (
         <p className="nota-piccola" role="status">
           {!testo.trim() ? 'Vuota: non la salvo.' : statoTesto}

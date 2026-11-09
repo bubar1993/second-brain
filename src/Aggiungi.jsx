@@ -494,6 +494,7 @@ export function ScriviQui({ area, aree, aziendaId, cantiereId, personaId, temaId
   return (
     <div className="scrivi-qui" style={{ '--col': areaDa(areaNota)?.colore || 'var(--grigio)' }}>
       <textarea value={testo} onChange={(e) => setTesto(e.target.value)} rows={pulito ? 4 : 1}
+        ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight + 2}px` } }}
         placeholder={dove ? `Scrivi qui una nota (${dove})…` : 'Scrivi qui una nota…'} aria-label="Scrivi qui una nota"
         onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) salva() }} />
       {pulito && !area && (

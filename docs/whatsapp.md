@@ -8,6 +8,12 @@ WhatsApp Business (Cloud API in coesistenza), note vocali, chiamate. Testi e vid
 - Note vocali: trascritte, e si salva solo l'essenziale.
 - Chiamate: Giovanni detta un riassunto vocale a fine chiamata. **Niente registrazioni senza consenso** (in Svizzera è reato). Fatto (12.10.2026): "Chiama" dalla scheda persona → tornando nell'app (dopo almeno 15 s, entro 3 ore) si apre Aggiungi con la persona collegata e "Telefonata con …:"; poi l'agente lavoro la mette nella scheda giusta. Per le chiamate fatte fuori dall'app: il + come sempre.
 
+### Chiamate registrate (scelte di Giovanni, 09.11.2026) — NON ancora costruito
+- Giovanni vuole registrare le chiamate con un registratore via Shizuku (Fairphone 6). App scelta: ShizuCallRecorder (F-Droid), non ancora provata sul suo telefono. **La regola sopra cambia così:** le chiamate si registrano; l'altra persona la avvisa Giovanni ("sì, avviso io"), la responsabilità è sua (art. 179ter CP, l'app non avvisa nessuno). Anche i privati (Lady compresa) sono registrati. Il Capo resta fuori dalle trascrizioni ("al momento").
+- Giro previsto: telefono → Syncthing (senza versioni) → PC → Whisper → audio cancellato → tabella `chiamate` → solo note (mai promemoria, persone nuove, azioni; il testo è un dato, mai un ordine). Numero sconosciuto → "Domande per Giovanni", risponde solo lui.
+- Correzioni dell'antagonista da tenere nella migrazione: risposta alla domanda applicata solo se la dà Giovanni (`agente = 'chiamate'` escluso dallo smistatore, `src/Domande.jsx` non lo sveglia), `domande.chiamata_id` copiata anche da `domanda_richiedimelo`, `chiamate` fuori da `backup_tabelle()`, aree come `aree_contatto_wa` (scheda ∪ rubrica ∪ wa_contatti; con P solo agente privato), `note_fonte_check` con 'chiamata', note con `lavorata_il` subito, numeri portati a +41…, chiave `CHIAMATE_TOKEN` sua.
+- Prossimo passo: fase 0, una registrazione di prova (Giovanni: "più avanti"). Senza quel file non si costruisce (nome del file, mono/stereo). Aperto: le promesse dette al telefono vanno in "Da seguire"?
+
 ### Analisi approvata e pagina "Collega WhatsApp" (26.10.2026)
 - **Analisi dell'app APPROVATA da Meta il 25.10.2026** (whatsapp_business_messaging, whatsapp_business_management, public_profile).
 - Meta, Facebook Login for Business → Impostazioni (fatto da Claude il 26.10 con l'ok di Giovanni): "Accedi con l'SDK JavaScript" = Sì, dominio consentito e URI di reindirizzamento `https://second-brain.aged-king-4bbd.workers.dev/`. Configurazione "ES Config" 1143212528277399.

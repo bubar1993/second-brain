@@ -3,7 +3,7 @@
 Agente calendario, Google Calendar, spostare appuntamenti, inviti a call, appunti di visita. Testo spostato così com'era da CLAUDE.md il 14.10.2026 (versione intera nel tag git `prima-divisione-claude-md`).
 
 ### Calendario e promemoria (fase 3)
-- All'inizio gli eventi si creano solo con la conferma di Giovanni. Dal 26.10.2026 in prova anche in automatico (vedi "Eventi messi da soli").
+- All'inizio gli eventi si creano solo con la conferma di Giovanni. Dal 26.10.2026 anche in automatico dalle sue note (vedi "Eventi messi da soli").
 - Le date trovate in mail e WhatsApp vengono proposte con un tocco.
 - Prima di un appuntamento con un cliente: il suo riassunto. Dopo: "cosa vuoi annotare?".
 - I promemoria stanno nell'app. Le notifiche sul telefono solo per le cose urgenti che sceglie Giovanni (fatte il 13.10.2026, vedi "Vacanze scolastiche, liste, garanzie, notifiche").
@@ -34,10 +34,10 @@ Agente calendario, Google Calendar, spostare appuntamenti, inviti a call, appunt
 ### Promemoria → calendario (21.10.2026, Giovanni)
 - Nella pagina di una nota (`src/Nota.jsx`), sotto ogni promemoria con data e non fatto: **"Metti in calendario"** → `eventi` 'da_creare' di mezz'ora all'ora del promemoria, stessa area, `proposto_da = 'giovanni'`, `nota_id` e `promemoria_id` (colonna nuova, migrazione `promemoria_in_calendario`); poi si legge "In calendario". L'agente calendario lo crea in Google al giro dopo (nessun limite di data nelle sue regole). Primi due: rinnovi del passaporto (7.12.2027 bimbi, 7.12.2032 Giovanni), messi da Claude il 21.10.
 
-### Eventi messi da soli (26.10.2026, prova fino al 9.11.2026, ok di Giovanni: "solo dalle mie note")
+### Eventi messi da soli (dal 26.10.2026, ok di Giovanni: "solo dalle mie note"; dal 09.11.2026 accesi per sempre)
 - Migrazione `eventi_automatici`, piano controllato dall'antagonista. Gli agenti inseriscono sempre 'proposto'; il trigger BEFORE INSERT `eventi_automatico_prima` (gira col ruolo di chi scrive) decide `eventi.automatico` con `evento_automatico_ok()`, poi il trigger AFTER INSERT `eventi_automatico_dopo` (security definer) mette 'da_creare'. `automatico` non si cambia dopo (`eventi_automatico_fisso`).
 - Solo se: ruolo `agente_lavoro` (proposto_da 'lavoro', area C/G) o `agente_privato` ('privato', P); nota di Giovanni `fonte` scritta/voce, creata da meno di 3 giorni, `lavorata_il` vuoto (l'agente la sta lavorando adesso); inizio nei prossimi 60 giorni; niente invitati; niente link in titolo/luogo/descrizione; nessun altro appuntamento non scartato nella stessa ora ±1 (qualsiasi area). Tutto il resto (mail, WhatsApp, inviti a call, Capo, agenti Ceramex/G&C) resta Sì/No.
-- La prova si spegne da sola il 10.11.2026 alle 0:00 (data dentro `evento_automatico_ok`). Per tenerla: cambiare la data; per spegnerla prima: metterla nel passato.
+- La prova (26.10–9.11.2026: un solo evento messo da solo) aveva una data di scadenza dentro `evento_automatico_ok`. Giovanni il 09.11.2026: "sì restano accesi" → migrazione `eventi_automatici_sempre` (controllata dall'antagonista): tolta solo la data, il resto uguale. Per spegnerli: rimettere in cima alla funzione `now() < timestamptz '<data passata>' and`.
 - Niente tasto "Togli" (sarebbe stata una strada nuova per cancellare in Google): se un evento non va, Giovanni lo cancella da Google Calendar e la copia lo segna 'cancellato'. In Oggi: "messo da solo dalla tua nota".
 - Provata il 26.10 in una transazione annullata: nota dettata → 'da_creare'; con link, sovrapposto, da mail (anche con automatico forzato a true) e dal Capo → resta 'proposto'.
 

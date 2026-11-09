@@ -23,7 +23,7 @@ Stile, Oggi, Aggiungi, Chiedi, Dentro, schede persona, Quaderno, Bozze, Riordino
 - Le persone nascono dai contatti delle schede aziende: `sincronizza_persone()` (pg_cron ogni 15 min) le crea/aggiorna (solo campi vuoti), le lega alle ditte (`persone_aziende`) e collega le note con "contatto" se il nome porta a UNA persona. Collega anche i contatti WhatsApp per numero.
 
 ### Oggi: spunta sugli appuntamenti (12.10.2026)
-- Appuntamenti messi in calendario da soli (prova dal 26.10.2026, `calendario.md`): sotto il titolo "messo da solo dalla tua nota" (`eventi.automatico`).
+- Appuntamenti messi in calendario da soli (dal 26.10.2026, per sempre dal 09.11.2026, `calendario.md`): sotto il titolo "messo da solo dalla tua nota" (`eventi.automatico`).
 - Ogni appuntamento in Oggi ha la spunta come i promemoria: `eventi.fatto_il` (solo nel second brain, Google non cambia; l'agente calendario non la tocca). Gli agenti lavoro e privato riscrivono il punto del mattino quando qualcosa è stato spuntato o è arrivato di nuovo (solo cose ancora da fare).
 
 ### Oggi a lista unica (13.10.2026 notte, scelte di Giovanni dalle proposte grafiche)
@@ -62,7 +62,8 @@ Stile, Oggi, Aggiungi, Chiedi, Dentro, schede persona, Quaderno, Bozze, Riordino
 - Dove: scheda azienda (al posto di "+ Nota"), scheda persona, Quaderno cliente (subito sotto il nome, in G&C col cantiere scelto), Quaderno pagina persona (`NotePersona`), capitoli del Privato (persona o tema). "+ Nota qui" non c'è più. Fornitori e mandanti: ancora niente (servirebbe cambiare l'agente note lavoro).
 - Area: fissa per cliente, cantiere e tema; per la persona è l'area scelta in alto, oppure la sua se ne ha una sola, altrimenti si sceglie (senza = Inbox).
 - La nota nuova non ha mandante, sezione né `data` finché l'agente non la sistema: dopo Salva la scheda passa su "Altro"; nella scheda azienda "Per sezione" c'è il gruppo "Appena scritte" (prima quelle note non si vedevano) e la data è quella di creazione (prima "Senza data").
-- Passi dopo, NON fatti (aspettano l'ok): 2) nota aperta più semplice con salvataggio da solo, elenchi e caselle, scelta del cliente in Aggiungi e nella nota; 3) @ per collegare persone/ditte e pagina fissa del cliente.
+- **Passo 2 (09.11.2026 sera, Giovanni: "se hai altre migliorie falle"):** `SceltaDitta` in `componenti.jsx` (una ditta, cercata per nome). In Aggiungi il campo **Cliente** c'è sempre (non nel Privato): scelto il cliente l'area diventa la sua; con un cliente la frase non va al Capo. Nella nota aperta (`Nota.jsx`) campo **Cliente**: sposta la nota in un'altra scheda o la toglie (area del cliente, cantiere tolto). Il testo della nota aperta **si salva da solo** 1,5 s dopo l'ultima lettera e uscendo; sotto c'è "Salvata" e "Torna com'era" (il testo di quando l'hai aperta); una nota vuota non si salva. Il tasto Salva della nota non c'è più.
+- NON fatti (aspettano l'ok): elenchi e caselle da spuntare nelle note; passo 3) @ per collegare persone/ditte e pagina fissa del cliente; riquadro nei fornitori/mandanti.
 
 ### Sveglie Sonos (22.10.2026, ok di Giovanni)
 - `#/sveglie` (`src/Sveglie.jsx`, Dentro solo Privato): orari, accese/spente e tasto "Alessia non c'è questa settimana"; in Oggi la riga della prossima sveglia. Dettagli in `docs/privato-gemelli.md` (Sonos).

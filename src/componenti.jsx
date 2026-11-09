@@ -291,6 +291,55 @@ export function SceltaPersone({ valore, onChange }) {
   )
 }
 
+// Scelta del cliente di una nota (09.11.2026): una ditta sola, cercata per nome. `area` C o G restringe la ricerca.
+export function SceltaDitta({ valore, onChange, area }) {
+  const [testo, setTesto] = useState('')
+  const [trovate, setTrovate] = useState([])
+
+  useEffect(() => {
+    const parole = testo.trim().split(/\s+/).map(pulisci).filter(Boolean)
+    if (!parole.length || testo.trim().length < 2) { setTrovate([]); return }
+    let annullato = false
+    const t = setTimeout(async () => {
+      let q = sb.from('aziende').select('id,nome,area').is('eliminata_il', null).is('unito_in', null).order('nome').limit(8)
+      if (area === 'C' || area === 'G') q = q.eq('area', area)
+      for (const p of parole) q = q.or(`nome.ilike.%${p}%,ragione_sociale.ilike.%${p}%`)
+      const { data } = await q
+      if (!annullato) setTrovate(data || [])
+    }, 200)
+    return () => { annullato = true; clearTimeout(t) }
+  }, [testo, area])
+
+  if (valore) {
+    return (
+      <div className="chips">
+        <span className="chip attivo">
+          <a href={`#/azienda/${valore.id}`}>{valore.nome}</a>
+          <button type="button" aria-label={`Togli ${valore.nome}`} onClick={() => onChange(null)}>
+            <Icona nome="x" size={14} />
+          </button>
+        </span>
+      </div>
+    )
+  }
+  return (
+    <div className="scelta-persone">
+      <input type="text" value={testo} onChange={(e) => setTesto(e.target.value)}
+        placeholder="Scegli il cliente…" autoComplete="off" enterKeyHint="search" />
+      {testo.trim().length >= 2 && (
+        <div className="tendina">
+          {trovate.map((a) => (
+            <button key={a.id} type="button" onClick={() => { onChange(a); setTesto('') }}>
+              <span className="pallino" style={{ background: areaDa(a.area)?.colore }} /> {a.nome} <span className="nota-piccola">{areaDa(a.area)?.nome}</span>
+            </button>
+          ))}
+          {!trovate.length && <p className="msg">Nessuna ditta con questo nome.</p>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // "(Ceramex, Gaffuri · Privato)": dove sta una persona, ogni area nel suo colore.
 export function EtichettePersona({ p, tra = false }) {
   const voci = etichettePersona(p)

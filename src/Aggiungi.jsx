@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { sb, areaDa, leggi, scrivi } from './supabase'
 import {
-  useApp, chk, chiama, messaggioErrore, SceltaArea, SceltaPersone, Icona,
+  useApp, chk, chiama, messaggioErrore, SceltaArea, SceltaPersone, SceltaDitta, Icona,
   useDettatura, caricaFoto, aggiungiAreaPersone, perCampo, useModifiche,
 } from './componenti'
 import { capisciLista, capisciGaranzia, durata } from './capisci'
@@ -118,7 +118,7 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
   const [testo, setTesto] = useState(condiviso?.testo || ripresa?.testo || '')
   const [areaNota, setAreaNota] = useState(ripresa ? ripresa.area : areaQuaderno || (area === 'T' ? null : area))
   const [persone, setPersone] = useState(ripresa?.persone || [])
-  const [ditta, setDitta] = useState(null)
+  const [ditta, setDitta] = useState(ripresa?.ditta || null)
   const [foto, setFoto] = useState([])
   const [ricorda, setRicorda] = useState(ripresa?.ricorda || '')
   const [conPromemoria, setConPromemoria] = useState(!!ripresa?.conPromemoria)
@@ -173,11 +173,11 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
   // Salvo sul telefono mentre scrivi (le foto no: si scelgono di nuovo).
   useEffect(() => {
     const t = setTimeout(() => {
-      if (testo.trim()) scrivi(chiave, JSON.stringify({ testo, area: areaNota, persone, ricorda, conPromemoria, fonte }))
+      if (testo.trim()) scrivi(chiave, JSON.stringify({ testo, area: areaNota, persone, ricorda, conPromemoria, fonte, ditta: aziendaId ? null : ditta }))
       else scrivi(chiave, '')
     }, 600)
     return () => clearTimeout(t)
-  }, [chiave, testo, areaNota, persone, ricorda, conPromemoria, fonte])
+  }, [chiave, testo, areaNota, persone, ricorda, conPromemoria, fonte, ditta, aziendaId])
 
   // Libera le anteprime quando si esce dalla schermata.
   const fotoRif = useRef(foto)
@@ -193,6 +193,7 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
   function svuota() {
     setTesto('')
     setPersone([])
+    if (!aziendaId) setDitta(null)
     setFoto([])
     setRicorda('')
     setConPromemoria(false)
@@ -214,7 +215,7 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
   const oraSenzaRicorda = !dettoOra && !conPromemoria && /\balle\s+\d{1,2}(?:[:.]\d{2})?\b/i.test(testo)
   // Al Capo solo testo semplice: niente foto, promemoria, liste, garanzie, né note aperte da una scheda.
   const capoPossibile = !!testo.trim() && !foto.length && !conPromemoria && !lista && !garanzia && !dettoOra
-    && !personaId && !aziendaId && !cantiereId && !temaId && !chiamata
+    && !personaId && !aziendaId && !ditta && !cantiereId && !temaId && !chiamata
   const alCapo = capoPossibile && (scelta === 'capo' || (scelta !== 'nota' && perIlCapo(testo)))
 
   // Richiesta al Capo: come la chat del Capo (nuovo argomento), poi si va lì a vedere la risposta.
@@ -389,18 +390,14 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
         </div>
       )}
 
-      {ditta && !alCapo && (
+      {/* Cliente (09.11.2026): si sceglie anche dal "+", non solo arrivando da una scheda. Scelto il cliente,
+          l'area diventa la sua. Nel Privato non c'è (mai cose private nelle schede clienti). */}
+      {!alCapo && (ditta || areaNota !== 'P') && (
         <div className="campo">
-          <span>Nella scheda</span>
-          <div className="chips">
-            <span className="chip attivo">
-              <a href={`#/azienda/${ditta.id}`}>{ditta.nome}</a>
-              <button type="button" aria-label={`Non nella scheda ${ditta.nome}`} onClick={() => setDitta(null)}>
-                <Icona nome="x" size={14} />
-              </button>
-            </span>
-          </div>
-          {ditta.area !== areaNota && <span className="nota-piccola">Con un'altra area la nota non va nella scheda.</span>}
+          <span>Cliente</span>
+          <SceltaDitta valore={ditta} area={areaNota}
+            onChange={(d) => { setDitta(d); if (d) setAreaNota(d.area) }} />
+          {ditta && ditta.area !== areaNota && <span className="nota-piccola">Con un'altra area la nota non va nella scheda.</span>}
         </div>
       )}
 

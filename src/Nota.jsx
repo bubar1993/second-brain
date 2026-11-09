@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { sb, areaDa, quando } from './supabase'
 import {
-  useApp, useCarica, chk, messaggioErrore, Stato, Indietro, SceltaArea, SceltaPersone, Icona,
+  useApp, useCarica, chk, messaggioErrore, Stato, Indietro, SceltaArea, SceltaPersone, SceltaDitta, Icona,
   caricaFoto, aggiungiAreaPersone, useModifiche,
 } from './componenti'
 import { nomeSezione, useRisolvi } from './Aziende'
@@ -23,10 +23,35 @@ export default function Nota({ id }) {
   ), [id])
   const risolvi = useRisolvi(ricarica)
 
+  // Il testo si salva da solo (09.11.2026): un secondo e mezzo dopo l'ultima lettera, e uscendo dalla nota.
+  // `salvato` = l'ultimo testo nel database; `originale` = com'era aprendo la nota ("Torna com'era").
+  const [salvato, setSalvato] = useState(null)
+  const [originale, setOriginale] = useState(null)
+  const [statoTesto, setStatoTesto] = useState('')
   useEffect(() => {
-    if (dati && testo === null) setTesto(dati.testo)
+    if (dati && testo === null) { setTesto(dati.testo); setSalvato(dati.testo); setOriginale(dati.testo) }
   }, [dati, testo])
-  useModifiche(!!dati && testo !== null && testo.trim() !== dati.testo)
+  const daSalvare = testo !== null && salvato !== null && !!testo.trim() && testo.trim() !== salvato
+  useModifiche(daSalvare)
+  const salvaRif = useRef(null)
+  salvaRif.current = daSalvare ? testo.trim() : null
+  const scriviTesto = async (t) => {
+    const { error } = await sb.from('note').update({ testo: t }).eq('id', id)
+    if (error) { setStatoTesto(`Non salvata: ${messaggioErrore(error)}`); return }
+    setSalvato(t)
+    setStatoTesto('Salvata')
+  }
+  useEffect(() => {
+    if (!daSalvare) return
+    setStatoTesto('Salvo…')
+    const t = setTimeout(() => scriviTesto(testo.trim()), 1500)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [testo, daSalvare])
+  // Uscendo con una modifica ancora da salvare: la salvo subito.
+  useEffect(() => () => {
+    if (salvaRif.current) sb.from('note').update({ testo: salvaRif.current }).eq('id', id).then(() => {})
+  }, [id])
 
   // Link temporanei (1 ora) per vedere le foto private.
   useEffect(() => {
@@ -57,9 +82,12 @@ export default function Nota({ id }) {
     }
   }
 
-  const salvaTesto = () => esegui(async () => {
-    chk(await sb.from('note').update({ testo: testo.trim() }).eq('id', id))
-  }, 'Salvata')
+  // Cliente della nota (09.11.2026): si sposta in un'altra scheda o si toglie. Col cliente l'area diventa la sua;
+  // il cantiere era dell'altro cliente, quindi si toglie.
+  const cambiaDitta = (d) => esegui(async () => {
+    chk(await sb.from('note').update({ azienda_id: d?.id || null, cantiere_id: null, ...(d ? { area: d.area } : {}) }).eq('id', id))
+    if (d) await aggiungiAreaPersone(d.area, persone.map((p) => p.id))
+  }, d ? `Messa nella scheda ${d.nome}` : 'Tolta dalla scheda')
 
   const cambiaArea = (area) => esegui(async () => {
     chk(await sb.from('note').update({ area }).eq('id', id))
@@ -143,8 +171,13 @@ export default function Nota({ id }) {
       )}
 
       <textarea value={testo} onChange={(e) => setTesto(e.target.value)} rows={6} />
-      {testo.trim() !== dati.testo && (
-        <button type="button" className="tasto-grande" onClick={salvaTesto} disabled={lavoro}>Salva</button>
+      {(statoTesto || testo.trim() !== originale) && (
+        <p className="nota-piccola" role="status">
+          {!testo.trim() ? 'Vuota: non la salvo.' : statoTesto}
+          {testo.trim() !== originale && (
+            <> <button type="button" className="tasto-link" onClick={() => setTesto(originale)}>Torna com'era</button></>
+          )}
+        </p>
       )}
 
       {foto.length > 0 && (
@@ -161,6 +194,13 @@ export default function Nota({ id }) {
         <span>Area</span>
         <SceltaArea valore={dati.area} onChange={cambiaArea} />
       </div>
+
+      {dati.area !== 'P' && (
+        <div className="campo">
+          <span>Cliente</span>
+          <SceltaDitta valore={dati.aziende} area={dati.area} onChange={cambiaDitta} />
+        </div>
+      )}
 
       <div className="campo">
         <span>Persone</span>

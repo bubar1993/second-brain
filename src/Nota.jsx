@@ -5,6 +5,7 @@ import {
   caricaFoto, aggiungiAreaPersone, useModifiche,
 } from './componenti'
 import { nomeSezione, useRisolvi } from './Aziende'
+import { CampoNota, TestoConCaselle, haCaselle, spuntaRiga } from './CampoNota'
 
 const FONTI = { scritta: 'Scritta', voce: 'Dettata', foto: 'Foto', condivisa: 'Condivisa', mail: 'Da mail' }
 
@@ -170,9 +171,17 @@ export default function Nota({ id }) {
         </p>
       )}
 
-      {/* Alta quanto il testo (10.11.2026): una nota lunga si legge tutta, senza scorrere dentro il riquadro. */}
-      <textarea value={testo} onChange={(e) => setTesto(e.target.value)} rows={6}
-        ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight + 2}px` } }} />
+      {/* Le caselle della nota si spuntano qui sopra, senza cercare la riga nel testo (10.11.2026). */}
+      {haCaselle(testo) && (
+        <div className="scheda caselle-nota">
+          <TestoConCaselle testo={testo} soloCaselle onSpunta={(i) => setTesto(spuntaRiga(testo, i))} />
+        </div>
+      )}
+      {/* Alta quanto il testo: una nota lunga si legge tutta. Elenchi, caselle e @ come nel "+". */}
+      <CampoNota value={testo} onChange={setTesto} rows={6} autoAlto onCollega={(v) => {
+        if (v.tipo === 'persona') { if (!persone.some((p) => p.id === v.x.id)) cambiaPersone([...persone, v.x]) }
+        else if (!dati.aziende && dati.area !== 'P') cambiaDitta(v.x)
+      }} />
       {(statoTesto || testo.trim() !== originale) && (
         <p className="nota-piccola" role="status">
           {!testo.trim() ? 'Vuota: non la salvo.' : statoTesto}

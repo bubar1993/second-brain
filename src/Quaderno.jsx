@@ -4,6 +4,7 @@ import { useApp, useCarica, chk, messaggioErrore, Stato, Icona, useLargo } from 
 import { nomeSezione, useRisolvi } from './Aziende'
 import Nota from './Nota'
 import { ScriviQui } from './Aggiungi'
+import { TestoConCaselle, haCaselle, spuntaRiga } from './CampoNota'
 
 // Quaderno Note (13.10.2026, bozza approvata da Giovanni): tutte le note per intero, come un blocco note.
 // Tre quaderni: Ceramex (cliente → note per mandante e data), G&C (cliente → cantiere → note per data),
@@ -729,6 +730,15 @@ function Fornitore({ area, id }) {
 // Le note per giorno, testo intero. Sui problemi il tasto Risolto; nel Privato i temi da toccare.
 function PagineNote({ note, risolvi, sede, mandante, temi, cambiaTema }) {
   const linkNota = useLinkNota()
+  const { avvisa } = useApp()
+  // Caselle ☐/☑ spuntate dall'elenco (10.11.2026): il testo cambiato resta qui finché la pagina non si rilegge.
+  const [cambiati, setCambiati] = useState({})
+  const spunta = async (n, testo, i) => {
+    const nuovo = spuntaRiga(testo, i)
+    setCambiati((c) => ({ ...c, [n.id]: nuovo }))
+    const { error } = await sb.from('note').update({ testo: nuovo }).eq('id', n.id)
+    if (error) { setCambiati((c) => ({ ...c, [n.id]: testo })); avvisa(messaggioErrore(error)) }
+  }
   return perGiorno(note).map(([g, righe]) => (
     <section key={g} className="giorno-quaderno">
       <h3>{nomeGiorno(g)}</h3>
@@ -739,7 +749,11 @@ function PagineNote({ note, risolvi, sede, mandante, temi, cambiaTema }) {
           <article key={n.id} className={'pagina-nota' + (problema && !n.risolto_il ? ' problema' : '') + (n.risolto_il ? ' risolta' : '')}>
             <a href={linkNota(n.id)} className="pagina-apri">
               {meta.length > 0 && <span className="riga-meta">{meta.join(' · ')}</span>}
-              <span className="pagina-testo">{n.testo}</span>
+              <span className="pagina-testo">
+                {haCaselle(cambiati[n.id] ?? n.testo)
+                  ? <TestoConCaselle testo={cambiati[n.id] ?? n.testo} onSpunta={(i) => spunta(n, cambiati[n.id] ?? n.testo, i)} />
+                  : n.testo}
+              </span>
             </a>
             {(problema || temi) && (
               <div className="pagina-piede">

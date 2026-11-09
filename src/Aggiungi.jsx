@@ -5,6 +5,7 @@ import {
   useDettatura, caricaFoto, aggiungiAreaPersone, perCampo, useModifiche,
 } from './componenti'
 import { capisciLista, capisciGaranzia, durata } from './capisci'
+import { CampoNota } from './CampoNota'
 import { mettiInCoda, registraLavoro, senzaRete, giaFatto } from './coda'
 
 // "Già salvato" (stesso id) va bene: serve quando una nota fatta senza rete parte di nuovo.
@@ -68,6 +69,28 @@ export function quandoRicordare(testo, adesso = new Date()) {
   d.setHours(h, m)
   if (d < adesso) d.setDate(d.getDate() + salto)
   return d
+}
+
+// Il testo del promemoria detto nella nota, senza il "quando" (10.11.2026, ok di Giovanni):
+// "Domani sera alle 19:30 ricordami di mandare gli aumenti" → "Mandare gli aumenti". La nota resta intera.
+// Si tolgono solo le parole all'inizio e alla fine; se non resta niente di sensato, il testo resta com'era.
+const QUANDO = `ricorda(?:mi|melo|rmi|rmelo)|oggi|domani|dopodomani|stasera|stamattina|stanotte|${GIORNI.join('|')}|${GIORNI.map((g) => g.replace('ì', 'i')).filter((g) => !GIORNI.includes(g)).join('|')}|(?:di\\s+)?(?:sera|mattina|pomeriggio)|(?:alle|ore)\\s+\\d{1,2}(?:[:.]\\d{2})?`
+const DAVANTI = new RegExp(`^(?:${QUANDO})(?=$|[\\s,:;.])[\\s,:;.]*`, 'i')
+const DIETRO = new RegExp(`[\\s,;]+(?:${QUANDO})[\\s.]*$`, 'i')
+export function testoPromemoria(testo) {
+  let t = testo.trim()
+  let ricordami = false
+  for (let i = 0; i < 8; i++) {
+    const m = t.match(DAVANTI)
+    if (!m) break
+    if (/^ricorda/i.test(m[0])) ricordami = true
+    t = t.slice(m[0].length)
+  }
+  if (ricordami) t = t.replace(/^(?:di|che|del|della|dei|delle)\s+/i, (s) => (/^(di|che)\s/i.test(s) ? '' : s))
+  for (let i = 0; i < 4 && DIETRO.test(t); i++) t = t.replace(DIETRO, '')
+  t = t.trim()
+  if (t.length < 3) return testo.trim()
+  return t.charAt(0).toUpperCase() + t.slice(1)
 }
 
 // Un solo posto per scrivere (18.10.2026, proposta accettata da Giovanni): dal "+" una richiesta va al Capo.
@@ -274,7 +297,7 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
           garanzia: garanzia ? { id: nuovoId(), cosa: garanzia.cosa, negozio: garanzia.negozio, mesi: garanzia.mesi, comprata_il: garanzia.comprata_il } : null,
           voci: lista ? lista.voci.map((v) => ({ id: nuovoId(), lista: lista.lista, ...v })) : null,
           // Promemoria scelto col tasto, oppure detto nella nota ("ricordami alle 19:30").
-          promemoria: conPromemoria || detto ? { id: nuovoId(), testo: pulito || 'Foto', area: areaNota, scade_il: (detto || new Date(ricorda)).toISOString() } : null,
+          promemoria: conPromemoria || detto ? { id: nuovoId(), testo: (detto ? testoPromemoria(pulito) : pulito) || 'Foto', area: areaNota, scade_il: (detto || new Date(ricorda)).toISOString() } : null,
         }
         // Senza foto si può tenere sul telefono e mandare dopo; con le foto no (sono troppo grandi).
         if (!foto.length) dopoCoda = { tipo: 'nota', dati: d, testo: dove + avvisaDetto(detto) }
@@ -315,8 +338,12 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
 
   return (
     <div className="schermata aggiungi-schermata">
-      <textarea ref={testoRif} value={testo} onChange={(e) => setTesto(e.target.value)}
-        placeholder="Cosa vuoi ricordare o chiedere?" rows={5} autoFocus={!condiviso} />
+      <CampoNota rif={testoRif} value={testo} onChange={setTesto}
+        placeholder="Cosa vuoi ricordare o chiedere?" rows={5} autoFocus={!condiviso}
+        onCollega={(v) => {
+          if (v.tipo === 'persona') setPersone((p) => (p.some((x) => x.id === v.x.id) ? p : [...p, v.x]))
+          else if (!ditta && areaNota !== 'P') { setDitta(v.x); setAreaNota(v.x.area) }
+        }} />
       {ripresa?.testo && testo === ripresa.testo && (
         <p className="nota-piccola">
           Ho ripreso il testo che stavi scrivendo.{' '}
@@ -433,6 +460,7 @@ export function ScriviQui({ area, aree, aziendaId, cantiereId, personaId, temaId
   const { area: areaApp, avvisa, vai } = useApp()
   const [testo, setTesto] = useState('')
   const [fonte, setFonte] = useState('scritta')
+  const [altre, setAltre] = useState([]) // persone collegate con la @
   const [scelta, setScelta] = useState(() => (areaApp !== 'T' ? areaApp : aree?.length === 1 ? aree[0] : null))
   const [salvo, setSalvo] = useState(false)
   useModifiche(!!testo.trim())
@@ -465,10 +493,10 @@ export function ScriviQui({ area, aree, aziendaId, cantiereId, personaId, temaId
     const d = {
       id: nuovoId(), testo: pulito, area: areaNota, azienda_id: aziendaId || null, fonte,
       cantiere_id: aziendaId && cantiereId ? cantiereId : null, lavorata: null,
-      persone: personaId ? [personaId] : [],
+      persone: [...new Set([...(personaId ? [personaId] : []), ...altre])],
       tema: temaId && areaNota === 'P' ? temaId : null,
       garanzia: null, voci: null,
-      promemoria: detto ? { id: nuovoId(), testo: pulito, area: areaNota, scade_il: detto.toISOString() } : null,
+      promemoria: detto ? { id: nuovoId(), testo: testoPromemoria(pulito), area: areaNota, scade_il: detto.toISOString() } : null,
     }
     const dove = (areaNota ? 'Salvata' : 'Salvata nell\'Inbox') + (detto ? `. Te lo ricordo ${quandoDetto(detto)}` : '')
     try {
@@ -476,6 +504,7 @@ export function ScriviQui({ area, aree, aziendaId, cantiereId, personaId, temaId
       avvisa(dove, { etichetta: 'Apri', fai: () => vai(`/nota/${d.id}`) })
       setTesto('')
       setFonte('scritta')
+      setAltre([])
       dopo?.()
     } catch (e) {
       if (senzaRete(e)) {
@@ -493,10 +522,10 @@ export function ScriviQui({ area, aree, aziendaId, cantiereId, personaId, temaId
 
   return (
     <div className="scrivi-qui" style={{ '--col': areaDa(areaNota)?.colore || 'var(--grigio)' }}>
-      <textarea value={testo} onChange={(e) => setTesto(e.target.value)} rows={pulito ? 4 : 1}
-        ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight + 2}px` } }}
+      <CampoNota value={testo} onChange={setTesto} rows={pulito ? 4 : 1} autoAlto barra={!!pulito}
         placeholder={dove ? `Scrivi qui una nota (${dove})…` : 'Scrivi qui una nota…'} aria-label="Scrivi qui una nota"
-        onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) salva() }} />
+        onCollega={(v) => { if (v.tipo === 'persona') setAltre((p) => (p.includes(v.x.id) ? p : [...p, v.x.id])) }}
+        onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); salva() } }} />
       {pulito && !area && (
         <SceltaArea valore={scelta} onChange={setScelta} />
       )}

@@ -3,6 +3,7 @@ import { sb, areaDa, leggi, scrivi, nomePersona, CAMPI_PERSONA } from './supabas
 import { useApp, useCarica, chk, messaggioErrore, Stato, Icona, useLargo } from './componenti'
 import { nomeSezione, useRisolvi } from './Aziende'
 import Nota from './Nota'
+import { ScriviQui } from './Aggiungi'
 
 // Quaderno Note (13.10.2026, bozza approvata da Giovanni): tutte le note per intero, come un blocco note.
 // Tre quaderni: Ceramex (cliente → note per mandante e data), G&C (cliente → cantiere → note per data),
@@ -541,7 +542,7 @@ function Cliente({ area, id, query }) {
   const visibili = note.filter((n) => agenti || mia(n))
 
   // Ceramex: un capitolo per mandante. G&C: un capitolo per cantiere (più "Generale").
-  let schede, scelta, filtro, nuova
+  let schede, scelta, filtro
   if (area === 'G') {
     const conNote = cantieri.map((c) => ({ ...c, n: visibili.filter((n) => n.cantiere_id === c.id).length, tutte: note.filter((n) => n.cantiere_id === c.id).length }))
       .filter((c) => c.tutte).sort((x, y) => (giornoDi(note.find((n) => n.cantiere_id === y.id)) || '').localeCompare(giornoDi(note.find((n) => n.cantiere_id === x.id)) || ''))
@@ -549,7 +550,6 @@ function Cliente({ area, id, query }) {
     schede = [...conNote, ...(generale.tutte || !conNote.length ? [generale] : [])]
     scelta = schede.find((s) => s.id === query.get('cantiere')) || schede[0]
     filtro = (n) => (scelta?.id === 'generale' ? !n.cantiere_id : n.cantiere_id === scelta?.id)
-    nuova = `#/aggiungi?azienda=${id}&area=G${scelta && scelta.id !== 'generale' ? `&cantiere=${scelta.id}` : ''}`
   } else {
     const conta = {}
     for (const n of note) {
@@ -562,7 +562,6 @@ function Cliente({ area, id, query }) {
     schede = Object.values(conta).sort((x, y) => y.tutte - x.tutte)
     scelta = schede.find((s) => s.id === query.get('m')) || schede.find((s) => s.aperti) || schede[0]
     filtro = (n) => (n.mandante || 'Altro') === scelta?.id
-    nuova = `#/aggiungi?azienda=${id}&area=${area}`
   }
   // I problemi aperti del cliente stanno sempre in cima, di tutti i mandanti e cantieri, anche se li ha scritti un agente:
   // così si chiudono subito (13.10.2026: Giovanni non trovava quelli dei cantieri G&C).
@@ -580,9 +579,14 @@ function Cliente({ area, id, query }) {
 
   return (
     <div className="schermata quaderno">
-      <TestaQuaderno area={area} titolo={a.nome} indietro={`#/quaderno/${area}`}
-        destra={<a href={nuova} className="tasto-piccolo nota-qui" style={{ '--col': areaDa(area).colore }}>+ Nota qui</a>} />
+      <TestaQuaderno area={area} titolo={a.nome} indietro={`#/quaderno/${area}`} />
       {a.gruppo && <p className="nota-piccola">Filiale del gruppo <a href={`#/quaderno/${area}/${a.gruppo.id}`}>{a.gruppo.nome}</a></p>}
+
+      {/* Scrivi qui (09.11.2026), subito sotto il nome: in G&C la nota va nel cantiere scelto; in Ceramex non ha
+          ancora il mandante (lo mette l'agente), quindi dopo il salvataggio si passa alla linguetta "Altro" dove compare. */}
+      <ScriviQui area={area} aziendaId={id} cantiereId={area === 'G' && scelta && scelta.id !== 'generale' ? scelta.id : null}
+        dove={area === 'G' && scelta && scelta.id !== 'generale' ? scelta.nome : null}
+        dopo={() => { if (area !== 'G') cambia('m', 'Altro'); ricarica() }} />
 
       {apertiTutti.length > 0 && (
         <section className="blocco problemi-quaderno">
@@ -618,7 +622,7 @@ function Cliente({ area, id, query }) {
 
       <SoloMie agenti={agenti} setAgenti={setAgenti} />
 
-      {!dellaScheda.length ? <p className="msg">Ancora nessuna nota qui. Tocca "+ Nota qui" per scrivere la prima.</p>
+      {!dellaScheda.length ? <p className="msg">Ancora nessuna nota qui. Scrivi la prima nel riquadro qui sopra.</p>
         : !mostrate.length ? (
           <div className="scheda vuota-mie">
             <p className="msg">Qui non hai ancora scritto niente tu.</p>
@@ -801,7 +805,7 @@ function NotePersona({ id }) {
   const [agenti, setAgenti] = useAgenti()
   const campi = `${CAMPI_NOTA},aziende(nome)`
   const { dati, errore, carica, ricarica } = useCarica(async () => {
-    const p = chk(await sb.from('persone').select('id,nome,cognome,persone_aziende(azienda_id)').eq('id', id).single())
+    const p = chk(await sb.from('persone').select('id,nome,cognome,persone_aziende(azienda_id),persone_aree(area)').eq('id', id).single())
     const ditte = p.persone_aziende.map((x) => x.azienda_id)
     const nome = (p.nome || '').trim().split(/\s+/)[0].replace(/[%_,()*]/g, '')
     const [collegate, comeContatto] = await Promise.all([
@@ -823,6 +827,7 @@ function NotePersona({ id }) {
         <a href={`#/persona/${id}`} className="tasto-piccolo">Scheda</a>
       </div>
       <h1 className="titolo-quaderno">{dati ? nomePersona(dati.p) : ' '}</h1>
+      {dati && <ScriviQui personaId={id} aree={dati.p.persone_aree.map((x) => x.area)} dopo={ricarica} />}
       <SoloMie agenti={agenti} setAgenti={setAgenti} />
       <Stato carica={carica} errore={errore} vuoto={dati && !dati.note.length ? 'Nessuna nota con questa persona.' : null}>
         {dati && (!mostrate.length ? (
@@ -987,11 +992,12 @@ function CapitoloPrivato({ tipo, id }) {
   }
 
   const titolo = dati ? (dati.capitolo.tipo === 'persona' ? nomePersona(dati.capitolo.persone) : dati.capitolo.nome) : ' '
-  const nuova = dati?.capitolo.tipo === 'persona' ? `#/aggiungi?persona=${dati.capitolo.persona_id}&area=P` : `#/aggiungi?tema=${id}&area=P`
   return (
     <div className="schermata quaderno">
-      <TestaQuaderno area="P" titolo={titolo} indietro="#/quaderno/P"
-        destra={dati && <a href={nuova} className="tasto-piccolo nota-qui" style={{ '--col': areaDa('P').colore }}>+ Nota qui</a>} />
+      <TestaQuaderno area="P" titolo={titolo} indietro="#/quaderno/P" />
+      {dati && (dati.capitolo.tipo === 'persona'
+        ? <ScriviQui area="P" personaId={dati.capitolo.persona_id} dopo={ricarica} />
+        : <ScriviQui area="P" temaId={id} dopo={ricarica} />)}
       {dati?.attivita.length > 0 && (
         <section className="blocco">
           <h3>Attività fisse</h3>
@@ -1007,7 +1013,7 @@ function CapitoloPrivato({ tipo, id }) {
           </div>
         </section>
       )}
-      <Stato carica={carica} errore={errore} vuoto={dati && !dati.note.length ? 'Ancora nessuna nota qui. Tocca "+ Nota qui" per scrivere la prima.' : null}>
+      <Stato carica={carica} errore={errore} vuoto={dati && !dati.note.length ? 'Ancora nessuna nota qui. Scrivi la prima nel riquadro qui sopra.' : null}>
         {dati && <PagineNote note={dati.note} risolvi={risolvi} temi={dati.temi} cambiaTema={cambiaTema} />}
       </Stato>
     </div>

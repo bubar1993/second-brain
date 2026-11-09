@@ -874,6 +874,16 @@ mark { background: rgba(255, 214, 102, 0.22); color: var(--testo); border-radius
 .testa-quaderno { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }
 .testa-quaderno .torna { display: inline-flex; align-items: center; gap: 4px; padding: 8px 0; text-decoration: none; font-size: 15px; }
 .nota-qui { background: var(--col); border-color: var(--col); color: var(--vuoto); font-weight: 600; text-decoration: none; }
+/* Scrivi qui (09.11.2026): la nota si scrive dentro la pagina, col colore dell'area. */
+.scrivi-qui {
+  display: flex; flex-direction: column; gap: 8px; padding: 10px;
+  border-radius: var(--raggio); background: var(--superficie);
+  border: 1px solid color-mix(in srgb, var(--col) 55%, transparent);
+}
+.scrivi-qui textarea { min-height: 48px; font-size: 17px; resize: none; }
+.scrivi-qui-riga { display: flex; align-items: center; gap: 8px; min-height: 40px; }
+.scrivi-qui-riga .nota-qui { margin-left: auto; }
+.scrivi-qui .tasto-piccolo.ascolta { background: var(--rosso); border-color: var(--rosso); color: #fff; }
 .quaderni { display: flex; flex-direction: column; gap: 12px; }
 .quaderno-voce {
   display: flex; align-items: center; gap: 14px; min-height: 84px; padding-right: 16px; overflow: hidden;

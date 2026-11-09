@@ -56,6 +56,14 @@ Stile, Oggi, Aggiungi, Chiedi, Dentro, schede persona, Quaderno, Bozze, Riordino
 - **Agenti**: gli agenti con `spento: true` in `AGENTI` non si vedono nell'elenco (ora "Cestina Riepilogo Ceramex", in pausa per scelta di Giovanni).
 - **Aggiungi**: dopo Salva di una nota l'avviso ha "Apri" (`#/nota/<id>`), come liste e garanzie.
 
+### Scrivi qui: la nota dentro la pagina (09.11.2026, passo 1 delle note, ok di Giovanni)
+- Giovanni: "se entro in una persona o in un cliente non posso aprire una nuova nota" (il "+ Nota" c'era ma piccolo e grigio, e mancava nella pagina persona del Quaderno).
+- `ScriviQui` in `src/Aggiungi.jsx`: riquadro col colore dell'area, "Scrivi qui una nota…", Parla, Salva (anche Ctrl+Invio). La nota compare sotto senza cambiare pagina. Usa `creaNota` come Aggiungi: "ricordami alle…" crea il promemoria, senza rete resta in coda. "Foto, promemoria…" apre Aggiungi con lo stesso testo (scritto nella sua bozza).
+- Dove: scheda azienda (al posto di "+ Nota"), scheda persona, Quaderno cliente (subito sotto il nome, in G&C col cantiere scelto), Quaderno pagina persona (`NotePersona`), capitoli del Privato (persona o tema). "+ Nota qui" non c'è più. Fornitori e mandanti: ancora niente (servirebbe cambiare l'agente note lavoro).
+- Area: fissa per cliente, cantiere e tema; per la persona è l'area scelta in alto, oppure la sua se ne ha una sola, altrimenti si sceglie (senza = Inbox).
+- La nota nuova non ha mandante, sezione né `data` finché l'agente non la sistema: dopo Salva la scheda passa su "Altro"; nella scheda azienda "Per sezione" c'è il gruppo "Appena scritte" (prima quelle note non si vedevano) e la data è quella di creazione (prima "Senza data").
+- Passi dopo, NON fatti (aspettano l'ok): 2) nota aperta più semplice con salvataggio da solo, elenchi e caselle, scelta del cliente in Aggiungi e nella nota; 3) @ per collegare persone/ditte e pagina fissa del cliente.
+
 ### Sveglie Sonos (22.10.2026, ok di Giovanni)
 - `#/sveglie` (`src/Sveglie.jsx`, Dentro solo Privato): orari, accese/spente e tasto "Alessia non c'è questa settimana"; in Oggi la riga della prossima sveglia. Dettagli in `docs/privato-gemelli.md` (Sonos).
 

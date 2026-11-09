@@ -3,6 +3,7 @@ import { sb, AREE, areaDa, nomePersona, quando, CAMPI_PERSONA, etichettePersona,
 import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, EtichettePersona, Icona, useModifiche } from './componenti'
 import { nomeSezione } from './Aziende'
 import { condividi } from './Rubrica'
+import { ScriviQui } from './Aggiungi'
 
 // Diagramma a cerchi: chi sta in più aree sta nell'intersezione.
 const CERCHI = { C: [115, 105], G: [185, 105], P: [150, 165] }
@@ -407,7 +408,6 @@ export function Persona({ id }) {
           ? <a className="tasto-piccolo" href={`#/whatsapp/${dati.chat[0]}`}>WhatsApp</a>
           : wa && <a className="tasto-piccolo" href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer">WhatsApp</a>}
         {p.email && <a className="tasto-piccolo" href={`mailto:${p.email}`}>Scrivi mail</a>}
-        <button type="button" className="tasto-piccolo" onClick={() => vai(`/aggiungi?persona=${id}`)}>+ Nota</button>
         <button type="button" className="tasto-piccolo" onClick={() => condividi(dati.contatto || {
           nome: p.nome, cognome: p.cognome, ditta: ditte[0]?.aziende.nome, ruolo: p.ruolo, compleanno: p.compleanno,
           telefoni: p.telefono ? [{ valore: p.telefono }] : [], email: p.email ? [{ valore: p.email }] : [],
@@ -420,6 +420,9 @@ export function Persona({ id }) {
         </p>
       )}
       {p.compleanno && <p className="nota-piccola">Compleanno: {new Date(p.compleanno).toLocaleDateString('it-CH', { day: 'numeric', month: 'long' })}</p>}
+
+      {/* Scrivi qui (09.11.2026): la nota è già collegata alla persona; l'area è quella scelta in alto o la sua. */}
+      <ScriviQui personaId={id} aree={aree} dopo={ricarica} />
 
       {dati.eventi.filter(nell).length > 0 && (
         <div className="elenco">

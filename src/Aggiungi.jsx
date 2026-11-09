@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { sb, areaDa, leggi, scrivi } from './supabase'
 import {
   useApp, chk, chiama, messaggioErrore, SceltaArea, SceltaPersone, Icona,
-  useDettatura, caricaFoto, aggiungiAreaPersone, perCampo,
+  useDettatura, caricaFoto, aggiungiAreaPersone, perCampo, useModifiche,
 } from './componenti'
 import { capisciLista, capisciGaranzia, durata } from './capisci'
 import { mettiInCoda, registraLavoro, senzaRete, giaFatto } from './coda'
@@ -423,6 +423,98 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
       <button type="button" className="tasto-grande tasto-salva-fisso" onClick={salva} disabled={salvo}>
         {salvo ? (alCapo ? 'Invio…' : 'Salvo…') : alCapo ? 'Manda al Capo' : 'Salva'}
       </button>
+    </div>
+  )
+}
+
+// Scrivi qui (09.11.2026, richiesta di Giovanni: "da una persona o da un cliente non riesco ad aprire una nota"):
+// un riquadro dentro la pagina (scheda cliente, scheda persona, quaderno). Scrivi o detti, Salva, e la nota compare
+// sotto senza cambiare pagina. Stesse regole di Aggiungi: "ricordami alle…" crea il promemoria, senza rete resta
+// sul telefono. `area` fissa (cliente, cantiere, tema) oppure da scegliere (persona in più aree).
+// "Foto, promemoria…" apre Aggiungi con lo stesso testo.
+export function ScriviQui({ area, aree, aziendaId, cantiereId, personaId, temaId, dove, dopo }) {
+  const { area: areaApp, avvisa, vai } = useApp()
+  const [testo, setTesto] = useState('')
+  const [fonte, setFonte] = useState('scritta')
+  const [scelta, setScelta] = useState(() => (areaApp !== 'T' ? areaApp : aree?.length === 1 ? aree[0] : null))
+  const [salvo, setSalvo] = useState(false)
+  useModifiche(!!testo.trim())
+  const areaNota = area || scelta
+  const pulito = testo.trim()
+  const detto = pulito ? quandoRicordare(pulito) : null
+  const dettatura = useDettatura((t) => {
+    setTesto((x) => (x.trim() ? x.trimEnd() + ' ' : '') + t)
+    setFonte('voce')
+  })
+
+  // Aggiungi riprende il testo dalla sua bozza: la scrivo lì e ci vado.
+  function completa() {
+    if (dettatura.attiva) dettatura.ferma()
+    if (pulito) scrivi(chiaveBozza(personaId, aziendaId, cantiereId, temaId), JSON.stringify({ testo, area: areaNota, persone: [], ricorda: '', conPromemoria: false, fonte }))
+    const q = new URLSearchParams()
+    if (aziendaId) q.set('azienda', aziendaId)
+    if (cantiereId) q.set('cantiere', cantiereId)
+    if (personaId) q.set('persona', personaId)
+    if (temaId) q.set('tema', temaId)
+    if (areaNota) q.set('area', areaNota)
+    setTesto('')
+    vai(`/aggiungi?${q}`)
+  }
+
+  async function salva() {
+    if (!pulito || salvo) return
+    if (dettatura.attiva) dettatura.ferma()
+    setSalvo(true)
+    const d = {
+      id: nuovoId(), testo: pulito, area: areaNota, azienda_id: aziendaId || null, fonte,
+      cantiere_id: aziendaId && cantiereId ? cantiereId : null, lavorata: null,
+      persone: personaId ? [personaId] : [],
+      tema: temaId && areaNota === 'P' ? temaId : null,
+      garanzia: null, voci: null,
+      promemoria: detto ? { id: nuovoId(), testo: pulito, area: areaNota, scade_il: detto.toISOString() } : null,
+    }
+    const dove = (areaNota ? 'Salvata' : 'Salvata nell\'Inbox') + (detto ? `. Te lo ricordo ${quandoDetto(detto)}` : '')
+    try {
+      await creaNota(d)
+      avvisa(dove, { etichetta: 'Apri', fai: () => vai(`/nota/${d.id}`) })
+      setTesto('')
+      setFonte('scritta')
+      dopo?.()
+    } catch (e) {
+      if (senzaRete(e)) {
+        mettiInCoda('nota', d)
+        avvisa(`Senza rete: la tengo sul telefono e la mando appena torna la rete. ${dove}`)
+        setTesto('')
+        setFonte('scritta')
+      } else {
+        avvisa(messaggioErrore(e))
+      }
+    } finally {
+      setSalvo(false)
+    }
+  }
+
+  return (
+    <div className="scrivi-qui" style={{ '--col': areaDa(areaNota)?.colore || 'var(--grigio)' }}>
+      <textarea value={testo} onChange={(e) => setTesto(e.target.value)} rows={pulito ? 4 : 1}
+        placeholder={dove ? `Scrivi qui una nota (${dove})…` : 'Scrivi qui una nota…'} aria-label="Scrivi qui una nota"
+        onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) salva() }} />
+      {pulito && !area && (
+        <SceltaArea valore={scelta} onChange={setScelta} />
+      )}
+      {detto && <p className="nota-piccola">Te lo ricordo <b>{quandoDetto(detto)}</b></p>}
+      <div className="scrivi-qui-riga">
+        {dettatura.supportata && (
+          <button type="button" className={'tasto-piccolo' + (dettatura.attiva ? ' ascolta' : '')}
+            onClick={dettatura.attiva ? dettatura.ferma : dettatura.avvia}>
+            <Icona nome="mic" size={18} /> {dettatura.attiva ? 'Ascolto…' : 'Parla'}
+          </button>
+        )}
+        <button type="button" className="tasto-link" onClick={completa}>Foto, promemoria…</button>
+        {pulito && (
+          <button type="button" className="tasto-piccolo nota-qui" onClick={salva} disabled={salvo}>{salvo ? 'Salvo…' : 'Salva'}</button>
+        )}
+      </div>
     </div>
   )
 }

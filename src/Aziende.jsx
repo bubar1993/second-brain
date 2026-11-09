@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { sb, leggi, scrivi, areaDa } from './supabase'
 import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, Icona, tenutoQui, tieniQui } from './componenti'
+import { ScriviQui } from './Aggiungi'
 
 // Le 6 sezioni come nel gestionale Ceramex: chiave, nome lungo, nome corto.
 export const SEZIONI = [
@@ -166,7 +167,7 @@ export function Azienda({ id, cantiere: cantiereIniziale }) {
     const ids = [id, ...filiali.map((f) => f.id)]
     const [note, cantieri, gente] = await Promise.all([
       tutte(() => sb.from('note')
-        .select('id,area,azienda_id,cantiere_id,testo,mandante,sezione,data,contatto,risolto_il,thread_id,message_id,note_persone(persona_id)')
+        .select('id,area,azienda_id,cantiere_id,testo,mandante,sezione,data,creata_il,contatto,risolto_il,thread_id,message_id,note_persone(persona_id)')
         .in('azienda_id', ids).is('eliminata_il', null).is('scartata_il', null)
         .order('data', { ascending: false }).order('creata_il', { ascending: false })),
       a.area === 'G' ? sb.from('cantieri').select('id,nome,stato').in('azienda_id', ids).is('eliminata_il', null).then(chk) : [],
@@ -240,9 +241,10 @@ export function Azienda({ id, cantiere: cantiereIniziale }) {
       {a.ragione_sociale && a.ragione_sociale !== a.nome && <p className="nota-piccola">{a.ragione_sociale}</p>}
       {a.gruppo && <p className="nota-piccola">Filiale del gruppo <a href={`#/azienda/${a.gruppo.id}`}>{a.gruppo.nome}</a></p>}
 
-      <div className="contatti-persona">
-        <button type="button" className="tasto-piccolo" onClick={() => vai(`/aggiungi?azienda=${sede || a.id}`)}>+ Nota</button>
-      </div>
+      {/* Scrivi qui (09.11.2026): la nota nuova non ha ancora mandante né sezione (li mette l'agente):
+          dopo il salvataggio si va su "Altro", dove compare in "Appena scritte". */}
+      <ScriviQui area={a.area} aziendaId={sede || a.id} cantiereId={a.area === 'G' ? cantiere : null}
+        dopo={() => { setMandante('Altro'); setSezione(null); ricarica() }} />
 
       {persone.length > 0 && (
         <div className="chips persone">
@@ -334,6 +336,14 @@ export function Azienda({ id, cantiere: cantiereIniziale }) {
             })}
           </div>
 
+          {/* Note senza sezione (scritte da Giovanni, l'agente non le ha ancora sistemate): prima non si vedevano "Per sezione". */}
+          {vista === 'sezioni' && !sezione && diMandante.some((n) => !n.sezione) && (
+            <section className="blocco">
+              <h2><span>Appena scritte</span><span className="numero">{diMandante.filter((n) => !n.sezione).length}</span></h2>
+              <div className="elenco">{diMandante.filter((n) => !n.sezione).map((n) => riga(n, false))}</div>
+            </section>
+          )}
+
           {vista === 'sezioni' ? (
             SEZIONI.filter(([k]) => !sezione || sezione === k).map(([k]) => {
               const righe = k === 'problemi'
@@ -373,7 +383,8 @@ function perMese(note) {
   const anno = String(new Date().getFullYear())
   const gruppi = []
   for (const n of note) {
-    const [a, m] = (n.data || '').split('-')
+    // Le note appena scritte non hanno ancora `data` (la mette l'agente): vale il giorno in cui sono nate.
+    const [a, m] = (n.data || n.creata_il || '').split('-')
     const nome = a ? MESI[Number(m) - 1] + (a === anno ? '' : ` ${a}`) : 'Senza data'
     const ultimo = gruppi[gruppi.length - 1]
     if (ultimo?.[0] === nome) ultimo[1].push(n)
@@ -398,7 +409,7 @@ function NotaCliente({ n, conSezione, sede, cantiere, risolvi }) {
   return (
     <div className={'nota-cliente apribile' + (n.risolto_il ? ' risolta' : '')} onClick={apri} role="link" tabIndex={0}
       onKeyDown={(e) => { if (e.key === 'Enter') apri(e) }}>
-      <span className="data-breve">{dataBreve(n.data)}</span>
+      <span className="data-breve">{dataBreve(n.data || n.creata_il)}</span>
       <div className="nota-corpo">
         <p className="nota-testo">
           {meta && (

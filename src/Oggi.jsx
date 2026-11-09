@@ -27,6 +27,7 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
   const [lampo, setLampo] = useState(null)
   const [avanti, setAvanti] = useState(false)
   const [aperto, setAperto] = useState(null) // promemoria aperto per modificarlo
+  const [vediRitardo, setVediRitardo] = useState(false)
 
   // Senza rete (garage, cantiere): l'ultima agenda caricata, solo da guardare, con l'ora in cui era aggiornata.
   const { dati, errore, carica, ricarica } = useCarica(async () => {
@@ -223,6 +224,11 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
     const g = giorniDaOggi(e.inizio)
     if (e.stato !== 'proposto' && g >= 0 && g <= 7) metti(g, { tipo: 'e', x: e, ora: e.tutto_il_giorno ? '' : e.inizio })
   }
+  // In ritardo (10.11.2026, ok di Giovanni: Oggi era lunga 9 schermi): prima i più recenti, se ne vedono 5 e gli
+  // altri con "Mostra tutti". Se quello aperto (toccato dalla rete) è tra i nascosti, si vedono tutti.
+  ritardo.sort((a, b) => b.ora.localeCompare(a.ora))
+  const tuttiRitardo = vediRitardo || ritardo.slice(5).some((v) => v.x.id === aperto)
+  const setTuttiRitardo = (v) => { setVediRitardo(v); if (!v) setAperto(null) }
   if (dati && !giorni.has(0)) giorni.set(0, [])
   for (const voci of giorni.values()) voci.sort((a, b) => a.ora.localeCompare(b.ora))
   const elencoGiorni = [...giorni.entries()].sort((a, b) => a[0] - b[0])
@@ -296,17 +302,13 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
         <ProssimaSveglia />
 
         {dati?.settimane?.map((r) => (
-          <section key={'settimana-' + r.parte} className="riassunto-giorno">
-            <h3>La tua settimana{dati.settimane.length > 1 ? ` · ${r.parte === 'lavoro' ? 'lavoro' : 'privato'}` : ''}</h3>
-            <p>{r.testo}</p>
-          </section>
+          <Riassunto key={'settimana-' + r.parte} testo={r.testo}
+            titolo={`La tua settimana${dati.settimane.length > 1 ? ` · ${r.parte === 'lavoro' ? 'lavoro' : 'privato'}` : ''}`} />
         ))}
 
         {dati?.riassunti.map((r) => (
-          <section key={r.parte} className="riassunto-giorno">
-            <h3>{r.momento === 'mattino' ? 'Il punto del mattino' : 'Il punto della sera'}{dati.riassunti.length > 1 ? ` · ${r.parte === 'lavoro' ? 'lavoro' : 'privato'}` : ''}</h3>
-            <p>{r.testo}</p>
-          </section>
+          <Riassunto key={r.parte} testo={r.testo}
+            titolo={`${r.momento === 'mattino' ? 'Il punto del mattino' : 'Il punto della sera'}${dati.riassunti.length > 1 ? ` · ${r.parte === 'lavoro' ? 'lavoro' : 'privato'}` : ''}`} />
         ))}
 
         <Stato carica={carica} errore={errore} vuoto={nessunaCosa && !vacanzaDel(0) ? 'Niente in agenda. Quando aggiungi "Ricordamelo" o un appuntamento, compare qui.' : null}>
@@ -314,8 +316,13 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
             <div className="agenda">
               {ritardo.length > 0 && (
                 <>
-                  <h3 className="agenda-giorno rosso">In ritardo</h3>
-                  {ritardo.map((v) => voce(v, true))}
+                  <h3 className="agenda-giorno rosso">In ritardo{ritardo.length > 5 ? ` (${ritardo.length})` : ''}</h3>
+                  {(tuttiRitardo ? ritardo : ritardo.slice(0, 5)).map((v) => voce(v, true))}
+                  {ritardo.length > 5 && (
+                    <button type="button" className="tasto-link" onClick={() => setTuttiRitardo(!tuttiRitardo)}>
+                      {tuttiRitardo ? 'Mostra solo gli ultimi 5' : `Mostra tutti i ${ritardo.length} in ritardo`}
+                    </button>
+                  )}
                 </>
               )}
               {elencoGiorni.map(([g, voci]) => (
@@ -401,6 +408,20 @@ export default function Oggi({ inbox, bozze, domande, risposte, riordino, seguir
 }
 
 // "Cose per te": una riga per tipo, solo quelle che ci sono. Tocco = la schermata giusta.
+// Riassunto degli agenti (settimana, mattino, sera): 5 righe e "Leggi tutto" (10.11.2026), così l'agenda di oggi
+// non finisce quattro schermi più in basso. I testi corti si vedono interi.
+function Riassunto({ titolo, testo }) {
+  const [tutto, setTutto] = useState(false)
+  const lungo = (testo || '').length > 280 || (testo || '').split('\n').length > 5
+  return (
+    <section className="riassunto-giorno">
+      <h3>{titolo}</h3>
+      <p className={lungo && !tutto ? 'tagliato' : ''}>{testo}</p>
+      {lungo && <button type="button" className="tasto-link" onClick={() => setTutto(!tutto)}>{tutto ? 'Meno' : 'Leggi tutto'}</button>}
+    </section>
+  )
+}
+
 function CosePerTe({ voci }) {
   const ci = voci.filter((v) => v && v[0] > 0)
   if (!ci.length) return null

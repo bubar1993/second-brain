@@ -65,6 +65,10 @@ Stile, Oggi, Aggiungi, Chiedi, Dentro, schede persona, Quaderno, Bozze, Riordino
 - **Passo 2 (09.11.2026 sera, Giovanni: "se hai altre migliorie falle"):** `SceltaDitta` in `componenti.jsx` (una ditta, cercata per nome). In Aggiungi il campo **Cliente** c'è sempre (non nel Privato): scelto il cliente l'area diventa la sua; con un cliente la frase non va al Capo. Nella nota aperta (`Nota.jsx`) campo **Cliente**: sposta la nota in un'altra scheda o la toglie (area del cliente, cantiere tolto). Il testo della nota aperta **si salva da solo** 1,5 s dopo l'ultima lettera e uscendo; sotto c'è "Salvata" e "Torna com'era" (il testo di quando l'hai aperta); una nota vuota non si salva. Il tasto Salva della nota non c'è più.
 - NON fatti (aspettano l'ok): elenchi e caselle da spuntare nelle note; passo 3) @ per collegare persone/ditte e pagina fissa del cliente; riquadro nei fornitori/mandanti.
 
+### Oggi più corta (10.11.2026, ok di Giovanni)
+- Sul telefono Oggi era lunga circa 9 schermi e l'agenda di oggi cominciava dopo 4-5. Ora: i riassunti degli agenti (settimana, mattino, sera) mostrano 5 righe e "Leggi tutto" (`Riassunto` in `Oggi.jsx`; i testi corti restano interi); "In ritardo (N)" mostra i 5 più recenti e "Mostra tutti i N in ritardo" (prima i più recenti; se il promemoria toccato dalla rete è tra i nascosti si aprono tutti). Niente ricordato tra una visita e l'altra: si riparte sempre chiusi.
+- Nota aperta e "Scrivi qui": il riquadro del testo è alto quanto il testo (niente scorrimento dentro).
+
 ### Sveglie Sonos (22.10.2026, ok di Giovanni)
 - `#/sveglie` (`src/Sveglie.jsx`, Dentro solo Privato): orari, accese/spente e tasto "Alessia non c'è questa settimana"; in Oggi la riga della prossima sveglia. Dettagli in `docs/privato-gemelli.md` (Sonos).
 

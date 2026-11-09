@@ -125,7 +125,7 @@ export const STRUMENTI: Record<string, Strumento> = {
     fai: async (c, a) => {
       const chi = pulisciNome(a.nome)
       if (!chi) return 'Nome vuoto.'
-      let q = c.sb.from('aziende').select('id,nome,ragione_sociale,area,email').is('eliminata_il', null).is('unito_in', null)
+      let q = c.sb.from('aziende').select('id,nome,ragione_sociale,area,email,pagina_fissa,pagina_fissa_il').is('eliminata_il', null).is('unito_in', null)
         .or(`nome.ilike.%${chi}%,ragione_sociale.ilike.%${chi}%`).limit(6)
       if (c.area) q = q.eq('area', c.area)
       const ditte = await chk(q) as any[]
@@ -144,6 +144,8 @@ export const STRUMENTI: Record<string, Strumento> = {
       const n0 = c.fonte({ tipo: 'azienda', titolo: d.nome, area: d.area, data: null, link: `#/azienda/${d.id}` })
       const out = [`[${n0}] ${d.nome}${d.ragione_sociale && d.ragione_sociale !== d.nome ? ' (' + d.ragione_sociale + ')' : ''} — ${AREE[d.area]}`]
       if (d.email?.length) out.push('Email: ' + d.email.slice(0, 8).join(', ') + (d.email.length > 8 ? ` e altre ${d.email.length - 8}` : ''))
+      // Pagina fissa (10.11.2026, scelta di Giovanni: "voglio che risponda"): sconti, condizioni, abitudini scritti da lui.
+      if (d.pagina_fissa) out.push(`PAGINA FISSA del cliente (scritta da Giovanni, agg. ${giornoSolo(d.pagina_fissa_il)}; sconti e condizioni valgono questi):\n${corto(d.pagina_fissa, 4000)}`)
       if (persone.length) out.push('Persone: ' + persone.map((p) => `${[p.persone?.nome, p.persone?.cognome].filter(Boolean).join(' ')}${p.ruolo ? ' (' + p.ruolo + ')' : ''}${p.persone?.telefono ? ' tel ' + p.persone.telefono : ''}`).join('; '))
       if (cantieri.length) out.push('Cantieri: ' + cantieri.map((x) => `${x.nome}${x.descrizione ? ' ' + x.descrizione : ''}${x.stato ? ' [' + x.stato + ']' : ''}`).join('; '))
       out.push('NOTE (dalla più recente):')

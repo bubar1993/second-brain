@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { sb, leggi, scrivi, areaDa } from './supabase'
-import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, Icona, tenutoQui, tieniQui } from './componenti'
+import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, Icona, tenutoQui, tieniQui, useModifiche } from './componenti'
 import { ScriviQui } from './Aggiungi'
+import { CampoNota, TestoConCaselle, spuntaRiga } from './CampoNota'
 
 // Le 6 sezioni come nel gestionale Ceramex: chiave, nome lungo, nome corto.
 export const SEZIONI = [
@@ -149,6 +150,77 @@ export function useRisolvi(dopo) {
   }
 }
 
+// Pagina fissa del cliente (10.11.2026, ok di Giovanni): sconti, condizioni, abitudini. Sta in cima alla scheda e al
+// Quaderno, separata dalle note datate. La scrive solo Giovanni (nel database un trigger ferma gli agenti).
+// "Modifica" rilegge prima dal database (telefono e PC aperti insieme); si salva da sola; vuota = cancellata.
+// Sotto, in sola lettura, le pagine delle schede unite a questa.
+export function PaginaFissa({ azienda }) {
+  const [testo, setTesto] = useState(azienda.pagina_fissa || '')
+  const [salvato, setSalvato] = useState(azienda.pagina_fissa || '')
+  const [modifica, setModifica] = useState(false)
+  const [stato, setStato] = useState('')
+  const [unite, setUnite] = useState([])
+  const id = azienda.id
+
+  useEffect(() => {
+    sb.from('aziende').select('id,nome,pagina_fissa').eq('unito_in', id).not('pagina_fissa', 'is', null)
+      .then(({ data }) => setUnite(data || []))
+  }, [id])
+
+  const daSalvare = testo.trim() !== salvato
+  useModifiche(daSalvare)
+  const scriviPagina = async (t) => {
+    const { error } = await sb.from('aziende').update({ pagina_fissa: t || null }).eq('id', id)
+    if (error) { setStato(`Non salvata: ${messaggioErrore(error)}`); return }
+    setSalvato(t)
+    setStato(t ? 'Salvata' : 'Pagina vuota')
+  }
+  const inSospeso = useRef(null)
+  inSospeso.current = daSalvare ? testo.trim() : null
+  useEffect(() => {
+    if (!daSalvare) return
+    setStato('Salvo…')
+    const t = setTimeout(() => scriviPagina(testo.trim()), 1500)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [testo, daSalvare])
+  useEffect(() => () => {
+    if (inSospeso.current !== null) sb.from('aziende').update({ pagina_fissa: inSospeso.current || null }).eq('id', id).then(() => {})
+  }, [id])
+
+  async function apri() {
+    const { data } = await sb.from('aziende').select('pagina_fissa').eq('id', id).single()
+    if (data) { setTesto(data.pagina_fissa || ''); setSalvato(data.pagina_fissa || '') }
+    setStato('')
+    setModifica(true)
+  }
+
+  return (
+    <section className="pagina-fissa" style={{ '--col': areaDa(azienda.area)?.colore }}>
+      <div className="pagina-fissa-testa">
+        <h3>Pagina fissa</h3>
+        <button type="button" className="tasto-piccolo" onClick={modifica ? () => setModifica(false) : apri}>{modifica ? 'Fine' : testo ? 'Modifica' : 'Scrivi'}</button>
+      </div>
+      {modifica ? (
+        <>
+          <CampoNota value={testo} onChange={setTesto} rows={4} autoAlto autoFocus placeholder="Sconti, condizioni, abitudini: quello che vale sempre…" />
+          {stato && <p className="nota-piccola" role="status">{stato}</p>}
+        </>
+      ) : testo ? (
+        <div className="pagina-fissa-testo"><TestoConCaselle testo={testo} onSpunta={(i) => setTesto(spuntaRiga(testo, i))} /></div>
+      ) : (
+        <p className="nota-piccola">Sconti, condizioni, abitudini: quello che vale sempre per questo cliente.</p>
+      )}
+      {unite.map((u) => (
+        <div key={u.id} className="pagina-fissa-testo unita">
+          <span className="nota-piccola">Dalla scheda unita {u.nome}</span>
+          <TestoConCaselle testo={u.pagina_fissa} onSpunta={() => {}} />
+        </div>
+      ))}
+    </section>
+  )
+}
+
 export function Azienda({ id, cantiere: cantiereIniziale }) {
   const { vai } = useApp()
   const [sede, setSede] = useState(null) // null = tutto il gruppo
@@ -245,6 +317,8 @@ export function Azienda({ id, cantiere: cantiereIniziale }) {
           dopo il salvataggio si va su "Altro", dove compare in "Appena scritte". */}
       <ScriviQui area={a.area} aziendaId={sede || a.id} cantiereId={a.area === 'G' ? cantiere : null}
         dopo={() => { setMandante('Altro'); setSezione(null); ricarica() }} />
+
+      <PaginaFissa key={a.id} azienda={a} />
 
       {persone.length > 0 && (
         <div className="chips persone">

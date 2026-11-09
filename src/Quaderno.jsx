@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { sb, areaDa, leggi, scrivi, nomePersona, CAMPI_PERSONA } from './supabase'
 import { useApp, useCarica, chk, messaggioErrore, Stato, Icona, useLargo } from './componenti'
-import { nomeSezione, useRisolvi } from './Aziende'
+import { nomeSezione, useRisolvi, PaginaFissa } from './Aziende'
 import Nota from './Nota'
 import { ScriviQui } from './Aggiungi'
 import { TestoConCaselle, haCaselle, spuntaRiga } from './CampoNota'
@@ -520,7 +520,7 @@ function Cliente({ area, id, query }) {
   const [agenti, setAgenti] = useAgenti()
   const { dati, errore, carica, ricarica } = useCarica(async () => {
     const [a, filiali] = await Promise.all([
-      sb.from('aziende').select('id,nome,area,unito_in,gruppo:gruppo_id(id,nome)').eq('id', id).single().then(chk),
+      sb.from('aziende').select('id,nome,area,unito_in,pagina_fissa,pagina_fissa_il,gruppo:gruppo_id(id,nome)').eq('id', id).single().then(chk),
       sb.from('aziende').select('id,nome').eq('gruppo_id', id).is('eliminata_il', null).then(chk),
     ])
     const ids = [id, ...filiali.map((f) => f.id)]
@@ -588,6 +588,8 @@ function Cliente({ area, id, query }) {
       <ScriviQui area={area} aziendaId={id} cantiereId={area === 'G' && scelta && scelta.id !== 'generale' ? scelta.id : null}
         dove={area === 'G' && scelta && scelta.id !== 'generale' ? scelta.nome : null}
         dopo={() => { if (area !== 'G') cambia('m', 'Altro'); ricarica() }} />
+
+      <PaginaFissa key={a.id} azienda={a} />
 
       {apertiTutti.length > 0 && (
         <section className="blocco problemi-quaderno">

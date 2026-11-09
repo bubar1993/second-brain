@@ -897,6 +897,15 @@ mark { background: rgba(255, 214, 102, 0.22); color: var(--testo); border-radius
 .casella-riga.fatta span:last-child { text-decoration: line-through; color: var(--tenue); }
 .riga-testo-nota { display: block; white-space: pre-wrap; }
 .scheda.caselle-nota { display: block; padding: 8px 14px; }
+/* Pagina fissa del cliente (10.11.2026). */
+.pagina-fissa {
+  display: flex; flex-direction: column; gap: 8px; padding: 10px 14px;
+  border-radius: var(--raggio); background: color-mix(in srgb, var(--col) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--col) 35%, transparent);
+}
+.pagina-fissa-testa { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pagina-fissa-testa h3 { margin: 0; }
+.pagina-fissa-testo.unita { padding-top: 8px; border-top: 1px solid var(--bordo); }
 .quaderni { display: flex; flex-direction: column; gap: 12px; }
 .quaderno-voce {
   display: flex; align-items: center; gap: 14px; min-height: 84px; padding-right: 16px; overflow: hidden;

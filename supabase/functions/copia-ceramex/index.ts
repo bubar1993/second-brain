@@ -117,6 +117,9 @@ async function copiaBozze(righe: Record<string, any>[], contatti: Record<string,
     const qui = locali.get(r.id)
     if (!qui) return true
     if (qui === r.stato) return false
+    // Scartata da Giovanni nell'app: resta scartata (col suo motivo) anche se poi il gestionale la segna
+    // 'inviata' perché lui ha scritto una mail a mano nella stessa conversazione (10.11.2026).
+    if (qui === 'scartata') return false
     return !(fatteQui.includes(qui) && (r.stato === 'proposta' || r.stato === 'da_imparare'))
   })
   await upsert('bozze', nuove)

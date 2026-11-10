@@ -9,7 +9,8 @@ import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, useMo
 // Le mail Ceramex a cui l'agente non sapeva rispondere stanno in "Da rispondere tu".
 
 const CAMPI = 'id,area,canale,stato,oggetto,a,testo,perche,da_nome,creata_il,annullata_il,motivo_annullata,errore,aziende(id,nome),posta(id,da,da_nome,data)'
-const GMAIL_WEB = 'https://mail.google.com/mail/?authuser=giovannifabris%40ceramex.ch#all/'
+const MOTIVI_SCARTO = { a_voce: 'Già sentito a voce', non_serviva: 'Non serviva', sbagliata: 'Era sbagliata' }
+const GMAIL_WEB ='https://mail.google.com/mail/?authuser=giovannifabris%40ceramex.ch#all/'
 
 export function Bozze({ scelta }) {
   const { area } = useApp()
@@ -123,8 +124,10 @@ export function Bozza({ id }) {
   // Due tocchi per inviare e per scartare (useDueTocchi: il secondo conta dopo mezzo secondo, dopo 5 secondi si torna com'era).
   const due = useDueTocchi()
   const conferma = due.armato === 'invia'
-  const confermaScarta = due.armato === 'scarta'
   const [lavoro, setLavoro] = useState(false)
+  // Scarta: prima il motivo (10.11.2026), così l'agente non impara la cosa sbagliata. I tasti restano finché sceglie.
+  const [scarto, setScarto] = useState(false)
+  const [notaScarto, setNotaScarto] = useState('')
 
   const { dati, errore, carica, ricarica } = useCarica(async () => {
     const b = chk(await sb.from('bozze').select('*,aziende(id,nome),posta(id,message_id,da,da_nome,a,cc,oggetto,data,testo)').eq('id', id).single())
@@ -152,6 +155,9 @@ export function Bozza({ id }) {
   // Ceramex: si può inviare solo se la Gmail è collegata e la bozza c'è ancora lì.
   const senzaGmail = gmail && (b.gmail?.errore || !b.gmail?.bozza)
   const aperta = b.stato === 'proposta'
+  // Bozza Gmail con allegati (portafogli del martedì): parte così com'è, le correzioni si fanno in Gmail.
+  const allegatiGmail = (gmail && b.gmail?.bozza?.allegati) || []
+  const fissa = b.perche?.tipo === 'portafogli_crea' && allegatiGmail.length > 0
   const lista = (s) => s.split(/[,;\s]+/).map((x) => x.trim()).filter(Boolean)
   const cambia = (k) => (e) => setCampi({ ...campi, [k]: e.target.value })
 
@@ -173,13 +179,13 @@ export function Bozza({ id }) {
     }
   }
 
-  // Anche scartare vuole due tocchi: non si torna indietro. Per Ceramex toglie anche la bozza da Gmail.
-  const scarta = () => due.tocca('scarta', scartaDavvero)
-  async function scartaDavvero() {
+  // Scartare: primo tocco "Scarta", secondo tocco sul motivo. Non si torna indietro. Per Ceramex toglie anche la bozza da Gmail.
+  async function scartaDavvero(motivo) {
     setLavoro(true)
     try {
-      if (gmail && !b.gmail?.errore) await chiama('gmail-bozza', { azione: 'scarta', id, testo: campi.testo })
-      else chk(await sb.from('bozze').update({ stato: 'scartata', testo: campi.testo }).eq('id', id))
+      const nota = motivo === 'sbagliata' && notaScarto.trim() ? notaScarto.trim() : null
+      if (gmail && !b.gmail?.errore) await chiama('gmail-bozza', { azione: 'scarta', id, testo: campi.testo, motivo, nota })
+      else chk(await sb.from('bozze').update({ stato: 'scartata', testo: campi.testo, motivo_scarto: motivo, nota_scarto: nota }).eq('id', id))
       avvisa('Scartata')
       location.replace('#/bozze')
     } catch (e) {
@@ -195,7 +201,7 @@ export function Bozza({ id }) {
       <Indietro titolo={b.aziende?.nome || b.posta?.da_nome || b.da_nome || 'Bozza'} />
       {b.stato === 'annullata' && <div className="scheda scheda-allarme"><p>Annullata: {b.motivo_annullata}</p></div>}
       {b.stato === 'inviata' && <p className="nota-piccola">Inviata {quando(b.inviata_il, true)}.</p>}
-      {b.stato === 'scartata' && <p className="nota-piccola">Scartata.</p>}
+      {b.stato === 'scartata' && <p className="nota-piccola">Scartata{MOTIVI_SCARTO[b.motivo_scarto] ? `: ${MOTIVI_SCARTO[b.motivo_scarto].toLowerCase()}` : ''}.{b.nota_scarto ? ` ${b.nota_scarto}` : ''}</p>}
       {b.errore && aperta && <div className="scheda scheda-allarme"><p>{b.errore}</p></div>}
       {gmail && aperta && b.gmail?.errore && <div className="scheda scheda-allarme"><p>{b.gmail.errore} Intanto puoi aprirla in Gmail.</p></div>}
       {gmail && aperta && !b.gmail?.errore && !b.gmail?.bozza && (
@@ -216,11 +222,18 @@ export function Bozza({ id }) {
       {!daTe && (
         <>
           <div className="modulo">
-            <label>A<input type="text" value={campi.a} onChange={cambia('a')} disabled={!aperta || senzaGmail} inputMode="email" /></label>
-            <label>Cc<input type="text" value={campi.cc} onChange={cambia('cc')} disabled={!aperta || senzaGmail} inputMode="email" placeholder="nessuno" /></label>
-            <label>Oggetto<input type="text" value={campi.oggetto} onChange={cambia('oggetto')} disabled={!aperta || senzaGmail} /></label>
+            {fissa
+              ? <p className="nota-piccola"><b>A {lista(campi.a).length + lista(campi.cc).length} destinatari:</b> {[...lista(campi.a), ...lista(campi.cc)].join(', ')}</p>
+              : (
+                <>
+                  <label>A<input type="text" value={campi.a} onChange={cambia('a')} disabled={!aperta || senzaGmail} inputMode="email" /></label>
+                  <label>Cc<input type="text" value={campi.cc} onChange={cambia('cc')} disabled={!aperta || senzaGmail} inputMode="email" placeholder="nessuno" /></label>
+                </>
+              )}
+            <label>Oggetto<input type="text" value={campi.oggetto} onChange={cambia('oggetto')} disabled={!aperta || senzaGmail || fissa} /></label>
           </div>
-          <textarea className="testo-bozza" value={campi.testo} onChange={cambia('testo')} rows={8} disabled={!aperta || senzaGmail} />
+          <textarea className="testo-bozza" value={campi.testo} onChange={cambia('testo')} rows={8} disabled={!aperta || senzaGmail || fissa} />
+          {fissa && <p className="nota-piccola"><b>Allegati:</b> {allegatiGmail.join(' · ')}. Parte così com'è: per cambiarla aprila in Gmail.</p>}
           {!gmail && <AllegatiBozza b={b} modificabile={aperta && !lavoro} />}
         </>
       )}
@@ -232,9 +245,20 @@ export function Bozza({ id }) {
               {lavoro ? 'Invio…' : conferma ? 'Tocca ancora per inviare' : 'Approva e invia'}
             </button>
           )}
-          <button type="button" className={'tasto-link' + (confermaScarta ? ' pericolo-pieno' : '')} onClick={scarta} disabled={lavoro}>
-            {confermaScarta ? 'Tocca ancora per scartare' : 'Scarta'}
-          </button>
+          {!scarto && <button type="button" className="tasto-link" onClick={() => setScarto(true)} disabled={lavoro}>Scarta</button>}
+        </div>
+      )}
+      {aperta && scarto && (
+        <div className="scheda motivo-scarto">
+          <p><b>Perché la scarti?</b></p>
+          <div className="azioni">
+            <button type="button" className="tasto-piccolo" onClick={() => scartaDavvero('a_voce')} disabled={lavoro}>Già sentito a voce</button>
+            <button type="button" className="tasto-piccolo" onClick={() => scartaDavvero('non_serviva')} disabled={lavoro}>Non serviva</button>
+            <button type="button" className="tasto-piccolo" onClick={() => scartaDavvero('sbagliata')} disabled={lavoro}>Era sbagliata</button>
+          </div>
+          <input type="text" value={notaScarto} onChange={(e) => setNotaScarto(e.target.value)} maxLength={300}
+            placeholder="Se era sbagliata: cosa non andava (facoltativo)" />
+          <button type="button" className="tasto-link" onClick={() => setScarto(false)} disabled={lavoro}>Non scartare</button>
         </div>
       )}
       {(b.perche?.fonti || []).length > 0 && (

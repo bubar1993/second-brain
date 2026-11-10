@@ -73,7 +73,10 @@ const aBase64 = (s: string) => {
 }
 const aBase64Url = (s: string) => aBase64(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 
-type Parte = { mimeType?: string; body?: { data?: string }; parts?: Parte[]; headers?: { name: string; value: string }[] }
+type Parte = { filename?: string; mimeType?: string; body?: { data?: string }; parts?: Parte[]; headers?: { name: string; value: string }[] }
+const nomiAllegati = (p: Parte): string[] => [...(p.filename && !/^image\//.test(p.mimeType || '') ? [p.filename] : []), ...(p.parts || []).flatMap(nomiAllegati)]
+const uguale = (x: string, y: string) => x.replace(/\r\n/g, '\n').trim() === y.replace(/\r\n/g, '\n').trim()
+const MOTIVI_SCARTO = ['a_voce', 'non_serviva', 'sbagliata']
 const intestazione = (p: Parte, nome: string) => p.headers?.find((h) => h.name.toLowerCase() === nome.toLowerCase())?.value || ''
 
 function testoDi(p: Parte): string {
@@ -93,6 +96,19 @@ const nomeDi = (s: string) => s.replace(/<[^>]*>/, '').replace(/"/g, '').trim() 
 
 // La mail a cui risponde e quello che è arrivato dopo nella conversazione.
 async function conversazione(token: string, b: Record<string, any>) {
+  // Portafogli del martedì: la bozza sta nella conversazione lunga con i clienti, ma la mail "a cui risponde" è
+  // quella di Sara (un'altra conversazione). Una risposta di un cliente lì in mezzo non annulla la bozza.
+  if (b.perche?.tipo === 'portafogli_crea') {
+    const s = b.gmail_message_id ? await gmail(token, `messages/${b.gmail_message_id}?format=full`) : null
+    return {
+      originale: s && {
+        da: indirizzi(intestazione(s.payload, 'From'))[0] || '', da_nome: nomeDi(intestazione(s.payload, 'From')),
+        oggetto: intestazione(s.payload, 'Subject'), data: new Date(Number(s.internalDate)).toISOString(),
+        testo: testoDi(s.payload).slice(0, 20000),
+      },
+      dopo: [],
+    }
+  }
   if (!b.gmail_thread_id) return { originale: null, dopo: [] }
   const t = await gmail(token, `threads/${b.gmail_thread_id}?format=full`)
   if (!t) return { originale: null, dopo: [] }
@@ -121,6 +137,7 @@ async function bozzaGmail(token: string, b: Record<string, any>) {
     threadId: d.message.threadId as string,
     a: indirizzi(intestazione(p, 'To')), cc: indirizzi(intestazione(p, 'Cc')),
     oggetto: intestazione(p, 'Subject'), testo: testoDi(p),
+    allegati: nomiAllegati(p),
     inReplyTo: intestazione(p, 'In-Reply-To'), references: intestazione(p, 'References'),
   }
 }
@@ -156,7 +173,7 @@ Deno.serve(async (req: Request) => {
   const utente = u.ok ? await u.json() : null
   if (utente?.id !== UTENTE || daConnettore(jwt)) return risposta({ errore: 'Non autorizzato' }, 401)
 
-  const { azione, id, testo, a, cc, oggetto } = await req.json().catch(() => ({}))
+  const { azione, id, testo, a, cc, oggetto, motivo, nota } = await req.json().catch(() => ({}))
   if (!id) return risposta({ errore: 'Manca la bozza' }, 400)
   const [b] = await rest(`bozze?id=eq.${id}&select=*`) as Record<string, any>[]
   if (!b || b.canale !== 'gmail') return risposta({ errore: 'Bozza non trovata' }, 404)
@@ -166,13 +183,16 @@ Deno.serve(async (req: Request) => {
 
     if (azione === 'leggi') {
       const [g, c] = await Promise.all([bozzaGmail(token, b), conversazione(token, b)])
-      return risposta({ bozza: g && { a: g.a, cc: g.cc, oggetto: g.oggetto, testo: g.testo }, originale: c.originale, nuove: c.dopo.length })
+      return risposta({ bozza: g && { a: g.a, cc: g.cc, oggetto: g.oggetto, testo: g.testo, allegati: g.allegati }, originale: c.originale, nuove: c.dopo.length })
     }
 
     if (azione === 'scarta') {
       if (b.stato !== 'proposta') return risposta({ errore: `La bozza è già ${b.stato}` }, 409)
       if (b.gmail_draft_id) await gmail(token, `drafts/${b.gmail_draft_id}`, { method: 'DELETE' })
-      await aggiorna(id, { stato: 'scartata', testo: typeof testo === 'string' ? testo : b.testo })
+      // Il motivo (10.11.2026): 'a_voce' = bozza giusta ma già sentito a voce, 'non_serviva', 'sbagliata' (+ una riga).
+      await aggiorna(id, { stato: 'scartata', testo: typeof testo === 'string' ? testo : b.testo,
+        motivo_scarto: MOTIVI_SCARTO.includes(motivo) ? motivo : null,
+        nota_scarto: typeof nota === 'string' && nota.trim() ? nota.trim().slice(0, 500) : null })
       return risposta({ ok: true })
     }
 
@@ -199,13 +219,24 @@ Deno.serve(async (req: Request) => {
     const corpo = String(testo ?? g.testo ?? '').trim()
     if (!corpo) return risposta({ errore: 'Il testo è vuoto' }, 400)
     const ogg = String(oggetto ?? g.oggetto ?? '').trim()
+    // Bozza con allegati (portafogli): riscriverla come solo testo li perderebbe. Parte così com'è; se Giovanni
+    // ha cambiato qualcosa, la corregge in Gmail.
+    // Solo le bozze dei portafogli: le risposte normali hanno spesso immagini della firma citata, che non contano.
+    const conAllegati = b.perche?.tipo === 'portafogli_crea' && g.allegati.length > 0
+    if (conAllegati) {
+      const stessi = (x: string[], y: string[]) => x.length === y.length && x.every((v) => y.includes(v))
+      if (!uguale(corpo, g.testo) || ogg !== g.oggetto.trim() || !stessi(destinatari, pulisci(g.a)) || !stessi(copia, pulisci(g.cc).filter((x) => x !== IO && !destinatari.includes(x))))
+        return risposta({ errore: 'Questa bozza ha allegati: per cambiarla aprila in Gmail. Senza modifiche parte così com\'è.' }, 409)
+    }
 
     // Blocco subito la bozza: niente doppi invii se si tocca due volte.
     await rest(`bozze?id=eq.${id}&stato=eq.proposta`, { method: 'PATCH', headers: { Prefer: 'return=minimal' },
       body: JSON.stringify({ stato: 'in_invio', testo: corpo, a: destinatari, cc: copia, oggetto: ogg }) })
     try {
-      const raw = mime({ a: destinatari, cc: copia, oggetto: ogg, testo: corpo, inReplyTo: g.inReplyTo, references: g.references })
-      await gmail(token, `drafts/${b.gmail_draft_id}`, { method: 'PUT', body: JSON.stringify({ id: b.gmail_draft_id, message: { raw, threadId: g.threadId } }) })
+      if (!conAllegati) {
+        const raw = mime({ a: destinatari, cc: copia, oggetto: ogg, testo: corpo, inReplyTo: g.inReplyTo, references: g.references })
+        await gmail(token, `drafts/${b.gmail_draft_id}`, { method: 'PUT', body: JSON.stringify({ id: b.gmail_draft_id, message: { raw, threadId: g.threadId } }) })
+      }
       const inviata = await gmail(token, 'drafts/send', { method: 'POST', body: JSON.stringify({ id: b.gmail_draft_id }) })
       const ora = new Date().toISOString()
       await aggiorna(id, { stato: 'inviata', inviata_il: ora, inviata_message_id: inviata?.id || null, errore: null })

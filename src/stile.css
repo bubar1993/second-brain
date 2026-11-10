@@ -431,6 +431,12 @@ a.riga:active, button.riga:active { background: rgba(255, 255, 255, 0.04); }
 .modulo input:disabled, .testo-bozza:disabled { opacity: 0.7; }
 .azioni-bozza { flex-direction: column; align-items: stretch; }
 .azioni-bozza .tasto-link { align-self: center; }
+/* Perché scarti la bozza (10.11.2026): tre tasti, una riga facoltativa. */
+.scheda.motivo-scarto { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
+.motivo-scarto p { margin: 0; }
+.motivo-scarto .azioni { flex-wrap: wrap; gap: 8px; }
+.motivo-scarto .tasto-piccolo { min-height: 44px; }
+.motivo-scarto .tasto-link { align-self: center; }
 /* Tasto pronto a mandare/spostare (dopo il primo tocco): rosso, così si vede che il prossimo tocco fa sul serio (14.10.2026). */
 .tasto-grande.conferma { background: var(--rosso); color: #fff; box-shadow: 0 0 22px rgba(255, 93, 108, 0.45); }
 

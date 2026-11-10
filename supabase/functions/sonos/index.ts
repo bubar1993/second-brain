@@ -365,7 +365,8 @@ async function suona(sv: Record<string, any>, prova: { cassa?: string; musica?: 
   await sonos(token, `players/${c.id}/audioClip`, clip)
   const v = { secondi }
   let musica = 'niente'
-  if (sv.preferito && prova.musica !== false) {
+  // Se la musica non parte la sveglia resta fatta (la voce è già detta): il motivo va negli errori.
+  if (sv.preferito && prova.musica !== false) try {
     await aspetta(Math.min(170, v.secondi + 2) * 1000)
     const hh = await casa(token)
     const { items } = await sonos(token, `households/${hh}/favorites`)
@@ -379,14 +380,25 @@ async function suona(sv: Record<string, any>, prova: { cassa?: string; musica?: 
     const g = (groups || []).find((x: any) => (x.playerIds || []).includes(c.id))
     if (!g) throw new Error(`Gruppo della cassa ${c.nome} non trovato`)
     await sonos(token, `groups/${g.id}/groupVolume`, { volume: sv.volume_musica })
-    await sonos(token, `groups/${g.id}/favorites`, { favoriteId: pref.id, playOnCompletion: true, action: 'REPLACE', playModes: { shuffle: true } })
+    // A volte Sonos/Spotify rifiuta la playlist sul momento (ERROR_PLAYBACK_NO_CONTENT, 10.11.2026): si riprova
+    // altre 2 volte a 10 secondi di distanza.
+    for (let tentativo = 0; ; tentativo++) {
+      try {
+        await sonos(token, `groups/${g.id}/favorites`, { favoriteId: pref.id, playOnCompletion: true, action: 'REPLACE', playModes: { shuffle: true } })
+        break
+      } catch (e) {
+        if (tentativo >= 2) throw e
+        await aspetta(10000)
+      }
+    }
     musica = pref.name
     // Dopo musica_minuti il giro di ogni minuto la mette in pausa (se nel frattempo non è cambiata).
     if (!prova.cassa) {
       await rest(`sonos_sveglie?id=eq.${sv.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({
         spegni_alle: new Date(Date.now() + (sv.musica_minuti || 5) * 60e3).toISOString(), spegni_gruppo: g.id, spegni_preferito: pref.name }) })
+        .catch((e) => errori.push(`spegni: ${msg(e)}`))
     }
-  }
+  } catch (e) { musica = 'non partita'; errori.push(`musica: ${msg(e)}`) }
   return { testo: parlato ? frase : '(senza voce: din-don)', secondi: Math.round(v.secondi), musica, errori: errori.join(' | ') || undefined }
 }
 
@@ -709,16 +721,23 @@ async function sveglie() {
     }) as Record<string, any>[]
     const sv = prese?.[0]
     if (!sv) continue
+    // Storico delle ultime 30 mattine (10.11.2026): prima restava solo l'ultimo errore.
+    const storico = (riga: Record<string, unknown>) =>
+      [...(Array.isArray(sv.storico) ? sv.storico : []), { data: oggi, ora: adessoZurigo(), ...riga }].slice(-30)
     try {
       if (sv.salta_vacanze && await vacanzaOggi()) {
-        await rest(`sonos_sveglie?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ ultimo_testo: 'Saltata: scuola chiusa' }) })
+        await rest(`sonos_sveglie?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ ultimo_testo: 'Saltata: scuola chiusa',
+          storico: storico({ voce: false, musica: 'niente', errore: null, saltata: 'scuola chiusa' }) }) })
         continue
       }
       const fatto = await suona(sv)
-      await rest(`sonos_sveglie?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ ultimo_testo: fatto.testo, errore: fatto.errori || null }) })
+      await rest(`sonos_sveglie?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({
+        ultimo_testo: fatto.testo, errore: fatto.errori || null,
+        storico: storico({ voce: !fatto.testo.startsWith('(senza voce'), musica: fatto.musica, errore: fatto.errori || null }) }) })
     } catch (e) {
       const errore = String((e as Error)?.message || e).slice(0, 300)
-      await rest(`sonos_sveglie?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ errore }) }).catch(() => {})
+      await rest(`sonos_sveglie?id=eq.${id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ errore, storico: storico({ voce: false, musica: 'niente', errore }) }) }).catch(() => {})
     }
   }
 }

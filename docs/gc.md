@@ -22,3 +22,9 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 5. G&C ← IN CORSO (partita l'11.10.2026 sera, prima delle fasi 3-4, su richiesta di Giovanni). Vedi "G&C (fase 5)".
 
 Vedi anche: `agenti-routine.md` (Archiviazione email G&C, Completa fornitori scontrini), `schermate.md` (Riordino casella, Bozze), `ceramex.md` (Da seguire e Circolari valgono anche per G&C), `calendario.md` (inviti a call nelle mail).
+
+## Mail incerte di info@: dal Riordino alle schede (10.11.2026)
+- Le mail che l'agente di archiviazione non sa dove mettere restano una riga in `modifiche_da_controllare` (G&C) e una proposta con ❓ nel Riordino del Brain.
+- Quando Giovanni le sposta dal Riordino, l'agente le salva nel gestionale secondo la cartella scelta (regola SPOSTATA-DA-GIOVANNI, `agenti/agente-archiviazione-gc.md` passo 1b) e chiude la riga. Cartella nuova = scheda nuova con "Creato X: controlla". Liste di carico senza cantiere in FORNITORI/NISTA = sotto Nista.
+- Se non può salvare (cartella non chiara, mail non trovata) scrive una riga visibile "Mail non salvata".
+- In G&C le righe delle mail non si vedono per 3 giorni; dopo, se ancora aperte (spostate da Thunderbird/telefono o rimaste in casella), compaiono in Da controllare (migrazione G&C 172).

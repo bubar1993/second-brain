@@ -39,6 +39,11 @@ In italiano, breve. Problemi in ordine di gravità:
 - **Da sistemare** (si può fare dopo questo cambio)
 - **Dubbio** (da chiedere a Giovanni)
 
-Per ognuno: cosa succede, dove (file:riga o tabella), un esempio concreto e la correzione che proponi.
+Per ognuno: cosa succede, dove (file:riga o tabella), un esempio concreto e la correzione che proponi. Se non vedi una correzione sicura, scrivi: **correzione: non la vedo**.
 Chiudi con una riga: **Verdetto:** si può fare / si può fare dopo questi cambi / non farlo.
 Se non trovi problemi veri, dillo. Non inventare problemi per riempire la lista.
+
+Poi un'ultima riga: **Serve il risolutore:** sì / no. È un agente più forte e più caro: va chiamato solo nei casi estremi. Scrivi sì solo se valgono tutte e due:
+- c'è almeno un Grave con "correzione: non la vedo", oppure il verdetto è "non farlo" e il motivo non è una regola di Giovanni (quella nessun piano la risolve);
+- la modifica è grande (tocca molte parti o molti file insieme) oppure è molto delicata nei dettagli: contabilità, IVA, fatture, provvigioni, importi, valute, saldi.
+In tutti gli altri casi scrivi no. Quando ricontrolli un piano del risolutore, scrivi sempre no: controlla che le vecchie obiezioni siano risolte e cerca anche problemi nuovi.

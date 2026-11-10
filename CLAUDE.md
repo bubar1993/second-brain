@@ -1,6 +1,6 @@
 # Second Brain GF
 
-Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo aggiornamento: 26.10.2026 (antagonista prima delle modifiche a rischio).
+Questo file è per Claude Code. Spiega il progetto e le regole di lavoro. Ultimo aggiornamento: 10.11.2026 (risolutore Fable per i casi estremi).
 
 I dettagli stanno in `docs/` (indice in fondo): prima di lavorare su un argomento leggi il file giusto. Le cose aperte sono nella memoria "Cose in sospeso".
 
@@ -15,6 +15,7 @@ I dettagli stanno in `docs/` (indice in fondo): prima di lavorare su un argoment
 - Si lavora per fasi. Nessuna fase parte senza l'ok di Giovanni.
 - Prima di toccare cose già funzionanti o configurazioni importanti: spiega e chiedi conferma.
 - **Antagonista** (26.10.2026): prima di chiedere l'ok per una modifica a rischio, passa le parole di Giovanni e il piano o il diff all'agente `antagonista` (non la tua conclusione). Sempre per: gestionali Ceramex e G&C, migrazioni, permessi e utenti del database, prompt di routine e agenti, token e sicurezza, regole sulle mail, cancellazioni, proposte del Capo in `modifiche_claude`. Non per testi, colori, docs. A Giovanni mostri piano + obiezioni + cosa hai corretto; il suo ok resta obbligatorio.
+- **Risolutore** (10.11.2026, Fable 5.2): solo nei casi estremi, quando l'antagonista scrive "Serve il risolutore: sì" (modifica grande o delicata come contabilità e IVA, con problemi Grave senza correzione). Gli passi le parole di Giovanni, il piano e le obiezioni; poi l'antagonista ricontrolla una volta il suo blocco "Piano", con le vecchie obiezioni ma senza le spiegazioni del risolutore. Un solo giro per richiesta di Giovanni (lo stesso piano riscritto conta uguale): se il ricontrollo dice "non farlo", ti fermi e decide lui. Se il risolutore non parte o la sua prima riga non dice Fable, ti fermi e lo dici, senza ripiegare su Opus. A Giovanni un solo messaggio, con scritto che hai usato il risolutore.
 - Soluzioni gratuite. Servizi a pagamento solo con il suo sì.
 - Niente email o notifiche di test verso di lui.
 - Una sola versione per file: aggiorna, non creare copie.

@@ -411,6 +411,9 @@ async function spostaGC(righe: Record<string, any>[], scelte: Map<string, string
             // Cartella nuova: solo quella proposta dall'agente con ✚ (approvata spuntando la mail).
             if (!(r.nuova && dest === inChiaro(r.cartella_proposta || ''))) throw new Error(`la cartella "${dest}" non esiste`)
             await imap.mailboxCreate(dest)
+            // Sottoscritta subito, così compare da sola in Thunderbird e sul telefono (10.11.2026).
+            // Se il server rifiuta, la mail si sposta lo stesso.
+            try { await imap.mailboxSubscribe(dest) } catch (_) { /* non blocca lo spostamento */ }
             esistenti.add(dest)
           }
           const mid = senzaParentesi(r.message_id)

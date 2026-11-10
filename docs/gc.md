@@ -21,6 +21,14 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 
 5. G&C ← IN CORSO (partita l'11.10.2026 sera, prima delle fasi 3-4, su richiesta di Giovanni). Vedi "G&C (fase 5)".
 
+### Rappresentanti: scheda Sariker AG (10.11.2026, ok di Giovanni, piano controllato dall'antagonista)
+- Sariker AG (Barbengo; Ermanno Dri e Ramon Zollinger; rappresentano Pamesa, Sichenia e altri) ha una scheda ditta normale in `aziende` area G (`a5394df7-24ca-4778-a198-a3e3eb6e1d5f`), fatta a mano: così ci sono le schede persona, il tasto nota e i WhatsApp. Non è un cliente. `email` e `domini` restano VUOTI apposta.
+- Mail: resta la regola del 29.10, nota sotto il marchio con `azienda_id` null. L'agente G&C non usa mai la scheda Sariker per una mail e non le aggiunge mail, domini o contatti (`agente-gc.md` 4b, routine ore piene aggiornata e IDENTICA il 10.11).
+- Note di Giovanni e WhatsApp: sulla scheda Sariker con `mandante` = marchio (`agente-note.md` 3a, routine aggiornata e IDENTICA il 10.11). La pagina del fornitore nel Quaderno mostra già anche queste note (cerca per `mandante`). Marchio fuori da `fornitori` = 'Altro'.
+- Una persona = una scheda sola (niente "Ermanno Pamesa", "Ermanno Sichenia"): scelta del 10.11.
+- I due contatti WhatsApp erano in area P (rubrica del telefono): spostati in G. I messaggi vecchi non si rimandano all'agente (farebbe promemoria con date sbagliate): le note si scrivono a mano con la data del messaggio.
+- Altri rappresentanti (Freecem, Atega, Swiss Surfaces, Gres Design): Giovanni ha detto di aspettare. Se diventano tanti conviene un'etichetta "rappresentante" vera (colonna + app).
+
 Vedi anche: `agenti-routine.md` (Archiviazione email G&C, Completa fornitori scontrini), `schermate.md` (Riordino casella, Bozze), `ceramex.md` (Da seguire e Circolari valgono anche per G&C), `calendario.md` (inviti a call nelle mail).
 
 ## Mail incerte di info@: dal Riordino alle schede (10.11.2026)

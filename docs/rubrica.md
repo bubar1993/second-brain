@@ -1,6 +1,6 @@
 # Rubrica
 
-Contatti del telefono ↔ Google Contatti ↔ second brain, pulizia dei doppioni. Testo spostato così com'era da CLAUDE.md il 14.10.2026 (versione intera nel tag git `prima-divisione-claude-md`).
+Contatti del telefono ↔ Google Contatti ↔ second brain, pulizia dei doppioni.
 
 ### Rubrica (13.10.2026, ok di Giovanni)
 - I contatti del telefono sono nell'account Google **giovannifabris@ceramex.ch**. Sincronizzazione nei due sensi: brain ↔ Google Contatti (People API, gratis) ↔ telefono.

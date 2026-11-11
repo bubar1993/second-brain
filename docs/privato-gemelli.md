@@ -1,24 +1,16 @@
 # Privato e gemelli
 
-Area Privato: gemelli, figli di Lady di Blackwood, scadenze, liste, garanzie, vacanze scolastiche, idee parcheggiate. Testo spostato così com'era da CLAUDE.md il 14.10.2026 (versione intera nel tag git `prima-divisione-claude-md`).
+Area Privato: gemelli, figli di Lady di Blackwood, scadenze, liste, garanzie, vacanze scolastiche, idee parcheggiate.
 
 ### Privato (fase 6)
-| Gruppo | Contenuto |
-| --- | --- |
-| Persone | Compleanni e anniversari con avviso; idee regalo; scheda persona; "cose da chiedere a…"; bozza di auguri (la manda Giovanni) |
-| Gemelli (8 anni) | Attività, orari, chi accompagna; compleanni dei compagni (invito → risposta → regalo); diario; visite mediche e vaccinazioni come date |
-| Scadenze svizzere | Cassa malati (avviso inizio novembre, disdetta entro il 30.11); dichiarazione d'imposta; auto (collaudo, gomme ottobre/aprile, vignetta, assicurazione); passaporti e ID; abbonamenti con data di disdetta |
-| Calendario famiglia | Vacanze scolastiche e giorni liberi del Ticino |
-| Inviti e spese | Inviti da rispondere; spese condivise (chi deve cosa) |
-| Casa e vita | Garanzie e scontrini con foto; ristoranti/posti/vacanze con voto; ricordi e note di viaggio; diario vocale della sera; obiettivi e abitudini; wishlist |
-| Liste | Spesa, film, libri, ristoranti consigliati; cose prestate |
+Piano iniziale (12.10.2026): persone e compleanni, gemelli, scadenze svizzere (cassa malati, auto, passaporti, abbonamenti), vacanze scolastiche, inviti e spese, garanzie e scontrini, liste. Cosa esiste davvero è nelle sezioni qui sotto; le idee non ancora fatte sono in "Idee parcheggiate".
 
 ### Privato (fase 6, primo pezzo)
 - Promemoria `ricorrenza = 'annuale'` (quando si segna fatto torna l'anno dopo): gomme, cassa malati (confronto e disdetta entro 30.11), vignetta, dichiarazione d'imposta TI.
 - Domande per Giovanni (agente privato): scadenze documenti, auto, abbonamenti, compleanni.
 
 ### Gemelli (fase 6, 12.10.2026)
-- Leonardo ("Leo") e Jolie, nati il 03.05.2018, terza elementare. Persone area P con ruolo 'figlio'/'figlia'. Leo: calcio, tennis. Jolie: Gymnastique, atletica, Fashion design. Tutti e due pianoforte martedì 16:30–18:00. Accompagna Giovanni o vanno a piedi.
+- Leonardo ("Leo") e Jolie, nati il 03.05.2018, terza elementare. Persone area P con ruolo 'figlio'/'figlia'. Leo: calcio, tennis. Jolie: Gymnastique, atletica, Fashion design. Tutti e due pianoforte il martedì (orario in "Pianoforte di Leo e Jolie"). Accompagna Giovanni o vanno a piedi.
 - Schermata "Gemelli" (`#/gemelli`, in Dentro e nel menu del PC): questa settimana (attività fisse + appuntamenti P che li riguardano + feste), feste dei compagni (Ci va / Non ci va / Regalo preso), attività fisse, diario (note collegate ai bambini), "+ Leo" / "+ Jolie".
 - Tabelle `attivita_figli` e `feste` (le aggiorna l'agente privato dalle note e dal calendario; regole in `agenti/agente-privato.md`, ora allineato alla routine).
 - **Pianoforte di Leo e Jolie** (14.10.2026): martedì 17:00–18:30 (non più 16:30–18:00), nel calendario Google come evento ricorrente "Pianoforte Leo e Jolie" (mandarino 6) **solo nei giorni di scuola**: niente nei martedì di vacanza (EXDATE) e fine il 16.6.2027. Ogni anno scolastico va rifatto, insieme alle vacanze. La schermata Gemelli non mostra due volte un'attività fissa che è anche nel calendario.
@@ -44,10 +36,8 @@ Area Privato: gemelli, figli di Lady di Blackwood, scadenze, liste, garanzie, va
   - Giovanni lun–mer 06:50, Camera Mia, "Buongiorno Giovanni!" + notizie → Preferito "This Is Worakls"; salta vacanze.
   - Giovanni gio–ven 07:00, Camera Mia, "Buongiorno Amore!" + notizie → Preferito "This Is blink-182"; salta vacanze.
   - Gli artisti nei Preferiti Sonos non si vedono dall'API: servono playlist (es. "This Is …"). Il nome si confronta senza maiuscole/segni e anche "contenuto in".
-  - Volumi: voce 25, musica 15.
   - Bimbi: prima una canzoncina (8 scritte apposta in `CANZONI`, una al giorno a giro, cantate da Laomedeia e salvate in `voci/canzoni/`), poi il saluto. Battuta = indovinello/gioco di parole per 8 anni.
   - Giovanni: meteo + battuta + 1-2 fatti che hanno mosso la borsa (non l'elenco degli indici) + highlight AI/tech di ieri (max 5 ricerche).
-  - `eccezioni` (jsonb data → saluto): 22 e 23.10.2026 solo "Leo e Jolie" (settimana senza Davide e Celeste).
   - Quota gratuita Gemini TTS (AI Studio → Limitazione di frequenza, progetto Second Brain): **3 al minuto e 10 al giorno PER MODELLO** (il giorno di Google riparte alle 9 di Zurigo). `parla()` prova in ordine 3.1 Flash TTS → 3.8 Flash TTS → 2.5 Flash TTS, sempre Laomedeia. Se nessuno va: din-don di Sonos e poi la musica; il motivo in `errore`. Azione `modelli_voce` = elenco dei modelli TTS.
 - **Giorni speciali** (`sonos_giorni`: data → `come` = giorno della settimana da usare). Gio–ven Alessia ("Amore") dorme da Giovanni con Davide e Celeste; settimana senza di loro → gio e ven come lunedì.
 - **Pagina Sveglie nell'app** (22.10.2026, ok di Giovanni): `#/sveglie` (`src/Sveglie.jsx`, Dentro solo P, menu del PC). Prossima sveglia, tasto rapido **"Alessia non c'è questa settimana"** (`sonos` {azione:'senza_alessia', attiva}: giovedì e venerdì di questa settimana da oggi in avanti come lunedì; la settimana dopo torna normale da sé; ritoccando si annulla), per ogni sveglia l'ora (tocco → nuova ora) e Accesa/Spenta (`sveglia_cambia`). Tutto via `sveglie_elenco` (le tabelle restano chiuse all'app). In Oggi (P e Tutte) la riga "Sveglia domani alle 06:50 · Camera Mia" (`ProssimaSveglia` in `Oggi.jsx`).
@@ -60,7 +50,6 @@ Area Privato: gemelli, figli di Lady di Blackwood, scadenze, liste, garanzie, va
 - `eccezioni` di una sveglia: data → "saluto" (vecchio) oppure {saluto?, ora?, spenta?}; le rispettano `sonos_sveglie_da_fare()`, `sveglie_elenco` e la sveglia stessa.
 
 ### Idee parcheggiate
-- ~~Risposta scritta dall'AI dentro l'app (Chiedi)~~: fatta il 14.10.2026 con i crediti API del piano Max (vedi "Risposta dell'AI in Chiedi").
 - In sospeso (Giovanni, 13.10.2026): idee regalo, bozza di auguri, inviti da rispondere, spese condivise, diario della sera, obiettivi e abitudini, wishlist, cose prestate, riassunto della domenica sera, widget sul telefono, foto cercabili.
 
 Vedi anche: `rubrica.md` (Lady di Blackwood e contatti privati), `calendario.md`, `schermate.md` (Quaderno, Notifiche).

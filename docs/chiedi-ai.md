@@ -1,11 +1,9 @@
 # Chiedi e AI
 
-Ricerca per parole e per significato, connettore "Second Brain" (mcp), risposta dell'AI in Chiedi con i crediti API. Testo spostato così com'era da CLAUDE.md il 14.10.2026 (versione intera nel tag git `prima-divisione-claude-md`).
+Ricerca per parole e per significato, connettore "Second Brain" (mcp), risposta dell'AI in Chiedi con i crediti API.
 
 ### Chiedi (fase 4)
-- Cerca ovunque: note, mail, WhatsApp, calendario, Drive, gestionali.
-- Funziona su più aree insieme e cerca per significato.
-- Ogni risposta ha il link alla fonte.
+- Cerca ovunque (note, mail, WhatsApp, calendario, gestionali), su più aree e anche per significato; ogni risposta ha il link alla fonte. Com'è fatto oggi: sezioni qui sotto.
 
 ### Chiedi (fase 4, gratis)
 - Funzione SQL `cerca(q, area_scelta, quanti)`: ricerca italiana (radici, parole vuote tolte, nomi di ditte/persone pesano 4) in note, mail G&C, riassunti persone, WhatsApp. Ordina per parole trovate, poi note prima delle mail e cose recenti. L'app la usa al tasto Invio; clienti e cantieri restano istantanei mentre scrivi.
@@ -14,7 +12,7 @@ Ricerca per parole e per significato, connettore "Second Brain" (mcp), risposta 
 
 ### Risposta dell'AI in Chiedi (14.10.2026, crediti API del piano Max; analisi controllata da un agente "contrario", ok di Giovanni)
 - Il piano Max 5x dà **100 $ al mese di crediti API** (si azzerano a ogni ciclo, non si accumulano). Valgono solo con una chiave API dell'organizzazione Console collegata da Giovanni il 14.10.2026 (il collegamento non si cambia da soli). NON valgono per Claude Code né per le routine: per questo il Capo e gli agenti restano come sono. Finiti i crediti l'API dà errore e basta: **ricarica automatica spenta** (nella Console c'è una carta Visa salvata, ma senza ricarica non viene usata).
-- Console controllata il 17.10.2026 (org "Giovanni's Individual Org"): credito promozionale Max 100 $ concesso il 13.10, **scade il 21.10** (il ciclo probabilmente va dal 21 al 21: da confermare quando arriva il prossimo, poi correggere `inizio_ciclo`); 18.48 $ di crediti comprati a settembre (quasi tutti spesi da Lexy il 26.09). Limite di spesa mensile portato da 200'000 $ a **100 $** il 17.10.2026 (scelta di Giovanni). Chiavi: "Second Brain" (questa, senza scadenza), "G&C Gestionale" (gestionale G&C, senza scadenza, usa gli stessi crediti), "G&C" (mai usata, scade il 25.10: si lascia scadere), "lexy-pc-casa" (Lexy, non più usato, scade il 26.10).
+- Console controllata il 17.10.2026 (org "Giovanni's Individual Org"): credito promozionale Max 100 $ concesso il 13.10 (scaduto il 21.10; il ciclo parte il 21, vedi `inizio_ciclo` più sotto); 18.48 $ di crediti comprati a settembre (quasi tutti spesi da Lexy il 26.09). Limite di spesa mensile portato da 200'000 $ a **100 $** il 17.10.2026 (scelta di Giovanni). Chiavi: "Second Brain" (questa, senza scadenza), "G&C Gestionale" (gestionale G&C, senza scadenza, usa gli stessi crediti), "G&C" (mai usata, lasciata scadere), "lexy-pc-casa" (Lexy, non più usato).
 - Chiave: segreto `ANTHROPIC_API_KEY`. Si salva con `node scripts/salva-chiave-api.mjs` dagli appunti (controlla anche che i modelli ci siano; mai in chat). Senza chiave la funzione risponde `{ pronta: false }` e Chiedi resta com'era.
 - Funzione `chiedi-ai` (`--no-verify-jwt`, controlla da sé che sia Giovanni dall'app: i token dei connettori, con `client_id`, sono rifiutati): risponde subito con l'id, lavora in sottofondo (`EdgeRuntime.waitUntil`) e scrive in `ai_risposte` (in_corso → fatta | errore); l'app la rilegge ogni 1,5 s, anche tornando nell'app, e dopo 3 minuti dice "riprova". Modello Sonnet 5.5, al massimo 6 chiamate per domanda (l'ultima senza strumenti), cache sul prompt.
 - Strumenti di SOLA LETTURA in `supabase/functions/_shared/strumenti.ts` (cerca per parole + per significato, agenda, azienda, persona, leggi): l'**area la impone il server** (quella scelta in alto), mai il modello; con un'area scelta non escono note, riassunti, ditte o mail delle altre. Ogni cosa trovata ha un numero [n]; la risposta è testo semplice e i link li fa il server dalle fonti citate. È la fonte unica da ora: il connettore `mcp` ha ancora la sua copia vecchia (da passare a questo file con l'ok di Giovanni; lì l'area non serve, l'app Claude non ne sceglie una).
@@ -23,10 +21,3 @@ Ricerca per parole e per significato, connettore "Second Brain" (mcp), risposta 
 - Gli stessi crediti li usa anche la risposta veloce del Capo (16.10.2026, `capo-veloce`, vedi `docs/capo.md`): prezzi, spesa e tetti comuni in `_shared/ai.ts`.
 - **Prima della visita** (22.10.2026, ok di Giovanni): tasto in Oggi sugli appuntamenti di lavoro (pannello dell'appuntamento, se non è finito, e riquadro "Adesso"). Chiama `chiedi-ai` con `{ visita: <id evento> }`: la domanda la scrive il server dall'appuntamento (titolo, ora, luogo, ditta, persona, descrizione come dati), nell'area dell'appuntamento; risposta in max ~12 righe: chi è, cose aperte, ultime novità con data, cosa chiedere. Il riassunto resta sul telefono (localStorage `prima-visita:<id>`), con "Rifai il riassunto". Prima prova (Bazzi, 22.10): 0,04 $. Il riquadro della risposta e l'attesa stanno in `src/RispostaAI.jsx` (usati da Chiedi e Oggi).
 - Fatti anche il 22.10.2026 con gli stessi crediti: il "Medico" del guardiano (`docs/sicurezza-backup.md`) e il biglietto da visita → contatto (`docs/rubrica.md`). Ancora da decidere: foto cercabili, riassunto della domenica sera.
-
-### Intelligenza artificiale: idea di partenza (11.10.2026)
-
-Intelligenza artificiale (dettagli da decidere prima della fase 4):
-- Haiku per le domande semplici nell'app.
-- Sonnet per il tasto "Domanda difficile" (stima 5–15 CHF/mese).
-- Ragionamenti lunghi: app Claude, coperta dal piano Max.

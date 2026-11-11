@@ -3,18 +3,12 @@
 Scopo: ottenere l'accesso avanzato a `whatsapp_business_messaging` e `whatsapp_business_management`.
 Senza, l'iscrizione integrata non offre l'aggancio del numero WhatsApp Business che Giovanni usa già (coesistenza).
 
-Bozza della richiesta su Meta: App "Second Brain GF" → Analisi → Analisi dell'app (non inviata, si salva da sola).
+Richiesta su Meta: App "Second Brain GF" → Analisi → Analisi dell'app.
 I testi vanno in inglese: chi controlla lavora in inglese. L'app è in italiano, quindi ogni passo del video è spiegato qui sotto.
 
-## Stato (13.10.2026 notte): INVIATA da Giovanni, "Analisi in corso" (Meta: di solito entro 20 giorni)
+## Stato: APPROVATA da Meta il 25.10.2026
 
-Si controlla su developers.facebook.com → app Second Brain GF → Analisi → Analisi dell'app. Meta avvisa anche per email/notifica.
-
-## Stato precedente (12.10.2026, 09:45)
-
-- Fatto: numero di prova collegato, messaggio ricevuto e mandato dall'app ("consegnato"), modello `conferma_appuntamento` creato. Due video registrati (originali in `Video\Registrazioni dello schermo\Meta video 1 - messaggi.mp4` e `Meta video 2 - modelli.mp4`, caricati compressi).
-- Compilati e salvati su Meta: Verifica, Impostazioni app (icona, piattaforma Sito web), Utilizzo consentito (testi, video, conformità spuntata con l'ok di Giovanni), Gestione dei dati, Istruzioni per chi controlla.
-- Manca solo che Meta conti le chiamate di prova ("0 di 1", fino a 24 ore). Poi **Invia per l'analisi**, solo con un secondo ok di Giovanni.
+Inviata da Giovanni il 13.10.2026. I due video originali sono in `Video\Registrazioni dello schermo\Meta video 1 - messaggi.mp4` e `Meta video 2 - modelli.mp4`; il modello `conferma_appuntamento` è stato creato per la prova. Il numero di Giovanni è stato collegato il 26.10.2026 (vedi `whatsapp.md`). Il resto di questo file resta come materiale di riferimento (testi e passi del video).
 
 ## Prima del video: numero di prova di Meta (gratis)
 
@@ -22,7 +16,7 @@ Si controlla su developers.facebook.com → app Second Brain GF → Analisi → 
 - Phone Number ID: `1294186367119756`
 - WhatsApp Business Account ID: `1132628449338035`
 - Collegamento: `node scripts/whatsapp-prova.mjs 1132628449338035 1294186367119756` (il token temporaneo va prima copiato negli appunti; dura 24 ore).
-- Il numero vero si collega dopo l'approvazione e sostituisce quello di prova.
+- Il numero vero è stato collegato il 26.10.2026; il numero di prova resta per gli avvisi del Guardiano.
 
 ## Descrizione dell'azienda (una riga)
 

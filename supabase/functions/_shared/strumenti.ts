@@ -118,9 +118,9 @@ export const STRUMENTI: Record<string, Strumento> = {
     },
   },
   azienda: {
-    descrizione: 'Scheda di una ditta (cliente Ceramex o G&C): dati, persone, cantieri e le note più recenti per mandante/fornitore e sezione (problemi, campionature, offerte, ordini, accordi, comunicazioni). Utile prima di una visita o per "come siamo messi con…".',
+    descrizione: 'Scheda di una ditta (cliente Ceramex o G&C): dati, persone, cantieri e le note più recenti per mandante/fornitore e sezione (problemi, campionature, offerte, ordini, accordi, comunicazioni). Utile prima di una visita o per "come siamo messi con…". Se la ditta è la capogruppo di un gruppo, comprende anche le sue filiali (note, persone, cantieri).',
     parametri: { nome: { type: 'string', description: 'Nome della ditta (anche parziale)' },
-      note: { type: 'integer', description: 'Quante note recenti (default 30, max 80)' } },
+      note: { type: 'integer', description: 'Quante note recenti (default 30, 50 per un gruppo; max 80)' } },
     richiesti: ['nome'],
     fai: async (c, a) => {
       const chi = pulisciNome(a.nome)
@@ -133,25 +133,38 @@ export const STRUMENTI: Record<string, Strumento> = {
       const esatta = ditte.find((d) => d.nome.toLowerCase() === chi.toLowerCase())
       if (ditte.length > 1 && !esatta) return 'Più ditte trovate, richiama con il nome esatto:\n' + ditte.map((d) => `- ${d.nome} (${AREE[d.area]})`).join('\n')
       const d = esatta || ditte[0]
-      let qn = c.sb.from('note').select('id,testo,data,creata_il,mandante,sezione,contatto,risolto_il,area').eq('azienda_id', d.id)
-        .is('eliminata_il', null).is('scartata_il', null).order('creata_il', { ascending: false }).limit(Math.min(Number(a.note) || 30, 80))
+      // Capogruppo (11.11.2026, richiesta di Giovanni): con la scheda del gruppo arrivano anche note, persone e cantieri
+      // delle filiali (aziende.gruppo_id = questa), sempre della stessa area, come nella scheda dell'app.
+      const filiali = await chk(c.sb.from('aziende').select('id,nome').eq('gruppo_id', d.id).eq('area', d.area)
+        .is('eliminata_il', null).is('unito_in', null).order('nome')) as any[]
+      const ids = [d.id, ...filiali.map((f) => f.id)]
+      const nomeDi = Object.fromEntries([[d.id, d.nome], ...filiali.map((f) => [f.id, f.nome])])
+      let qn = c.sb.from('note').select('id,testo,data,creata_il,mandante,sezione,contatto,risolto_il,area,azienda_id').in('azienda_id', ids)
+        .is('eliminata_il', null).is('scartata_il', null).order('creata_il', { ascending: false }).limit(Math.min(Number(a.note) || (filiali.length ? 50 : 30), 80))
       if (c.area) qn = qn.eq('area', c.area)
-      const [note, persone, cantieri] = await Promise.all([
+      const [note, personeTutte, cantieri] = await Promise.all([
         chk(qn),
-        chk(c.sb.from('persone_aziende').select('ruolo,persone(id,nome,cognome,telefono,email)').eq('azienda_id', d.id)),
-        chk(c.sb.from('cantieri').select('nome,stato,descrizione').eq('azienda_id', d.id).is('eliminata_il', null)),
+        chk(c.sb.from('persone_aziende').select('ruolo,azienda_id,persone(id,nome,cognome,telefono,email,eliminata_il)').in('azienda_id', ids)),
+        chk(c.sb.from('cantieri').select('nome,stato,descrizione,azienda_id').in('azienda_id', ids).is('eliminata_il', null)),
       ]) as any[][]
+      const visti = new Set()
+      const persone = personeTutte.filter((p) => {
+        if (!p.persone || p.persone.eliminata_il || visti.has(p.persone.id)) return false
+        visti.add(p.persone.id); return true
+      })
+      const diChi = (id: string) => (filiali.length && id !== d.id ? ` (${nomeDi[id] || 'filiale'})` : '')
       const n0 = c.fonte({ tipo: 'azienda', titolo: d.nome, area: d.area, data: null, link: `#/azienda/${d.id}` })
       const out = [`[${n0}] ${d.nome}${d.ragione_sociale && d.ragione_sociale !== d.nome ? ' (' + d.ragione_sociale + ')' : ''} — ${AREE[d.area]}`]
+      if (filiali.length) out.push('Gruppo, con le filiali: ' + filiali.map((f) => f.nome).join('; '))
       if (d.email?.length) out.push('Email: ' + d.email.slice(0, 8).join(', ') + (d.email.length > 8 ? ` e altre ${d.email.length - 8}` : ''))
       // Pagina fissa (10.11.2026, scelta di Giovanni: "voglio che risponda"): sconti, condizioni, abitudini scritti da lui.
       if (d.pagina_fissa) out.push(`PAGINA FISSA del cliente (scritta da Giovanni, agg. ${giornoSolo(d.pagina_fissa_il)}; sconti e condizioni valgono questi):\n${corto(d.pagina_fissa, 4000)}`)
       if (persone.length) out.push('Persone: ' + persone.map((p) => `${[p.persone?.nome, p.persone?.cognome].filter(Boolean).join(' ')}${p.ruolo ? ' (' + p.ruolo + ')' : ''}${p.persone?.telefono ? ' tel ' + p.persone.telefono : ''}`).join('; '))
-      if (cantieri.length) out.push('Cantieri: ' + cantieri.map((x) => `${x.nome}${x.descrizione ? ' ' + x.descrizione : ''}${x.stato ? ' [' + x.stato + ']' : ''}`).join('; '))
+      if (cantieri.length) out.push('Cantieri: ' + cantieri.map((x) => `${x.nome}${diChi(x.azienda_id)}${x.descrizione ? ' ' + x.descrizione : ''}${x.stato ? ' [' + x.stato + ']' : ''}`).join('; '))
       out.push('NOTE (dalla più recente):')
       out.push(...note.map((x) => {
-        const n = c.fonte({ tipo: 'nota', titolo: `${d.nome}${x.sezione ? ' · ' + x.sezione : ''}`, area: x.area, data: x.data || x.creata_il, link: `#/nota/${x.id}` })
-        return `[${n}] ${giornoSolo(x.data || x.creata_il)} ${[x.mandante, x.sezione].filter(Boolean).join('/')}${x.risolto_il ? ' (risolto)' : ''}${x.contatto ? ' [' + x.contatto + ']' : ''}: ${corto(x.testo, 450)}`
+        const n = c.fonte({ tipo: 'nota', titolo: `${nomeDi[x.azienda_id] || d.nome}${x.sezione ? ' · ' + x.sezione : ''}`, area: x.area, data: x.data || x.creata_il, link: `#/nota/${x.id}` })
+        return `[${n}] ${giornoSolo(x.data || x.creata_il)}${diChi(x.azienda_id)} ${[x.mandante, x.sezione].filter(Boolean).join('/')}${x.risolto_il ? ' (risolto)' : ''}${x.contatto ? ' [' + x.contatto + ']' : ''}: ${corto(x.testo, 450)}`
       }))
       return out.join('\n')
     },

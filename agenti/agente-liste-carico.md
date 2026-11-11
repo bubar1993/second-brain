@@ -1,5 +1,6 @@
 # Routine LISTE DI CARICO CERAMEX
 
+SPENTA dall'11.11.2026 (scelta di Giovanni): le liste di carico le archivia il suo filtro Gmail. Non cancellarla.
 Regole decise il 12.10.2026 con Giovanni (le liste di carico restano come sono: solo archiviate, non salvate).
 Questo file è il prompt della routine claude.ai "Archivia liste di carico Ceramex" (ogni giorno alle 6:52),
 connettore Gmail + utente DB `agente_ceramex` solo per il registro (token AGENTE_TOKEN_CERAMEX al posto di <TOKEN>).

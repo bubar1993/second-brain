@@ -30,7 +30,7 @@ Valgono quando cambi le regole degli agenti. I dettagli stanno in `docs/agenti-r
 | `agente-privato.md` | Agente privato `trig_014BzqnSAWeuSq97vzQdwG15` |
 | `agente-calendario.md` | Agente calendario `trig_01ExFtoP2zGTkQDT4mnTdzGD` (6:05, 12:05, 18:05 + portinaio, dal 26.10.2026) |
 | `agente-ceramex.md` | Bozze mail Ceramex: ore piene `trig_019Tg78tNtVBbxhjWoviuSXr`, mezz'ora `trig_01TZMc3zZgCSK1NAqsDwZfrA`, weekend `trig_01AASJEQ8NHJESnSiyb6pMty` |
-| `agente-liste-carico.md` | Archivia liste di carico Ceramex `trig_01KsKntEhDqeUqBkfri43S5f` |
+| `agente-liste-carico.md` | Archivia liste di carico Ceramex `trig_01KsKntEhDqeUqBkfri43S5f` (SPENTA dall'11.11.2026: le archivia il filtro Gmail di Giovanni) |
 | `agente-riepilogo.md` | Cestina Riepilogo Ceramex `trig_013MZvzHbrRNeVLRt84pQSij` (IN PAUSA) |
 | `agente-fornitori-gc.md` | Completa fornitori scontrini `trig_01FgTpFW71zzgUVUgmdURN4s` |
 | `agente-archiviazione-gc.md` | Archiviazione email G&C `trig_01Go1LUFLhtADpTeZs2GjY8s` |

@@ -52,7 +52,6 @@ const GIRI: Giro[] = [
 ]
 // Giri una volta al giorno o alla settimana: guasto se dopo l'ora "entro" di oggi non c'è ancora il giro.
 const GIORNALIERI = [
-  { lavoro: 'agente-ceramex-liste', nome: 'L\'archiviazione delle liste di carico Ceramex (6:52)', entro: 9 },
   { lavoro: 'agente-smistatore', nome: 'Lo smistatore (giro delle 7:10)', entro: 9 },
 ]
 const SETTIMANALI = [

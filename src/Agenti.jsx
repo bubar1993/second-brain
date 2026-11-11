@@ -12,7 +12,8 @@ export const AGENTI = [
   { codice: 'lavoro', nome: 'Agente lavoro', cosa: 'Note di Ceramex e G&C, Inbox, persone, punto del mattino e della sera', registro: 'agente-lavoro', aree: ['C', 'G'], orari: 'ogni ora, dalle 6 alle 23' },
   { codice: 'ceramex', nome: 'Bozze mail Ceramex', cosa: 'Bozze di risposta nella tua Gmail e note dalle mail Ceramex', registro: 'agente-ceramex', aree: ['C'], orari: 'ogni mezz\'ora nei giorni feriali e ogni 2 ore nel weekend, dalle 6 alle 23' },
   { codice: 'ordini', nome: 'Ordini Marazzi', cosa: 'Legge le conferme d\'ordine Marazzi (cliente, articoli, disponibilità) e le mette nella scheda del cliente', registro: 'agente-ceramex-ordini', aree: ['C'], orari: 'ogni ora alle :20, dalle 6 alle 22', senzaRichieste: true },
-  { codice: 'liste', nome: 'Liste di carico', cosa: 'Archivia nella cartella giusta le liste di carico automatiche (Marazzi, Flaviker) e le segna come lette', registro: 'agente-ceramex-liste', aree: ['C'], orari: 'ogni giorno alle 6:52', senzaRichieste: true },
+  // Spenta l'11.11.2026 (scelta di Giovanni): le liste di carico le archivia il suo filtro Gmail.
+  { codice: 'liste', nome: 'Liste di carico', cosa: 'Archivia nella cartella giusta le liste di carico automatiche (Marazzi, Flaviker) e le segna come lette', registro: 'agente-ceramex-liste', aree: ['C'], orari: 'ogni giorno alle 6:52', senzaRichieste: true, spento: true },
   // In pausa per scelta di Giovanni: non si vede nell'elenco (spento, 30.10.2026). Non riaccenderla senza chiedere.
   { codice: 'riepilogo', nome: 'Cestina Riepilogo Ceramex', cosa: 'Mette nel cestino la mail automatica "Riepilogo Ceramex" del mattino', registro: 'agente-ceramex-riepilogo', aree: ['C'], orari: 'ogni giorno alle 7:49', senzaRichieste: true, spento: true },
   { codice: 'gc', nome: 'Agente G&C', cosa: 'Mail di info@: note e bozze di risposta', registro: 'agente-gc', aree: ['G'], orari: 'ogni mezz\'ora, dalle 6 alle 23' },

@@ -81,9 +81,9 @@ const STRUMENTI: Record<string, Strumento> = {
     },
   },
   azienda: {
-    descrizione: 'Scheda di una ditta (cliente Ceramex o G&C): dati, contatti, persone, cantieri e le note più recenti per mandante/fornitore e sezione (problemi, campionature, offerte, ordini, accordi, comunicazioni). Utile prima di una visita.',
+    descrizione: 'Scheda di una ditta (cliente Ceramex o G&C): dati, contatti, persone, cantieri e le note più recenti per mandante/fornitore e sezione (problemi, campionature, offerte, ordini, accordi, comunicazioni). Utile prima di una visita. Se la ditta è la capogruppo di un gruppo, comprende anche le sue filiali (note, persone, cantieri).',
     parametri: { nome: { type: 'string', description: 'Nome della ditta (anche parziale) o id' },
-      note: { type: 'integer', description: 'Quante note recenti (default 40, max 120)' } },
+      note: { type: 'integer', description: 'Quante note recenti (default 40, 60 per un gruppo; max 120)' } },
     richiesti: ['nome'],
     fai: async (sb, a) => {
       const ditte = await trovaAzienda(sb, a.nome) as any[]
@@ -91,18 +91,31 @@ const STRUMENTI: Record<string, Strumento> = {
       if (ditte.length > 1 && !ditte.some((d) => d.nome.toLowerCase() === String(a.nome).toLowerCase()))
         return 'Più ditte trovate, scegline una:\n' + ditte.map((d) => `- ${d.nome} (${AREE[d.area]}, id ${d.id})`).join('\n')
       const d = ditte.find((x) => x.nome.toLowerCase() === String(a.nome).toLowerCase()) || ditte[0]
-      const [note, persone, cantieri] = await Promise.all([
-        chk(sb.from('note').select('id,testo,data,creata_il,mandante,sezione,contatto,risolto_il').eq('azienda_id', d.id)
-          .is('eliminata_il', null).is('scartata_il', null).order('creata_il', { ascending: false }).limit(Math.min(Number(a.note) || 40, 120))),
-        chk(sb.from('persone_aziende').select('ruolo,persone(id,nome,cognome,telefono,email)').eq('azienda_id', d.id)),
-        chk(sb.from('cantieri').select('nome,stato,descrizione').eq('azienda_id', d.id).is('eliminata_il', null)),
+      // Capogruppo (11.11.2026, richiesta di Giovanni): come in strumenti.ts, con la scheda del gruppo arrivano anche
+      // note, persone e cantieri delle filiali (aziende.gruppo_id = questa), sempre della stessa area.
+      const filiali = await chk(sb.from('aziende').select('id,nome').eq('gruppo_id', d.id).eq('area', d.area)
+        .is('eliminata_il', null).is('unito_in', null).order('nome')) as any[]
+      const ids = [d.id, ...filiali.map((f) => f.id)]
+      const nomeDi: Record<string, string> = Object.fromEntries([[d.id, d.nome], ...filiali.map((f) => [f.id, f.nome])])
+      const [note, personeTutte, cantieri] = await Promise.all([
+        chk(sb.from('note').select('id,testo,data,creata_il,mandante,sezione,contatto,risolto_il,azienda_id').in('azienda_id', ids).eq('area', d.area)
+          .is('eliminata_il', null).is('scartata_il', null).order('creata_il', { ascending: false }).limit(Math.min(Number(a.note) || (filiali.length ? 60 : 40), 120))),
+        chk(sb.from('persone_aziende').select('ruolo,azienda_id,persone(id,nome,cognome,telefono,email,eliminata_il)').in('azienda_id', ids)),
+        chk(sb.from('cantieri').select('nome,stato,descrizione,azienda_id').in('azienda_id', ids).is('eliminata_il', null)),
       ]) as any[][]
+      const visti = new Set()
+      const persone = personeTutte.filter((p) => {
+        if (!p.persone || p.persone.eliminata_il || visti.has(p.persone.id)) return false
+        visti.add(p.persone.id); return true
+      })
+      const diChi = (id: string) => (filiali.length && id !== d.id ? ` (${nomeDi[id] || 'filiale'})` : '')
       const out = [`${d.nome}${d.ragione_sociale && d.ragione_sociale !== d.nome ? ' (' + d.ragione_sociale + ')' : ''} — ${AREE[d.area]}`]
+      if (filiali.length) out.push('Gruppo, con le filiali: ' + filiali.map((f) => f.nome).join('; '))
       if (d.email?.length) out.push('Email: ' + d.email.join(', '))
-      if (persone.length) out.push('Persone: ' + persone.map((p) => `${[p.persone?.nome, p.persone?.cognome].filter(Boolean).join(' ')}${p.ruolo ? ' (' + p.ruolo + ')' : ''}${p.persone?.telefono ? ' tel ' + p.persone.telefono : ''}`).join('; '))
-      if (cantieri.length) out.push('Cantieri: ' + cantieri.map((c) => `${c.nome}${c.descrizione ? ' ' + c.descrizione : ''}${c.stato ? ' [' + c.stato + ']' : ''}`).join('; '))
+      if (persone.length) out.push('Persone: ' + persone.map((p) => `${[p.persone?.nome, p.persone?.cognome].filter(Boolean).join(' ')}${diChi(p.azienda_id)}${p.ruolo ? ' (' + p.ruolo + ')' : ''}${p.persone?.telefono ? ' tel ' + p.persone.telefono : ''}`).join('; '))
+      if (cantieri.length) out.push('Cantieri: ' + cantieri.map((c) => `${c.nome}${diChi(c.azienda_id)}${c.descrizione ? ' ' + c.descrizione : ''}${c.stato ? ' [' + c.stato + ']' : ''}`).join('; '))
       out.push('NOTE (dalla più recente):')
-      out.push(...note.map((n) => `- ${giornoSolo(n.data || n.creata_il)} ${[n.mandante, n.sezione].filter(Boolean).join('/')}${n.risolto_il ? ' (risolto)' : ''}${n.contatto ? ' [' + n.contatto + ']' : ''}: ${corto(n.testo, 500)}`))
+      out.push(...note.map((n) => `- ${giornoSolo(n.data || n.creata_il)}${diChi(n.azienda_id)} ${[n.mandante, n.sezione].filter(Boolean).join('/')}${n.risolto_il ? ' (risolto)' : ''}${n.contatto ? ' [' + n.contatto + ']' : ''}: ${corto(n.testo, 500)}`))
       return out.join('\n')
     },
   },

@@ -472,7 +472,7 @@ export function Riordino() {
         {risponde === r.id && (
           <div className="scelta-cartella rispondi-agente">
             <textarea rows={3} value={parole} onChange={(e) => setParole(e.target.value)} autoFocus
-              placeholder="Es. mettila in AMARARE/ROMBACH · crea la cartella DENIS sotto G&C · fai una bozza di risposta in tedesco: arriva lunedì" />
+              placeholder="Es. mettila in MANUIA REAL ESTATE/MHRE ROMBACH · crea la cartella DENIS sotto G&C · fai una bozza di risposta in tedesco: arriva lunedì" />
             <p className="nota-piccola">All'agente: la cartella la cambia chi archivia; una bozza di risposta la prepara l'agente {r.casella === 'ceramex' ? 'Ceramex nella tua Gmail' : 'G&C'} (la trovi in Bozze). Al Capo: qualsiasi altra cosa su questa mail; quelle rischiose solo dopo i tuoi due tocchi. Nessuna mail parte da sola.</p>
             <div className="azioni">
               <button type="button" className="tasto-piccolo" onClick={() => rispondi(r)} disabled={lavoro || !parole.trim()}>Manda all'agente</button>

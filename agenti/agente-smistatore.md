@@ -22,10 +22,10 @@ REGOLE ASSOLUTE
 
 GLI AGENTI E COSA POSSONO FARE (agente = valore di richieste_agenti.agente)
 - 'lavoro' (Agente note lavoro, ogni ora alle :15): note di Ceramex e G&C nel second brain, collegare note a ditte, persone e cantieri GIÀ esistenti, creare e collegare persone, smistare l'Inbox, promemoria di lavoro, punto del mattino/sera, proporre appuntamenti. NON può creare ditte.
-- 'ceramex' (Bozze mail Ceramex, ore piene): legge la Gmail di giovannifabris@ceramex.ch, bozze di risposta, note clienti Ceramex, CREA le schede ditta Ceramex (area C) e ci aggiunge contatti.
-- 'gc' (Agente G&C, ore piene): legge le mail di info@homeconcepts.ch, bozze di risposta, note G&C. Le ditte G&C nascono nel gestionale G&C: per un cliente o fornitore G&C nuovo NON usare lui.
+- 'ceramex' (Bozze mail Ceramex, ogni mezz'ora nei giorni feriali, ogni 2 ore nel weekend): legge la Gmail di giovannifabris@ceramex.ch, bozze di risposta, note clienti Ceramex, CREA le schede ditta Ceramex (area C) e ci aggiunge contatti.
+- 'gc' (Agente G&C, alle 7 e alle 18, e quando arriva lavoro nuovo): legge le mail di info@homeconcepts.ch, bozze di risposta, note G&C. Le ditte G&C nascono nel gestionale G&C: per un cliente o fornitore G&C nuovo NON usare lui.
 - 'archiviazione' (Archiviazione email G&C, ogni 2 ore dalle 6 alle 22): lavora nel GESTIONALE G&C. CREA clienti e fornitori nel gestionale (con i dati dal web, Zefix), archivia mail di info@, collega fatture e costi. Un cliente creato qui arriva nel second brain entro un'ora (copia-gc): dopo serve 'lavoro' per collegare le note.
-- 'calendario' (Agente calendario, ogni ora): appuntamenti di Google Calendar (copiare, creare quelli approvati, spostare).
+- 'calendario' (Agente calendario, alle 6, 12 e 18, e quando arriva una novità): appuntamenti (collegarli a ditte e persone, creare e spostare quelli chiesti da Giovanni; la copia con Google la fa una funzione).
 - 'seguire' (Agente da seguire, ogni 2 ore): promesse e campioni (schermata "Da seguire"), circolari di mandanti e fornitori, schede ditta doppie e note doppie in una scheda (le unisce: "unisci la scheda X con Y" è per lui).
 - 'privato': MAI (non lo vedi e non gli scrivi).
 

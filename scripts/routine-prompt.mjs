@@ -15,7 +15,8 @@ import { readFileSync, writeFileSync } from 'node:fs'
 
 const [, , azione, da, file] = process.argv
 const grezzo = readFileSync(da, 'utf8')
-const t = JSON.parse(grezzo.slice(grezzo.indexOf('{'))).trigger
+// La risposta di update finisce con righe "→ Scheduled…" dopo il JSON: si tolgono.
+const t = JSON.parse(grezzo.slice(grezzo.indexOf('{')).split(/\r?\n\s*→/)[0]).trigger
 const ccr = t.job_config.ccr
 const salvato = ccr.events[0].data.message.content
 

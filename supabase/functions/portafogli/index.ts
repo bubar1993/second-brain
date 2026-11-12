@@ -23,7 +23,8 @@ const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me'
 const LISTA = 'portafogli_crea'
 const NOME_PDF = /^XXSC_MRZ_ORD05_PO_CLIENTE_\d+_\d+\.PDF$/i
 const MAX_PDF = 10 * 1024 * 1024
-const FIRMA = 'Cordiali saluti\n___________________________________\nGiovanni Fabris\nSales Agent\nVia Cantonale 4\nCentro galleria 3\n6928 Manno\nTel. Privato: +41 79 576 70 03'
+// Firma Ceramex dettata da Giovanni il 12.11.2026 ("sempre questa"): uguale in agente-ceramex.md e src/Riordino.jsx.
+const FIRMA = 'Cordiali saluti\n___________________________________\n\nGiovanni Fabris\nSales Agent\n\nVia Cantonale 4\nCentro galleria 3\n6928 Manno\n\nTel. Privato: +41 79 576 70 03'
 
 const risposta = (dati: unknown, status = 200) =>
   new Response(JSON.stringify(dati), { status, headers: { 'Content-Type': 'application/json' } })

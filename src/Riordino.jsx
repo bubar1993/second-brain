@@ -61,9 +61,10 @@ function testoBozza(r, parole) {
 }
 
 // "Rispondi" e "Inoltra" (13.10.2026 sera, la "via di mezzo" scelta da Giovanni): la firma come la scrive lui.
+// Firma Ceramex dettata da Giovanni il 12.11.2026 ("sempre questa"): uguale in agente-ceramex.md e portafogli.
 const FIRMA = {
   gc: 'Saluti\nGiovanni',
-  ceramex: 'Saluti\nGiovanni\n_________________________\nGiovanni Fabris\nSales Agent\nVia Cantonale 4 Centro galleria 3\n6928 Manno',
+  ceramex: 'Cordiali saluti\n___________________________________\n\nGiovanni Fabris\nSales Agent\n\nVia Cantonale 4\nCentro galleria 3\n6928 Manno\n\nTel. Privato: +41 79 576 70 03',
 }
 
 function testoRichiesta(r, parole) {

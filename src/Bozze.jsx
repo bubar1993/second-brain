@@ -155,9 +155,10 @@ export function Bozza({ id }) {
   // Ceramex: si può inviare solo se la Gmail è collegata e la bozza c'è ancora lì.
   const senzaGmail = gmail && (b.gmail?.errore || !b.gmail?.bozza)
   const aperta = b.stato === 'proposta'
-  // Bozza Gmail con allegati (portafogli del martedì): parte così com'è, le correzioni si fanno in Gmail.
+  // Bozza Gmail con allegati (portafogli del martedì, o un PDF aggiunto in Gmail): parte così com'è, le correzioni si
+  // fanno in Gmail. Le immagini non contano (gmail-bozza le salta). Stessa regola di gmail-bozza (12.11.2026).
   const allegatiGmail = (gmail && b.gmail?.bozza?.allegati) || []
-  const fissa = b.perche?.tipo === 'portafogli_crea' && allegatiGmail.length > 0
+  const fissa = allegatiGmail.length > 0
   const lista = (s) => s.split(/[,;\s]+/).map((x) => x.trim()).filter(Boolean)
   const cambia = (k) => (e) => setCampi({ ...campi, [k]: e.target.value })
 

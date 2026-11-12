@@ -74,7 +74,13 @@ const aBase64 = (s: string) => {
 const aBase64Url = (s: string) => aBase64(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 
 type Parte = { filename?: string; mimeType?: string; body?: { data?: string }; parts?: Parte[]; headers?: { name: string; value: string }[] }
-const nomiAllegati = (p: Parte): string[] => [...(p.filename && !/^image\//.test(p.mimeType || '') ? [p.filename] : []), ...(p.parts || []).flatMap(nomiAllegati)]
+// Allegati veri della bozza: i file non immagine, e le immagini allegate (Content-Disposition "attachment" senza
+// Content-ID, es. la foto di un ordine aggiunta da Giovanni in Gmail, 12.11.2026). Le immagini nel testo o nella
+// firma citata (inline / con Content-ID) non contano.
+const allegataVera = (p: Parte) => !/^image\//.test(p.mimeType || '') ||
+  (/^\s*attachment/i.test(intestazioneParte(p, 'Content-Disposition')) && !intestazioneParte(p, 'Content-ID'))
+const intestazioneParte = (p: Parte, nome: string) => p.headers?.find((h) => h.name.toLowerCase() === nome.toLowerCase())?.value || ''
+const nomiAllegati = (p: Parte): string[] => [...(p.filename && allegataVera(p) ? [p.filename] : []), ...(p.parts || []).flatMap(nomiAllegati)]
 const uguale = (x: string, y: string) => x.replace(/\r\n/g, '\n').trim() === y.replace(/\r\n/g, '\n').trim()
 const MOTIVI_SCARTO = ['a_voce', 'non_serviva', 'sbagliata']
 const intestazione = (p: Parte, nome: string) => p.headers?.find((h) => h.name.toLowerCase() === nome.toLowerCase())?.value || ''
@@ -219,10 +225,15 @@ Deno.serve(async (req: Request) => {
     const corpo = String(testo ?? g.testo ?? '').trim()
     if (!corpo) return risposta({ errore: 'Il testo è vuoto' }, 400)
     const ogg = String(oggetto ?? g.oggetto ?? '').trim()
-    // Bozza con allegati (portafogli): riscriverla come solo testo li perderebbe. Parte così com'è; se Giovanni
-    // ha cambiato qualcosa, la corregge in Gmail.
-    // Solo le bozze dei portafogli: le risposte normali hanno spesso immagini della firma citata, che non contano.
-    const conAllegati = b.perche?.tipo === 'portafogli_crea' && g.allegati.length > 0
+    // Bozze "da controllare" dell'agente Ceramex (12.11.2026, scelta di Giovanni + antagonista): l'agente fa sempre la
+    // bozza e segna i dubbi con "(DA CONTROLLARE)" nell'oggetto e "[?]", "[codice?]", "[allegare …]" nel testo.
+    // Non partono finché Giovanni non li ha tolti o completati.
+    if (/\(\s*da controllare\s*\)/i.test(ogg) || /\[[^\]\n]{0,40}\?\s*\]|\[\s*allegare/i.test(corpo))
+      return risposta({ errore: 'Prima di inviare togli "(DA CONTROLLARE)" dall\'oggetto e completa i [?] nel testo (se la bozza ha allegati, fallo in Gmail).' }, 409)
+    // Bozza con allegati (portafogli, o un PDF aggiunto da Giovanni in Gmail): riscriverla come solo testo li
+    // perderebbe. Parte così com'è; se Giovanni ha cambiato qualcosa, la corregge in Gmail.
+    // Le immagini non contano (nomiAllegati le salta): le risposte normali hanno spesso le immagini della firma citata.
+    const conAllegati = g.allegati.length > 0
     if (conAllegati) {
       const stessi = (x: string[], y: string[]) => x.length === y.length && x.every((v) => y.includes(v))
       if (!uguale(corpo, g.testo) || ogg !== g.oggetto.trim() || !stessi(destinatari, pulisci(g.a)) || !stessi(copia, pulisci(g.cc).filter((x) => x !== IO && !destinatari.includes(x))))

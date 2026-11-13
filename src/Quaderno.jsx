@@ -657,7 +657,7 @@ function Fornitore({ area, id }) {
     const [note, circolari] = await Promise.all([
       tutte(() => sb.from('note').select(`${CAMPI_NOTA},aziende(nome),cantieri(nome)`).eq('area', area).eq('mandante', f.nome_breve)
         .is('eliminata_il', null).is('scartata_il', null)),
-      sb.from('circolari').select('id,data,oggetto,riassunto').eq('area', area).eq('mandante', f.nome_breve)
+      sb.from('circolari').select('id,data,oggetto,riassunto').eq('area', area).eq('mandante', f.nome_breve).is('nascosta_il', null)
         .order('data', { ascending: false }).limit(20).then(chk),
     ])
     return { f, note: ordinaNote(note), circolari }

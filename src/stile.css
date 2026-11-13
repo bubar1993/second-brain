@@ -798,6 +798,11 @@ mark { background: rgba(255, 214, 102, 0.22); color: var(--testo); border-radius
 .circolare.nuova { border-color: color-mix(in srgb, var(--blu) 45%, var(--bordo)); }
 .circolare.nuova .ordine-cliente::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--blu); margin-right: 8px; vertical-align: middle; }
 .circolare.importante { border-left: 3px solid var(--giallo); }
+.circolare .azioni { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.circolare .azioni .tasto-link { margin: 0; padding: 8px 4px; }
+.circolare .azioni .a-destra { margin-left: auto; }
+.modifica-circolare { padding: 4px 0 0; border: 0; }
+.modifica-circolare .azioni .tasto-link.pericolo { margin-left: auto; }
 
 /* ---------- Capo (13.10.2026): chat, conferme con due tocchi, modifiche per Claude Code ---------- */
 .capo .testata { margin-left: 0; }

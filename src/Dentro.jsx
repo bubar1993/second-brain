@@ -117,8 +117,8 @@ export function Inbox() {
 export function ElencoNote() {
   const { area } = useApp()
   const { dati, errore, carica } = useCarica(async () => {
-    // Le note dei clienti si guardano nelle schede delle aziende; quelle dalla mail su un fornitore o mandante nel Quaderno.
-    let q = sb.from('note').select(CAMPI_NOTA).is('eliminata_il', null).is('azienda_id', null).or('fonte.neq.mail,mandante.is.null')
+    // Le note dei clienti si guardano nelle schede delle aziende; quelle dalla mail o dai gruppi WhatsApp su un fornitore o mandante nel Quaderno.
+    let q = sb.from('note').select(CAMPI_NOTA).is('eliminata_il', null).is('azienda_id', null).or('and(fonte.neq.mail,wa_gruppo_id.is.null),mandante.is.null')
       .order('creata_il', { ascending: false }).limit(200)
     if (area !== 'T') q = q.eq('area', area)
     return chk(await q)

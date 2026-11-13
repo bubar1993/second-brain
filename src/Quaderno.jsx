@@ -24,7 +24,7 @@ const QUADERNI = [
 ]
 const GIORNI_SETTIMANA = ['', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
 const MESI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
-const CAMPI_NOTA = 'id,area,azienda_id,cantiere_id,testo,mandante,sezione,data,contatto,fonte,risolto_il,creata_il,note_persone(persona_id)'
+const CAMPI_NOTA = 'id,area,azienda_id,cantiere_id,testo,mandante,sezione,data,contatto,fonte,wa_gruppo_id,risolto_il,creata_il,note_persone(persona_id)'
 const FONTI = { voce: 'dettata', foto: 'foto', condivisa: 'condivisa', mail: 'dalla mail', whatsapp: 'da WhatsApp' }
 
 // Legge tutte le righe anche oltre il limite di 1000 per richiesta.
@@ -83,9 +83,10 @@ const leggiFornitori = (area) => (area === 'C' ? Promise.resolve(MANDANTI_C.map(
     .is('eliminata_il', null).not('nome_breve', 'is', null).order('nome_breve'))
     : Promise.resolve([]))
 const linkFornitore = (area, f) => (area === 'C' ? `#/quaderno/C/mandante/${encodeURIComponent(f.nome_breve)}` : `#/quaderno/G/fornitore/${f.id}`)
-const delFornitore = (n, brevi) => !n.azienda_id && n.fonte === 'mail' && brevi.has(n.mandante)
-// "Col fornitore": senza cliente, ma non da WhatsApp (quelle parlano di clienti non ancora trovati: stanno in "Senza cliente").
-const colFornitore = (n) => !n.azienda_id && n.fonte !== 'whatsapp'
+// Gruppi WhatsApp di lavoro (13.11.2026): le loro note senza cliente valgono come quelle dalla mail (hanno wa_gruppo_id).
+const delFornitore = (n, brevi) => !n.azienda_id && (n.fonte === 'mail' || !!n.wa_gruppo_id) && brevi.has(n.mandante)
+// "Col fornitore": senza cliente, ma non dalle chat WhatsApp a due (quelle parlano di clienti non ancora trovati: stanno in "Senza cliente").
+const colFornitore = (n) => !n.azienda_id && (n.fonte !== 'whatsapp' || !!n.wa_gruppo_id)
 
 // Link a una nota: sul PC si apre nella colonna a destra, sul telefono a tutta pagina.
 function useLinkNota() {
@@ -373,7 +374,7 @@ function CapitoliClienti({ area, compatto }) {
   const { dati, errore, carica } = useCarica(async () => {
     const [aziende, note, fornitori] = await Promise.all([
       tutte(() => sb.from('aziende').select('id,nome,gruppo_id').eq('area', area).is('eliminata_il', null).is('unito_in', null).order('nome')),
-      tutte(() => sb.from('note').select('azienda_id,fonte,data,creata_il,sezione,risolto_il,mandante').eq('area', area)
+      tutte(() => sb.from('note').select('azienda_id,fonte,wa_gruppo_id,data,creata_il,sezione,risolto_il,mandante').eq('area', area)
         .is('eliminata_il', null).is('scartata_il', null)),
       leggiFornitori(area),
     ])

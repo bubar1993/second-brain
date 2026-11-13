@@ -7,9 +7,10 @@
 // - smistatore: "agente_smistatore", legge domande/richieste di lavoro e scrive richieste agli agenti → AGENTE_DB_URL_SMISTATORE e AGENTE_TOKEN_SMISTATORE.
 // - seguire: "agente_seguire", promesse, campioni, circolari e doppioni di C e G → AGENTE_DB_URL_SEGUIRE e AGENTE_TOKEN_SEGUIRE.
 // - capo: "agente_capo", Agente capo: legge e scrive tutto (tranne wa_collegamento), niente delete → AGENTE_DB_URL_CAPO e AGENTE_TOKEN_CAPO.
+// - gruppi: "agente_gruppi", messaggi dei gruppi WhatsApp di lavoro → solo le loro note (C e G) → AGENTE_DB_URL_GRUPPI e AGENTE_TOKEN_GRUPPI.
 // Tranne gc, crea anche il token (variabile di Windows AGENTE_TOKEN_<NOME>) solo se manca.
 // Imposta in Postgres solo l'hash SCRAM. Non stampa mai i segreti.
-// Uso: node scripts/collega-agente.mjs [gc|lavoro|privato|calendario|ceramex|smistatore|seguire|capo]   (serve SUPABASE_ACCESS_TOKEN)
+// Uso: node scripts/collega-agente.mjs [gc|lavoro|privato|calendario|ceramex|smistatore|seguire|capo|gruppi]   (serve SUPABASE_ACCESS_TOKEN)
 import { randomBytes, pbkdf2Sync, createHmac, createHash } from 'node:crypto'
 import { execSync } from 'node:child_process'
 
@@ -20,7 +21,7 @@ if (!tokenApi) { console.log('ERRORE: manca SUPABASE_ACCESS_TOKEN'); process.exi
 const MGMT = { Authorization: `Bearer ${tokenApi}`, 'Content-Type': 'application/json' }
 
 const quale = process.argv[2] || 'gc'
-if (!['gc', 'lavoro', 'privato', 'calendario', 'ceramex', 'smistatore', 'seguire', 'capo'].includes(quale)) { console.log('Uso: node scripts/collega-agente.mjs [gc|lavoro|privato|calendario|ceramex|smistatore|seguire|capo]'); process.exit(1) }
+if (!['gc', 'lavoro', 'privato', 'calendario', 'ceramex', 'smistatore', 'seguire', 'capo', 'gruppi'].includes(quale)) { console.log('Uso: node scripts/collega-agente.mjs [gc|lavoro|privato|calendario|ceramex|smistatore|seguire|capo|gruppi]'); process.exit(1) }
 const ruolo = `agente_${quale}`
 const suffisso = quale === 'gc' ? '' : `_${quale.toUpperCase()}`
 

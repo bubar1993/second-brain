@@ -53,6 +53,10 @@ const GIRI: Giro[] = [
 // Giri una volta al giorno o alla settimana: guasto se dopo l'ora "entro" di oggi non c'è ancora il giro.
 const GIORNALIERI = [
   { lavoro: 'agente-smistatore', nome: 'Lo smistatore (giro delle 7:10)', entro: 9 },
+  // Gruppi WhatsApp (13.11.2026): il PC li legge a mezzanotte e cinque (serve il PC acceso con WhatsApp Desktop;
+  // se era spento parte appena si riaccende, per questo "entro" e' largo), l'agente gruppi scrive le note alle 5:30.
+  { lavoro: 'wa-gruppi', nome: 'La lettura dei gruppi WhatsApp (di notte, dal PC)', entro: 10 },
+  { lavoro: 'agente-gruppi', nome: 'L\'agente gruppi WhatsApp (giro delle 5:30)', entro: 8 },
 ]
 const SETTIMANALI = [
   { lavoro: 'agente-gc-fornitori', nome: 'Il completamento fornitori G&C (venerdì)', giorni: 8 },

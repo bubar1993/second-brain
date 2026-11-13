@@ -38,3 +38,4 @@ Valgono quando cambi le regole degli agenti. I dettagli stanno in `docs/agenti-r
 | `agente-seguire.md` | Agente da seguire `trig_01DznF5caV1wjdxjt2bH1w2a` |
 | `agente-capo.md` | Agente capo `trig_01Hv5Y9LHytXiiX5L3xs2Nuw` (parte solo dal pulsante) |
 | `agente-ordini.md` | Ordini Marazzi `trig_01MZAj5mn8whEhDXom22181Y` |
+| `agente-gruppi.md` | Agente gruppi WhatsApp `trig_013wH46NtfHn87wqJyiqoCTw` (5:30, dal 13.11.2026; nessun connettore, utente `agente_gruppi`; i messaggi li porta di notte `scripts/wa-gruppi.ps1`, vedi `docs/whatsapp.md`) |

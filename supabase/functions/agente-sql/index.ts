@@ -8,11 +8,12 @@
 // - AGENTE_TOKEN_SMISTATORE → "agente_smistatore": legge domande e richieste di lavoro, scrive richieste agli agenti.
 // - AGENTE_TOKEN_SEGUIRE → "agente_seguire": promesse, campioni, circolari e doppioni di C e G.
 // - AGENTE_TOKEN_CAPO → "agente_capo": Agente capo, legge e scrive tutto (C, G, P) tranne wa_collegamento, niente delete.
+// - AGENTE_TOKEN_GRUPPI → "agente_gruppi": legge i messaggi dei gruppi WhatsApp di lavoro e scrive solo le loro note (C e G).
 // Cosa vede e scrive ognuno lo garantiscono i permessi del database (niente cancellazioni di note).
 // Uso: POST con header x-agente-token e l'SQL nel corpo (testo semplice o JSON {"sql": "..."}).
 import postgres from 'npm:postgres@3.4.5'
 
-const PORTE = ['', '_LAVORO', '_PRIVATO', '_CALENDARIO', '_CERAMEX', '_SMISTATORE', '_SEGUIRE', '_CAPO']
+const PORTE = ['', '_LAVORO', '_PRIVATO', '_CALENDARIO', '_CERAMEX', '_SMISTATORE', '_SEGUIRE', '_CAPO', '_GRUPPI']
   .map((s) => ({ token: Deno.env.get(`AGENTE_TOKEN${s}`), url: Deno.env.get(`AGENTE_DB_URL${s}`) }))
   .filter((p) => p.token && p.url)
 const MASSIMO = 300000 // caratteri di risposta

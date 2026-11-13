@@ -13,6 +13,12 @@ Agente capo, conferme a due tocchi, "Modifiche per Claude Code" (`modifiche_clau
 - Il Capo può far partire gli altri agenti (anche il privato) con `agente-subito` e il suo token, solo per le richieste scritte da lui.
 - **Bacheca** (`second-brain…/bacheca` o `#/bacheca`, `src/Bacheca.jsx`, link da Agenti): disegno di chi parla con chi (Capo → tutti, Smistatore → tutti tranne Privato, Domande per te).
 
+### Chiedi al Capo da una nota (13.11.2026, ok di Giovanni, piano e codice controllati dall'antagonista)
+- Nella nota (`src/Nota.jsx`) tasto "Chiedi al Capo" → riquadro con dettatura e "Manda". Nel campo Cliente, quando la ditta non c'è (ricerca finita senza errore, almeno 3 lettere), "Chiedi al Capo di aprire «nome»" apre lo stesso riquadro già scritto. Prima di mandare la nota si salva.
+- La richiesta porta solo `richieste_agenti.nota_id` (migrazione `richieste_nota`), non il testo della nota. Invio comune al "+": `richiestaAlCapo` in `src/Capo.jsx`. In chat sopra il messaggio "Dalla nota del … · cliente/Senza cliente" (link); sotto si vedono anche i seguiti dei lavori passati (es. "collega la nota").
+- `capo-veloce` legge la nota e la mette nel messaggio come DATO in un blocco separato; con una nota niente strumenti Sonos; aprire clienti o collegare note → passa al Capo. Prova: `{ prova: true, domanda, nota_id }`.
+- Regole del Capo, blocco "RICHIESTE DA UNA NOTA": cerca prima se la ditta c'è già. Ceramex: scheda nuova SOLO nel Brain, mai nel gestionale Ceramex (scelta di Giovanni del 13.11: i clienti Ceramex vivono nel Brain dal 13.10). G&C: richiesta all'archiviazione (crea nel gestionale) con seguito 'lavoro' "collega la nota"; il seguito lo manda lo Smistatore (caso E vale anche per da = 'capo', portinaio aggiornato). Nelle richieste agli altri agenti mai frasi copiate dalla nota. Note private: mai agli agenti di lavoro.
+
 ### Risposta veloce del Capo (16.10.2026, ok di Giovanni)
 - Quando Giovanni scrive al Capo, l'app chiama prima `capo-veloce` (non più direttamente `agente-subito`). Usa i crediti API come Chiedi (Sonnet 5.5, strumenti di SOLA LETTURA di `_shared/strumenti.ts`, tutte le aree, il discorso di prima nella stessa sezione). Parti comuni con `chiedi-ai` (prezzi, spesa, tetti) in `_shared/ai.ts`.
 - Domanda che si risolve leggendo il second brain → risponde in pochi secondi: richiesta 'fatta', `veloce = true`, nella chat "Risposta veloce" con il tasto "Non basta: chiedi al Capo" (rimette la richiesta 'nuova', `veloce = false`, e fa partire la routine).

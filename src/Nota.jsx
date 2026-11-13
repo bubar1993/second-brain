@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { sb, areaDa, quando } from './supabase'
 import {
   useApp, useCarica, chk, messaggioErrore, Stato, Indietro, SceltaArea, SceltaPersone, SceltaDitta, Icona,
-  caricaFoto, aggiungiAreaPersone, useModifiche,
+  caricaFoto, aggiungiAreaPersone, useModifiche, useDettatura,
 } from './componenti'
 import { nomeSezione, useRisolvi } from './Aziende'
 import { CampoNota, TestoConCaselle, haCaselle, spuntaRiga } from './CampoNota'
+import { richiestaAlCapo } from './Capo'
 
 const FONTI = { scritta: 'Scritta', voce: 'Dettata', foto: 'Foto', condivisa: 'Condivisa', mail: 'Da mail' }
 
@@ -15,6 +16,8 @@ export default function Nota({ id }) {
   const [foto, setFoto] = useState([])
   const [nuovoPromemoria, setNuovoPromemoria] = useState('')
   const [lavoro, setLavoro] = useState(false)
+  // "Chiedi al Capo" (13.11.2026): null = chiuso, altrimenti il testo già scritto nel riquadro.
+  const [perCapo, setPerCapo] = useState(null)
   const fotoRif = useRef(null)
 
   const { dati, errore, carica, ricarica } = useCarica(async () => chk(
@@ -38,9 +41,10 @@ export default function Nota({ id }) {
   salvaRif.current = daSalvare ? testo.trim() : null
   const scriviTesto = async (t) => {
     const { error } = await sb.from('note').update({ testo: t }).eq('id', id)
-    if (error) { setStatoTesto(`Non salvata: ${messaggioErrore(error)}`); return }
+    if (error) { setStatoTesto(`Non salvata: ${messaggioErrore(error)}`); return false }
     setSalvato(t)
     setStatoTesto('Salvata')
+    return true
   }
   useEffect(() => {
     if (!daSalvare) return
@@ -209,8 +213,16 @@ export default function Nota({ id }) {
       {dati.area !== 'P' && (
         <div className="campo">
           <span>Cliente</span>
-          <SceltaDitta valore={dati.aziende} area={dati.area} onChange={cambiaDitta} />
+          <SceltaDitta valore={dati.aziende} area={dati.area} onChange={cambiaDitta}
+            onChiediCapo={a ? (nome) => setPerCapo(`Apri il cliente «${nome}» (${a.nome}) e collega questa nota.`) : undefined} />
         </div>
+      )}
+
+      {perCapo !== null && (
+        <ChiediCapo iniziale={perCapo} notaId={id} chiudi={() => setPerCapo(null)}
+          primaSalva={async () => {
+            if (daSalvare && !(await scriviTesto(testo.trim()))) throw new Error('La nota non si è salvata: riprova prima di mandarla al Capo')
+          }} />
       )}
 
       <div className="campo">
@@ -242,9 +254,69 @@ export default function Nota({ id }) {
           <Icona nome="foto" size={18} /> Aggiungi foto
         </button>
         <input ref={fotoRif} type="file" accept="image/*" multiple hidden onChange={aggiungiFoto} />
+        {perCapo === null && (
+          <button type="button" className="tasto-piccolo" onClick={() => setPerCapo('')} disabled={lavoro}>
+            <Icona nome="capo" size={18} /> Chiedi al Capo
+          </button>
+        )}
       </div>
 
       <button type="button" className="tasto-link pericolo" onClick={elimina}>Metti nel cestino</button>
+    </div>
+  )
+}
+
+// Riquadro "Chiedi al Capo" dalla nota (13.11.2026): parte solo con "Manda". La richiesta porta il collegamento
+// alla nota (nota_id), non il suo testo: il Capo la legge da sé, come un dato. Prima si salva la nota, così legge
+// l'ultima versione.
+function ChiediCapo({ iniziale, notaId, chiudi, primaSalva }) {
+  const { avvisa, vai } = useApp()
+  const [testo, setTesto] = useState(iniziale)
+  const [invio, setInvio] = useState(false)
+  const rif = useRef(null)
+  const dettatura = useDettatura((t) => setTesto((v) => (v.trim() ? `${v.trim()} ${t}` : t)))
+  useModifiche(!!testo.trim() && testo !== iniziale)
+  // Riquadro già aperto e "Chiedi al Capo di aprire «X»": la frase si aggiunge a quello che hai già scritto.
+  useEffect(() => { setTesto((v) => (v.trim() && iniziale && !v.includes(iniziale) ? `${v.trim()}\n${iniziale}` : iniziale || v)) }, [iniziale])
+  useEffect(() => {
+    rif.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    rif.current?.focus({ preventScroll: true })
+  }, [iniziale])
+
+  async function manda() {
+    const t = testo.trim()
+    if (!t || invio) return
+    if (dettatura.attiva) dettatura.ferma()
+    setInvio(true)
+    try {
+      await primaSalva()
+      const esito = await richiestaAlCapo({ testo: t, nota_id: notaId })
+      avvisa(esito.veloce || esito.ok ? 'Passato al Capo' : 'Il Capo non è partito. Riprova tra un minuto; se succede ancora, dillo a Claude')
+      setTesto('')
+      vai('/capo')
+    } catch (e) {
+      avvisa(messaggioErrore(e))
+      setInvio(false)
+    }
+  }
+
+  return (
+    <div className="scheda chiedi-capo-nota">
+      <p className="riga-meta">Chiedi al Capo su questa nota</p>
+      <textarea ref={rif} value={testo} onChange={(e) => setTesto(e.target.value)} rows={3}
+        placeholder={dettatura.attiva ? 'Ti ascolto…' : 'Cosa vuoi chiedere o fare?'} />
+      <div className="azioni">
+        {dettatura.supportata && (
+          <button type="button" className={'tasto-mic' + (dettatura.attiva ? ' attivo' : '')}
+            onClick={dettatura.attiva ? dettatura.ferma : dettatura.avvia} aria-label={dettatura.attiva ? 'Ferma la dettatura' : 'Detta'}>
+            <Icona nome="mic" />
+          </button>
+        )}
+        <button type="button" className="tasto-grande" onClick={manda} disabled={invio || !testo.trim()}>
+          {invio ? 'Invio…' : 'Manda'}
+        </button>
+        <button type="button" className="tasto-link" onClick={chiudi} disabled={invio}>Annulla</button>
+      </div>
     </div>
   )
 }

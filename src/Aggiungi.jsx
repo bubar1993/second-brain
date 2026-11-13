@@ -6,6 +6,7 @@ import {
 } from './componenti'
 import { capisciLista, capisciGaranzia, durata } from './capisci'
 import { CampoNota } from './CampoNota'
+import { richiestaAlCapo } from './Capo'
 import { mettiInCoda, registraLavoro, senzaRete, giaFatto } from './coda'
 
 // "Già salvato" (stesso id) va bene: serve quando una nota fatta senza rete parte di nuovo.
@@ -246,11 +247,8 @@ export default function Aggiungi({ usaCondiviso, personaId, aziendaId, chiamata,
     if (dettatura.attiva) dettatura.ferma()
     setSalvo(true)
     try {
-      const r = chk(await sb.from('richieste_agenti').insert({ agente: 'capo', testo: pulito }).select('id').single())
+      const esito = await richiestaAlCapo({ testo: pulito })
       svuota()
-      const esito = await chiama('capo-veloce', { id: r.id })
-        .catch(() => chiama('agente-subito', { id: r.id }))
-        .catch((e) => ({ ok: false, errore: messaggioErrore(e) }))
       avvisa(esito.veloce || esito.ok ? 'Passato al Capo' : 'Il Capo non è partito. Riprova tra un minuto; se succede ancora, dillo a Claude')
       // Al posto di Aggiungi (30.10.2026): indietro non riporta ad Aggiungi vuoto.
       location.replace('#/capo')

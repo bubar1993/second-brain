@@ -20,6 +20,15 @@ export async function contaConferme() {
   return count || 0
 }
 
+// Una richiesta nuova al Capo (dal "+" e da una nota, 13.11.2026): prima la risposta veloce, se non risponde la routine.
+// `campi` = { testo, nota_id? }. Torna l'esito di capo-veloce / agente-subito ({ veloce } o { ok }).
+export async function richiestaAlCapo(campi) {
+  const r = chk(await sb.from('richieste_agenti').insert({ agente: 'capo', ...campi }).select('id').single())
+  return chiama('capo-veloce', { id: r.id })
+    .catch(() => chiama('agente-subito', { id: r.id }))
+    .catch((e) => ({ ok: false, errore: messaggioErrore(e) }))
+}
+
 export function Capo() {
   const { avvisa, vai } = useApp()
   const [testo, setTesto] = useState('')
@@ -41,7 +50,15 @@ export function Capo() {
       sb.from('modifiche_claude').select('*').or(`stato.in.(proposta,ok),fatta_il.gt.${new Date(Date.now() - 3 * 864e5).toISOString()},scartata_il.gt.${new Date(Date.now() - 3 * 864e5).toISOString()}`)
         .order('creata_il', { ascending: false }).then(chk),
     ])
-    return { richieste, passate, conferme, modifiche }
+    // Da una nota (13.11.2026): la nota di partenza e i seguiti dei lavori passati (es. archiviazione crea il cliente
+    // G&C, poi lo Smistatore manda "collega la nota" all'agente note): così l'esito si vede anche qui.
+    const idNote = [...new Set(richieste.map((r) => r.nota_id).filter(Boolean))]
+    const idPassate = passate.map((p) => p.id)
+    const [note, seguiti] = await Promise.all([
+      idNote.length ? sb.from('note').select('id,creata_il,area,aziende(nome)').in('id', idNote).then(chk) : [],
+      idPassate.length ? sb.from('richieste_agenti').select('*').in('origine_id', idPassate).order('creata_il').then(chk) : [],
+    ])
+    return { richieste, passate: [...passate, ...seguiti], note, conferme, modifiche }
   }, [])
 
   // Le risposte che vedi qui contano come lette (anche quelle degli agenti a cui il capo ha passato il lavoro).
@@ -53,7 +70,12 @@ export function Capo() {
 
   // Sezioni: cosa c'è attorno a ogni richiesta (lavori passati agli agenti, conferme).
   const conferme = (id) => dati.conferme.filter((c) => c.richiesta_id === id)
-  const passate = (id) => dati.passate.filter((p) => p.origine_id === id)
+  const passate = (id) => {
+    const dirette = dati.passate.filter((p) => p.origine_id === id)
+    const ids = dirette.map((p) => p.id)
+    return [...dirette, ...dati.passate.filter((p) => ids.includes(p.origine_id))]
+  }
+  const nota = (r) => r.nota_id && (dati.note.find((n) => n.id === r.nota_id) || { id: r.nota_id })
   const sez = useSezioni('capo', dati?.richieste, (r) => {
     const cc = conferme(r.id)
     const pp = passate(r.id)
@@ -94,7 +116,9 @@ export function Capo() {
     if (dettatura.attiva) dettatura.ferma()
     setInvio(true)
     try {
-      const r = chk(await sb.from('richieste_agenti').insert({ agente: 'capo', testo: t, sezione_id: sez.sezioneId }).select('id').single())
+      // Una risposta dentro un argomento nato da una nota resta legata a quella nota (13.11.2026).
+      const notaId = [...(sez.attiva?.righe || [])].reverse().find((x) => x.nota_id)?.nota_id ?? null
+      const r = chk(await sb.from('richieste_agenti').insert({ agente: 'capo', testo: t, sezione_id: sez.sezioneId, nota_id: notaId }).select('id').single())
       setTesto('')
       // Prima la risposta veloce (capo-veloce, 16.10.2026): le domande semplici in pochi secondi, il resto lo passa
       // lei alla routine del Capo. Se non risponde, si fa partire il Capo come prima.
@@ -119,7 +143,7 @@ export function Capo() {
   const senzaRichiesta = dati ? dati.conferme.filter((c) => c.stato === 'da_confermare' && !dati.richieste.some((r) => r.id === c.richiesta_id)) : []
   const scambi = (righe) => (
     <div className="chat-capo">
-      {righe.map((r) => <Scambio key={r.id} r={r} conferme={conferme(r.id)} passate={passate(r.id)} dopo={ricarica} />)}
+      {righe.map((r) => <Scambio key={r.id} r={r} nota={nota(r)} conferme={conferme(r.id)} passate={passate(r.id)} dopo={ricarica} />)}
     </div>
   )
 
@@ -193,9 +217,14 @@ function titoloCapo(r) {
 }
 
 // Un messaggio di Giovanni con la risposta del capo, le conferme e i lavori passati agli agenti.
-function Scambio({ r, conferme, passate, dopo }) {
+function Scambio({ r, nota, conferme, passate, dopo }) {
   return (
     <div className="scambio">
+      {nota && (
+        <a className="riga-meta da-nota" href={`#/nota/${nota.id}`}>
+          Dalla nota{nota.creata_il ? ` del ${quando(nota.creata_il)}` : ''} · {nota.aziende?.nome || (nota.area === 'P' ? 'Privato' : 'Senza cliente')}
+        </a>
+      )}
       {/* Mail private passate dall'agente Ceramex (13.10.2026 sera): non sono parole di Giovanni. */}
       {r.da === 'ceramex' ? (
         <p className="fumetto fumetto-segnalazione"><span className="riga-meta">Mail privata nella Gmail · dall'agente Ceramex</span>{r.testo.split('\n').slice(1).join('\n') || r.testo}<span className="ora">{quando(r.creata_il, true)}</span></p>

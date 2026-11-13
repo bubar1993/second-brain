@@ -813,6 +813,11 @@ mark { background: rgba(255, 214, 102, 0.22); color: var(--testo); border-radius
 .fumetto-segnalazione .riga-meta { display: block; margin-bottom: 4px; font-size: 13px; color: var(--tenue); }
 .passata { align-self: flex-start; max-width: 88%; margin-left: 14px; padding: 8px 12px; border-left: 2px solid var(--bordo); white-space: pre-wrap; overflow-wrap: anywhere; }
 .passata p { margin: 0; }
+/* Richiesta al Capo partita da una nota (13.11.2026): link alla nota sopra il fumetto. */
+.scambio .da-nota { align-self: flex-end; font-size: 13px; text-decoration: underline; }
+.chiedi-capo-nota { margin: 12px 0; }
+.chiedi-capo-nota .riga-meta { margin: 0 0 6px; }
+.chiedi-capo-nota textarea { width: 100%; box-sizing: border-box; }
 .conferma-capo { align-self: stretch; display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: var(--raggio); background: var(--superficie); border: 1px solid var(--bordo); }
 .conferma-capo.aperta { border-color: rgba(255, 214, 102, 0.5); box-shadow: 0 0 18px rgba(255, 214, 102, 0.12); }
 .conferma-capo p { margin: 0; }

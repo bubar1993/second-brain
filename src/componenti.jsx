@@ -292,20 +292,28 @@ export function SceltaPersone({ valore, onChange }) {
 }
 
 // Scelta del cliente di una nota (09.11.2026): una ditta sola, cercata per nome. `area` C o G restringe la ricerca.
-export function SceltaDitta({ valore, onChange, area }) {
+// `onChiediCapo(nome)` (solo dalla nota, 13.11.2026): se la ditta non c'è, un tasto per chiedere al Capo di aprirla.
+// Compare solo a ricerca finita e riuscita, con almeno 3 lettere (niente "Apri il cliente «Ro»" mentre scrivi).
+export function SceltaDitta({ valore, onChange, area, onChiediCapo }) {
   const [testo, setTesto] = useState('')
   const [trovate, setTrovate] = useState([])
+  const [cerco, setCerco] = useState(false)
+  const [sbagliata, setSbagliata] = useState(false)
 
   useEffect(() => {
     const parole = testo.trim().split(/\s+/).map(pulisci).filter(Boolean)
-    if (!parole.length || testo.trim().length < 2) { setTrovate([]); return }
+    if (!parole.length || testo.trim().length < 2) { setTrovate([]); setCerco(false); setSbagliata(false); return }
     let annullato = false
+    setCerco(true)
     const t = setTimeout(async () => {
       let q = sb.from('aziende').select('id,nome,area').is('eliminata_il', null).is('unito_in', null).order('nome').limit(8)
       if (area === 'C' || area === 'G') q = q.eq('area', area)
       for (const p of parole) q = q.or(`nome.ilike.%${p}%,ragione_sociale.ilike.%${p}%`)
-      const { data } = await q
-      if (!annullato) setTrovate(data || [])
+      const { data, error } = await q.then((r) => r, (e) => ({ data: null, error: e }))
+      if (annullato) return
+      setTrovate(data || [])
+      setSbagliata(!!error)
+      setCerco(false)
     }, 200)
     return () => { annullato = true; clearTimeout(t) }
   }, [testo, area])
@@ -333,7 +341,14 @@ export function SceltaDitta({ valore, onChange, area }) {
               <span className="pallino" style={{ background: areaDa(a.area)?.colore }} /> {a.nome} <span className="nota-piccola">{areaDa(a.area)?.nome}</span>
             </button>
           ))}
-          {!trovate.length && <p className="msg">Nessuna ditta con questo nome.</p>}
+          {!trovate.length && !cerco && (sbagliata
+            ? <p className="msg">Ricerca non riuscita: controlla la rete.</p>
+            : <p className="msg">Nessuna ditta con questo nome.</p>)}
+          {!trovate.length && !cerco && !sbagliata && onChiediCapo && testo.trim().length >= 3 && (
+            <button type="button" onClick={() => { onChiediCapo(testo.trim()); setTesto('') }}>
+              <Icona nome="capo" size={16} /> Chiedi al Capo di aprire «{testo.trim()}»
+            </button>
+          )}
         </div>
       )}
     </div>

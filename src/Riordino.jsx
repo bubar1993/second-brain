@@ -93,6 +93,88 @@ function testoRichiesta(r, parole) {
   ].join('\n')
 }
 
+// "Traduci in italiano" (16.11.2026, richiesta di Giovanni): un messaggio alla volta, con la funzione `traduci` (crediti API).
+// Il tasto compare solo sui messaggi che non sembrano italiani (nel dubbio compare). La traduzione resta su questo
+// dispositivo (localStorage), così riaprendo la mail non si paga di nuovo; Rispondi e Inoltra citano sempre l'originale.
+const PAROLE_IT = new Set('il lo la le gli di da del della dei delle che non per con una uno sono è ho hai abbiamo siamo questo questa come anche ma se nel nella alla al grazie buongiorno buonasera saluti cordiali ciao ti vi ci mi più sul sulla già ancora quando dove perché fatto fare essere'.split(' '))
+const PAROLE_ESTERE = new Set('der die das und ist mit für nicht ich sie wir ein eine den dem auf zu von bitte danke gruss grüsse freundlichen the and is are with for not you we to of this that please thanks regards best kind dear les et est avec pour nous vous une des merci bonjour cordialement el los que con por para gracias saludos w na nie się jest dziękuję pozdrawiam'.split(' '))
+function sembraItaliano(testo) {
+  // Solo la parte scritta (non la citazione sotto), al massimo 2000 caratteri.
+  const corpo = String(testo || '').split(/\n\s*(?:>|-{2,}\s*(?:Original|Ursprüngliche|Messaggio)|(?:Am|On|Le|Il)\s.{4,200}(?:schrieb|wrote|a écrit|ha scritto))/i)[0].slice(0, 2000)
+  const parole = corpo.toLowerCase().match(/\p{L}+/gu) || []
+  if (parole.length < 4) return true
+  let it = 0, estere = 0
+  for (const p of parole) { if (PAROLE_IT.has(p)) it++; if (PAROLE_ESTERE.has(p)) estere++ }
+  // Italiano solo se le parole italiane battono bene le altre: "Buongiorno Herr Meyer, Hier der Preis… Cordiali saluti"
+  // (saluti italiani attorno a un testo tedesco) deve avere il tasto. Nel dubbio il tasto c'è.
+  return it >= 4 && it > estere * 3
+}
+// Impronta corta del testo per la memoria delle traduzioni.
+function impronta(t) {
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57
+  for (let i = 0; i < t.length; i++) { const c = t.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677) }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909)
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909)
+  return (h2 >>> 0).toString(36) + (h1 >>> 0).toString(36) + t.length.toString(36)
+}
+const chiaveTraduzione = (t) => `traduzione:${impronta(t)}`
+function traduzioneSalvata(t) {
+  try { return JSON.parse(localStorage.getItem(chiaveTraduzione(t)) || 'null') } catch { return null }
+}
+function salvaTraduzione(t, v) {
+  try { localStorage.setItem(chiaveTraduzione(t), JSON.stringify({ ...v, il: Date.now() })) } catch { /* senza memoria va lo stesso */ }
+}
+
+// Il testo di un messaggio letto, con "Traduci in italiano" / "Mostra originale".
+// conversazione = più messaggi Gmail: la parte citata sotto si toglie (i messaggi di prima si traducono da soli).
+function TestoMail({ m, conversazione }) {
+  const testo = m.testo || ''
+  const [tr, setTr] = useState(() => {
+    const s = testo ? traduzioneSalvata(testo) : null
+    return s ? { ...s, stato: 'fatta', mostra: true } : null
+  })
+  const straniera = !!testo && !sembraItaliano(testo)
+
+  async function traduci() {
+    if (tr?.stato === 'fatta') { setTr({ ...tr, mostra: !tr.mostra }); return }
+    setTr({ stato: 'lavoro' })
+    try {
+      const r = await chiama('traduci', { testo, citazione: conversazione })
+      if (r.gia_italiano) { setTr({ stato: 'italiano' }); return }
+      const v = { testo: r.testo, lingua: r.lingua, veloce: r.veloce, avvisi: r.avvisi || [], citazione_tolta: r.citazione_tolta }
+      // La traduzione veloce (Haiku, crediti quasi finiti) non si tiene: la prossima volta si rifà con quella buona.
+      if (!r.veloce) salvaTraduzione(testo, v)
+      setTr({ ...v, stato: 'fatta', mostra: true })
+    } catch (e) {
+      setTr({ stato: 'errore', errore: messaggioErrore(e) })
+    }
+  }
+
+  const mostra = tr?.stato === 'fatta' && tr.mostra
+  return (
+    <>
+      {mostra ? (
+        <div className="traduzione">
+          <p className="riga-meta"><b>Traduzione automatica{tr.lingua ? (/^[aeiou]/i.test(tr.lingua) ? ` dall'${tr.lingua}` : ` dal ${tr.lingua}`) : ''}</b>{tr.veloce ? ' · traduzione veloce (crediti del mese quasi finiti)' : ''}</p>
+          {tr.avvisi?.map((a) => <p key={a} className="msg errore">{a}</p>)}
+          <p className="testo-mail">{tr.testo}</p>
+          {tr.citazione_tolta && <p className="nota-piccola">La parte citata sotto non è tradotta: sono i messaggi di prima.</p>}
+        </div>
+      ) : <p className="testo-mail">{testo || '(senza testo)'}</p>}
+      {(straniera || tr) && (
+        <div className="chips">
+          <button type="button" className={'chip piccolo' + (mostra ? ' attivo' : '')} onClick={traduci} disabled={tr?.stato === 'lavoro' || tr?.stato === 'italiano'}>
+            {tr?.stato === 'lavoro' ? 'Traduco…' : tr?.stato === 'italiano' ? 'È già in italiano'
+              : tr?.stato === 'fatta' ? (mostra ? 'Mostra originale' : 'Mostra traduzione')
+                : tr?.stato === 'errore' ? 'Riprova a tradurre' : 'Traduci in italiano'}
+          </button>
+        </div>
+      )}
+      {tr?.stato === 'errore' && <p className="msg errore">{tr.errore}</p>}
+    </>
+  )
+}
+
 export function Riordino() {
   const { avvisa, area } = useApp()
   const [scelte, setScelte] = useState({})   // id → true
@@ -418,7 +500,7 @@ export function Riordino() {
                   : [...letta.dati.messaggi].reverse().map((m, i) => (
                     <article key={i} className="messaggio-letto">
                       <p className="riga-meta"><b>{nomeBreve(m.da)}</b>{m.data && !isNaN(new Date(m.data)) ? ` · ${quando(new Date(m.data).toISOString(), true)}` : ''}{m.a ? ` · a ${nomeBreve(m.a)}` : ''}</p>
-                      <p className="testo-mail">{m.testo || '(senza testo)'}</p>
+                      <TestoMail key={impronta(m.testo || '')} m={m} conversazione={letta.dati.messaggi.length > 1} />
                       {m.allegati?.length > 0 && (
                         <div className="chips">
                           {m.allegati.map((a) => (

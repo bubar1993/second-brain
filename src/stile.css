@@ -595,6 +595,8 @@ a.riga:active, button.riga:active { background: rgba(255, 255, 255, 0.04); }
 .messaggio-letto { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--bordo); }
 .messaggio-letto p { margin: 0; }
 .testo-mail { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; line-height: 1.5; max-height: 420px; overflow-y: auto; }
+/* Traduzione nel Riordino (16.11.2026): riga a sinistra per non confonderla con l'originale. */
+.traduzione { display: flex; flex-direction: column; gap: 6px; padding-left: 10px; border-left: 2px solid var(--bordo); }
 .risposta-agente { white-space: normal; color: var(--testo, inherit); }
 .risposta-agente.attesa { color: var(--tenue); font-style: italic; }
 .rispondi-agente textarea { width: 100%; font: inherit; }

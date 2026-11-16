@@ -141,6 +141,59 @@ async function gzip(testo: string): Promise<Uint8Array> {
   return new Uint8Array(await new Response(flusso).arrayBuffer())
 }
 
+// Dati del Brain compressi mentre si leggono (16.11.2026): il 15.11 tenere tutte le tabelle in memoria e poi
+// comprimerle in un colpo solo ha superato la memoria della funzione ("Memory limit exceeded").
+// In memoria restano solo un pezzo da 500 righe e il file già compresso. Stesso JSON di prima
+// ({ creato_il, fonte, tabelle, conteggi }); conteggi va in fondo perché si sa solo alla fine.
+async function datiCompressi(ora: Date) {
+  const flusso = new CompressionStream('gzip')
+  const scrittore = flusso.writable.getWriter()
+  const enc = new TextEncoder()
+  const pezzi: Uint8Array[] = []
+  const lettura = (async () => {
+    const lettore = flusso.readable.getReader()
+    for (;;) {
+      const { done, value } = await lettore.read()
+      if (done) break
+      pezzi.push(value)
+    }
+  })()
+  const scrivi = (s: string) => scrittore.write(enc.encode(s))
+
+  const conteggi: Record<string, number> = {}
+  try {
+    await scrivi(`{"creato_il":${JSON.stringify(ora.toISOString())},"fonte":${JSON.stringify('Second Brain (Supabase vgurncqvgulldolhetyr)')},"tabelle":{`)
+    let primaTabella = true
+    for (const t of (await rpc('backup_tabelle')) as string[]) {
+      if (TABELLE_ESCLUSE.includes(t)) continue
+      await scrivi(`${primaTabella ? '' : ','}${JSON.stringify(t)}:[`)
+      primaTabella = false
+      let n = 0
+      for (let da = 0; ; da += RIGHE_PER_PEZZO) {
+        const pezzo = (await rpc('backup_export_pezzo', { p_tabella: t, p_da: da, p_quanti: RIGHE_PER_PEZZO })) as unknown[]
+        if (pezzo.length) await scrivi((n ? ',' : '') + pezzo.map((r) => JSON.stringify(r)).join(','))
+        n += pezzo.length
+        if (pezzo.length < RIGHE_PER_PEZZO) break
+      }
+      await scrivi(']')
+      conteggi[t] = n
+    }
+    await scrivi(`},"conteggi":${JSON.stringify(conteggi)}}`)
+    await scrittore.close()
+  } catch (e) {
+    await scrittore.abort(e).catch(() => {})
+    await lettura.catch(() => {})
+    throw e
+  }
+  await lettura
+
+  const totale = pezzi.reduce((s, p) => s + p.length, 0)
+  const dati = new Uint8Array(totale)
+  let pos = 0
+  for (const p of pezzi) { dati.set(p, pos); pos += p.length }
+  return { dati, conteggi }
+}
+
 const csvCampo = (v: unknown) => {
   const s = v == null ? '' : v instanceof Date ? v.toISOString().slice(0, 10) : String(v)
   return /[",\n\r;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
@@ -205,21 +258,8 @@ Deno.serve(async (req: Request) => {
     const token = await tokenGoogle()
 
     // 1. Dati
-    const tabelle: Record<string, unknown[]> = {}
-    for (const t of (await rpc('backup_tabelle')) as string[]) {
-      if (TABELLE_ESCLUSE.includes(t)) continue
-      const righe: unknown[] = []
-      for (let da = 0; ; da += RIGHE_PER_PEZZO) {
-        const pezzo = (await rpc('backup_export_pezzo', { p_tabella: t, p_da: da, p_quanti: RIGHE_PER_PEZZO })) as unknown[]
-        righe.push(...pezzo)
-        if (pezzo.length < RIGHE_PER_PEZZO) break
-      }
-      tabelle[t] = righe
-    }
+    const { dati, conteggi } = await datiCompressi(ora)
     dettagli.escluse = TABELLE_ESCLUSE
-    const conteggi: Record<string, number> = {}
-    for (const [t, righe] of Object.entries(tabelle)) conteggi[t] = righe.length
-    const dati = await gzip(JSON.stringify({ creato_il: ora.toISOString(), fonte: 'Second Brain (Supabase vgurncqvgulldolhetyr)', conteggi, tabelle }))
     const nomeDati = `brain-dati-${giorno}.json.gz`
     await sostituisci(token, GDRIVE_FOLDER_ID, nomeDati, dati, 'application/gzip')
     dettagli.dati = { file: nomeDati, kb: Math.round(dati.length / 1024), righe: conteggi }

@@ -26,6 +26,7 @@ Ogni gestionale ha il suo utente di sola lettura `brain_lettore` (vedi CLAUDE.md
 
 Il backup su Drive (funzione `backup`, ogni domenica notte, cartella BRAIN/Backup) è descritto nella fase 2 in `ceramex.md`.
 Dal 18.10.2026 i dati si leggono tabella per tabella, 500 righe alla volta (`backup_tabelle()` + `backup_export_pezzo()`, migrazione `backup_a_pezzi`): il 18.10 `backup_export()` in un colpo solo era stato fermato dal limite di 8 s. La tabella `vettori` (ricerca per significato) non va nel backup: si ricalcola dalle note. Rifatto a mano il 18.10 alle 18:58: ok, 3,6 MB.
+Dal 16.11.2026 i dati si comprimono mentre si leggono (`datiCompressi()`): il 15.11 il backup si è fermato con "Memory limit exceeded" (errore 546, nessuna riga in `backup_registro`, guasto dopo 8 giorni), perché teneva tutte le tabelle in memoria (6,8 MB compressi l'08.11, soprattutto `wa_messaggi` e `lavori_registro`). Stesso JSON di prima, ma `conteggi` sta in fondo. Rifatto a mano il 16.11: ok, 7,4 MB. Per rifarlo a mano: `do $$ begin execute (select command from cron.job where jobname = 'backup-settimanale-drive'); end $$;`. Log delle funzioni: endpoint `analytics/endpoints/logs` della Management API, tabella unica `logs` con `source = 'function_logs'` o `'function_edge_logs'` (il vecchio `logs.all` non c'è più).
 
 ## Guardiano (21.10.2026, ok di Giovanni)
 

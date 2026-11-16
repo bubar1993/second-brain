@@ -42,6 +42,14 @@ Prima del 21.10 nessuno avvisava se un'app, un gestionale o un agente si fermava
 - Fatto il 21.10 sera: utente di sistema Meta **AvvisiBrain** (portfolio Ceramex; "Guardiano Second Brain" Meta non lo accettava), chiave permanente salvata con lo script (legge il numero di prova; l'account WhatsApp di prova di Meta NON si può assegnare a un utente di sistema, quindi la chiave non vede i modelli). Modello `avviso_guasto` creato a mano da Claude in WhatsApp Manager (Test WhatsApp Business Account → Modelli di messaggio), Utility, italiano: "Aggiornamento di stato del tuo servizio Second Brain: {{1}}. Dettagli: {{2}}. Ti avviseremo di nuovo quando il servizio torna regolare." (le prime versioni "Avviso dal guardiano…" Meta le voleva come Marketing). Il guardiano esterno riceve il battito (log "giro {problemi:[]}" del 21.10 22:25). Se l'invio fallisce, l'errore è in `lavori_registro` 'notifiche' (`whatsapp: …`) o nei log del Worker (`npx wrangler tail guardiano-esterno`).
 - 22.10: primo invio rifiutato ("Viewer cannot access the provided Paid Message Account"): Giovanni ha aggiunto AvvisiBrain all'account di messaggistica di prova (Impostazioni business → Account di messaggistica → Test WhatsApp Business Account → Assegna persone, controllo totale). 23.10: modello approvato; WhatsApp di prova mandato su richiesta di Giovanni (`notifiche` con `{ "prova_whatsapp": true }`, manda solo quello) e **arrivato**. `{ "prova": true }` dice anche lo stato del modello (campo `whatsapp`, solo lettura).
 
+## Controlli automatici di Claude Code (16.11.2026, ok di Giovanni)
+
+Idee prese dal pacchetto "ECC / Everything Claude Code" (non installato: rifatte da noi). Giovanni ha scelto solo queste due; blocco token, conferma sui gestionali e protezione dei programmi del PC le ha scartate (gestionali usati solo da lui, dal socio e dagli agenti): non riproporle.
+- Sono "hook" nelle impostazioni **utente** di Claude (`%USERPROFILE%\.claude\settings.json`, blocco `hooks`), non in quelle del progetto: le routine cloud non le vedono; valgono anche nelle sessioni aperte in `ceramex-app` o `gestionale-gc`.
+- `scripts/hooks/guardia.mjs` (prima di ogni comando PowerShell/Bash): su un `git push` fa `git fetch`; se GitHub ha modifiche che qui mancano (es. Cowork su `gestionale-gc`), il push è rifiutato → `git pull` in un comando a parte, poi push. Senza rete chiede a Giovanni. Se si guasta lascia passare.
+- `scripts/hooks/sessione.mjs` (a inizio sessione, solo nel Brain): conta le righe 'ok' di `modifiche_claude` (indirizzo Supabase di **sola lettura**) e passa a Claude solo numero e data, mai il testo.
+- Spegnerli: togliere il blocco `hooks` dalle impostazioni utente e riaprire la sessione. Provati dal vivo il 16.11 (push rifiutato su una cartella di prova).
+
 ## Primo passo
 
 Fatto l'11.10.2026 (token Supabase personale, struttura del database, progetto Supabase Pro creato): storia chiusa.

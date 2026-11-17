@@ -144,6 +144,35 @@ async function controllaGestionali(): Promise<Problema[]> {
   return out
 }
 
+// Scarico estratti PostFinance del G&C (17.11.2026, ok di Giovanni): brain_lettore legge SOLO la vista
+// brain.ebics_stato (ultimo giro riuscito, esito e codice dell'ultimo giro). "Nessun dato" conta come riuscito.
+// Guasto se nessun giro riuscito da 48 ore, o se l'ultimo è in errore e il precedente riuscito ha più di 26 ore
+// (così un errore delle 6:30 riprovato alle 7:30 non avvisa). Prima del primo giro non dice niente.
+async function controllaEbicsGc(adesso: number): Promise<Problema[]> {
+  const dburl = Deno.env.get('GC_DB_URL')
+  if (!dburl) return []
+  const sql = postgres(dburl, { prepare: false, max: 1, connect_timeout: 15, idle_timeout: 2 })
+  try {
+    const [s] = await sql`select ultimo_ok, ultimo_esito, ultimo_codice, ultimo_giro from brain.ebics_stato`
+    if (!s || (!s.ultimo_ok && !s.ultimo_giro)) return []
+    const ok = s.ultimo_ok ? new Date(s.ultimo_ok).getTime() : 0
+    const okIso = ok ? new Date(ok).toISOString() : undefined
+    if (s.ultimo_esito === 'errore' && adesso - ok > 26 * 3600e3) {
+      return [{ chiave: 'giro:ebics-gc', titolo: 'Lo scarico degli estratti PostFinance (G&C) non è riuscito', dettaglio: `Ultimo giro: ${quando(new Date(s.ultimo_giro).toISOString())}, codice ${s.ultimo_codice || '?'}. Ultimo riuscito: ${quando(okIso)}` }]
+    }
+    if (adesso - ok > 48 * 3600e3) {
+      return [{ chiave: 'giro:ebics-gc', titolo: 'Lo scarico degli estratti PostFinance (G&C) è fermo', dettaglio: `Ultimo giro riuscito: ${quando(okIso)}` }]
+    }
+    return []
+  } catch (e) {
+    // Il database che non risponde lo segnala già "db:gc": qui non si ripete.
+    console.error('ebics-gc', (e as Error).message)
+    return []
+  } finally {
+    sql.end({ timeout: 2 }).catch(() => {})
+  }
+}
+
 type UltimoGiro = { il: string, ok: boolean, errore: string | null }
 
 function controllaGiri(d: any, adesso: number): Problema[] {
@@ -276,7 +305,7 @@ Com'è fatto il sistema:
 - Tre app web: Brain (il second brain), Ceramex (agente di commercio: fatture, bozze mail), G&C (gestionale forniture per interni). Due database dei gestionali Ceramex e G&C.
 - Nel Brain: funzioni automatiche chiamate dai lavori programmati (rubrica dei contatti Google, notifiche, copia delle note da Ceramex e da G&C, lettura della posta info@, ordini Marazzi, ricerca per significato, sveglie Sonos, backup su Drive la domenica notte).
 - Agenti (routine nel cloud di claude.ai): bozze mail Ceramex, G&C, calendario, note lavoro, privato, smistatore, archiviazione mail G&C, "Da seguire", il Capo. Smistatore e G&C li sveglia il "portinaio" (funzione automatica ogni 10 minuti) solo quando c'è lavoro nuovo.
-- Chiavi del guasto: "portinaio:" = il portinaio non sveglia un agente (sveglia che non parte, agente che non ha scritto il suo giro, troppe sveglie in un giorno); "app:" = un'app non si apre; "db:" = un database non risponde; "giro:" = un lavoro o un agente è fermo o ha sbagliato l'ultimo giro; "richieste:" = richieste agli agenti ferme; "cron:" = un lavoro programmato non parte; "http:errori" = una funzione automatica risponde con un errore; "backup" = il backup su Drive.
+- Chiavi del guasto: "portinaio:" = il portinaio non sveglia un agente (sveglia che non parte, agente che non ha scritto il suo giro, troppe sveglie in un giorno); "app:" = un'app non si apre; "db:" = un database non risponde; "giro:" = un lavoro o un agente è fermo o ha sbagliato l'ultimo giro ("giro:ebics-gc" = lo scarico automatico degli estratti PostFinance nel gestionale G&C: per errori di chiavi o codici della banca "Tocca Manda a Claude"); "richieste:" = richieste agli agenti ferme; "cron:" = un lavoro programmato non parte; "http:errori" = una funzione automatica risponde con un errore; "backup" = il backup su Drive.
 
 Come rispondi:
 - In italiano, 2-4 righe corte, testo semplice (niente titoli, grassetti, link).
@@ -329,8 +358,8 @@ Deno.serve(async (req) => {
   try {
     const dati = await rest('rpc/guardiano_dati', { method: 'POST', body: '{}' })
     const adesso = Date.parse(dati.adesso)
-    const [app, db] = await Promise.all([controllaApp(), controllaGestionali()])
-    problemi = [...app, ...db, ...controllaGiri(dati, adesso), ...controllaRichieste(dati, adesso), ...controllaPortinaio(dati, adesso), ...controllaCron(dati), ...controllaErrori(dati)]
+    const [app, db, ebics] = await Promise.all([controllaApp(), controllaGestionali(), controllaEbicsGc(adesso)])
+    problemi = [...app, ...db, ...ebics,...controllaGiri(dati, adesso), ...controllaRichieste(dati, adesso), ...controllaPortinaio(dati, adesso), ...controllaCron(dati), ...controllaErrori(dati)]
   } catch (e) {
     // Il guardiano stesso non riesce a leggere: lo segno come guasto (se almeno scrivere funziona).
     problemi = [{ chiave: 'guardiano', titolo: 'Il guardiano non riesce a fare i controlli', dettaglio: (e as Error).message.slice(0, 300) }]

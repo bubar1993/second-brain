@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { sb, areaDa, leggi, scrivi, nomePersona, CAMPI_PERSONA } from './supabase'
-import { useApp, useCarica, chk, messaggioErrore, Stato, Icona, useLargo } from './componenti'
+import { useApp, useCarica, chk, tutte, messaggioErrore, Stato, Icona, useLargo } from './componenti'
 import { nomeSezione, useRisolvi, PaginaFissa } from './Aziende'
 import Nota from './Nota'
 import { ScriviQui } from './Aggiungi'
@@ -26,16 +26,6 @@ const GIORNI_SETTIMANA = ['', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', '
 const MESI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
 const CAMPI_NOTA = 'id,area,azienda_id,cantiere_id,testo,mandante,sezione,data,contatto,fonte,wa_gruppo_id,risolto_il,creata_il,note_persone(persona_id)'
 const FONTI = { voce: 'dettata', foto: 'foto', condivisa: 'condivisa', mail: 'dalla mail', whatsapp: 'da WhatsApp' }
-
-// Legge tutte le righe anche oltre il limite di 1000 per richiesta.
-async function tutte(crea) {
-  const righe = []
-  for (let da = 0; ; da += 1000) {
-    const pezzo = chk(await crea().range(da, da + 999))
-    righe.push(...pezzo)
-    if (pezzo.length < 1000) return righe
-  }
-}
 
 const giornoDi = (n) => n.data || (n.creata_il || '').slice(0, 10)
 function nomeGiorno(g) {

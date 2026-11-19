@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { sb, leggi, scrivi, areaDa } from './supabase'
-import { useApp, useCarica, chk, messaggioErrore, Stato, Indietro, Icona, tenutoQui, tieniQui, useModifiche } from './componenti'
+import { useApp, useCarica, chk, tutte, messaggioErrore, Stato, Indietro, Icona, tenutoQui, tieniQui, useModifiche } from './componenti'
 import { ScriviQui } from './Aggiungi'
 import { CampoNota, TestoConCaselle, spuntaRiga } from './CampoNota'
 
@@ -32,16 +32,6 @@ export const iniziali = (nome) => {
   return (parole[0][0] + (parole.length > 1 ? parole[parole.length - 1][0] : '')).toUpperCase()
 }
 const aperto = (n) => n.sezione === 'problemi' && !n.risolto_il
-
-// Legge tutte le righe anche oltre il limite di 1000 per richiesta.
-async function tutte(crea) {
-  const righe = []
-  for (let da = 0; ; da += 1000) {
-    const pezzo = chk(await crea().range(da, da + 999))
-    righe.push(...pezzo)
-    if (pezzo.length < 1000) return righe
-  }
-}
 
 // L'elenco legge tutte le note dei clienti: lo tengo 3 minuti, così tornando indietro è subito pronto.
 let elencoTenuto = null

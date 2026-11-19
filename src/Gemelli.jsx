@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { sb } from './supabase'
 import { useApp, useCarica, chk, messaggioErrore, NotaRiga, Stato, Indietro } from './componenti'
 

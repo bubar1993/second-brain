@@ -24,7 +24,6 @@ function leggiCoda(chiave = CHIAVE) {
   try { return JSON.parse(leggi(chiave) || '[]') } catch { return [] }
 }
 
-export const inCoda = () => leggiCoda().length
 export const nonPartite = () => leggiCoda(NON_PARTITE)
 
 // "Riprova": le non partite tornano in coda (gli id sono gli stessi, quindi niente doppioni).

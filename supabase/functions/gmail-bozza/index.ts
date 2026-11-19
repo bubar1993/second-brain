@@ -78,8 +78,7 @@ type Parte = { filename?: string; mimeType?: string; body?: { data?: string }; p
 // Content-ID, es. la foto di un ordine aggiunta da Giovanni in Gmail, 12.11.2026). Le immagini nel testo o nella
 // firma citata (inline / con Content-ID) non contano.
 const allegataVera = (p: Parte) => !/^image\//.test(p.mimeType || '') ||
-  (/^\s*attachment/i.test(intestazioneParte(p, 'Content-Disposition')) && !intestazioneParte(p, 'Content-ID'))
-const intestazioneParte = (p: Parte, nome: string) => p.headers?.find((h) => h.name.toLowerCase() === nome.toLowerCase())?.value || ''
+  (/^\s*attachment/i.test(intestazione(p, 'Content-Disposition')) && !intestazione(p, 'Content-ID'))
 const nomiAllegati = (p: Parte): string[] => [...(p.filename && allegataVera(p) ? [p.filename] : []), ...(p.parts || []).flatMap(nomiAllegati)]
 const uguale = (x: string, y: string) => x.replace(/\r\n/g, '\n').trim() === y.replace(/\r\n/g, '\n').trim()
 const MOTIVI_SCARTO = ['a_voce', 'non_serviva', 'sbagliata']

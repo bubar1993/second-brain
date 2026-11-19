@@ -10,6 +10,16 @@ export function chk({ data, error }) {
   return data
 }
 
+// Legge tutte le righe anche oltre il limite di 1000 per richiesta (PostgREST non ne dà di più).
+export async function tutte(crea) {
+  const righe = []
+  for (let da = 0; ; da += 1000) {
+    const pezzo = chk(await crea().range(da, da + 999))
+    righe.push(...pezzo)
+    if (pezzo.length < 1000) return righe
+  }
+}
+
 export function messaggioErrore(e) {
   if (typeof navigator !== 'undefined' && !navigator.onLine) return 'Senza rete. Riprova quando sei connesso.'
   return e?.message || 'Qualcosa non ha funzionato.'

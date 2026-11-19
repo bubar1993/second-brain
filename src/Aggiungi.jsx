@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { sb, areaDa, leggi, scrivi } from './supabase'
 import {
-  useApp, chk, chiama, messaggioErrore, SceltaArea, SceltaPersone, SceltaDitta, Icona,
+  useApp, chk, messaggioErrore, SceltaArea, SceltaPersone, SceltaDitta, Icona,
   useDettatura, caricaFoto, aggiungiAreaPersone, perCampo, useModifiche,
 } from './componenti'
 import { capisciLista, capisciGaranzia, durata } from './capisci'

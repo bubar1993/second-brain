@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { sb, areaDa, AREE, quando, numeroWhatsApp, giorniDaOggi } from './supabase'
-import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, Icona, useModifiche, useDueTocchi, ridimensiona } from './componenti'
+import { useApp, useCarica, chk, tutte, chiama, messaggioErrore, Stato, Indietro, Icona, useModifiche, useDueTocchi, ridimensiona } from './componenti'
 
 // Rubrica (13.10.2026, ok di Giovanni): i contatti Google di giovannifabris@ceramex.ch, cioè quelli del telefono.
 // Aggiungere, correggere ed eliminare qui cambia anche il telefono (funzione `rubrica`, Google li porta sul telefono
@@ -11,16 +11,6 @@ import { useApp, useCarica, chk, chiama, messaggioErrore, Stato, Indietro, Icona
 const SENZA_ANNO = '1904'
 const CAMPI = 'id,risorsa,nome,cognome,ditta,ruolo,telefoni,email,compleanno,appunti,area,persona_id,origine,eliminata_il,aggiornata_il'
 export const nomeContatto = (c) => [c?.nome, c?.cognome].filter(Boolean).join(' ') || c?.ditta || 'Senza nome'
-
-// Legge tutte le righe anche oltre il limite di 1000 per richiesta (prima del 22.10 i contatti dopo la "N" mancavano).
-async function tutte(crea) {
-  const righe = []
-  for (let da = 0; ; da += 1000) {
-    const pezzo = chk(await crea().range(da, da + 999))
-    righe.push(...pezzo)
-    if (pezzo.length < 1000) return righe
-  }
-}
 
 function dataCompleanno(iso) {
   if (!iso) return ''

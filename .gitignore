@@ -4,5 +4,4 @@ dist/
 .env
 .env.*
 *.log
-.superdesign/tmp/
 supabase/.temp/

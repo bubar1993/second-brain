@@ -173,6 +173,35 @@ async function controllaEbicsGc(adesso: number): Promise<Problema[]> {
   }
 }
 
+// Backup notturno del database G&C su Drive (20.11.2026, ok di Giovanni): dal 17.10 al 20.11 si era fermato senza
+// che nessuno lo sapesse. brain_lettore legge SOLO la vista brain.backup_stato (migrazione 180 del G&C).
+// Guasto se nessun backup riuscito da 50 ore, o se l'ultimo giro non è riuscito e l'ultimo riuscito ha più di 26 ore
+// (così il secondo tentativo delle 03:15 UTC ha tempo di rimediare). Prima della prima riga del registro non dice niente.
+async function controllaBackupGc(adesso: number): Promise<Problema[]> {
+  const dburl = Deno.env.get('GC_DB_URL')
+  if (!dburl) return []
+  const sql = postgres(dburl, { prepare: false, max: 1, connect_timeout: 15, idle_timeout: 2 })
+  try {
+    const [s] = await sql`select ultimo_ok, ultimo_esito_ok, ultimo_errore, ultimo_giro from brain.backup_stato`
+    if (!s || (!s.ultimo_ok && !s.ultimo_giro)) return []
+    const ok = s.ultimo_ok ? new Date(s.ultimo_ok).getTime() : 0
+    const okIso = ok ? new Date(ok).toISOString() : undefined
+    if (s.ultimo_esito_ok === false && adesso - ok > 26 * 3600e3) {
+      return [{ chiave: 'giro:backup-gc', titolo: 'Il backup del database G&C su Drive non è riuscito', dettaglio: `Ultimo giro: ${quando(new Date(s.ultimo_giro).toISOString())}${s.ultimo_errore ? `, errore: ${s.ultimo_errore}` : ''}. Ultimo riuscito: ${quando(okIso)}` }]
+    }
+    if (adesso - ok > 50 * 3600e3) {
+      return [{ chiave: 'giro:backup-gc', titolo: 'Il backup del database G&C su Drive è fermo', dettaglio: `Ultimo backup riuscito: ${quando(okIso)}` }]
+    }
+    return []
+  } catch (e) {
+    // Il database che non risponde lo segnala già "db:gc": qui non si ripete.
+    console.error('backup-gc', (e as Error).message)
+    return []
+  } finally {
+    sql.end({ timeout: 2 }).catch(() => {})
+  }
+}
+
 type UltimoGiro = { il: string, ok: boolean, errore: string | null }
 
 function controllaGiri(d: any, adesso: number): Problema[] {
@@ -305,7 +334,7 @@ Com'è fatto il sistema:
 - Tre app web: Brain (il second brain), Ceramex (agente di commercio: fatture, bozze mail), G&C (gestionale forniture per interni). Due database dei gestionali Ceramex e G&C.
 - Nel Brain: funzioni automatiche chiamate dai lavori programmati (rubrica dei contatti Google, notifiche, copia delle note da Ceramex e da G&C, lettura della posta info@, ordini Marazzi, ricerca per significato, sveglie Sonos, backup su Drive la domenica notte).
 - Agenti (routine nel cloud di claude.ai): bozze mail Ceramex, G&C, calendario, note lavoro, privato, smistatore, archiviazione mail G&C, "Da seguire", il Capo. Smistatore e G&C li sveglia il "portinaio" (funzione automatica ogni 10 minuti) solo quando c'è lavoro nuovo.
-- Chiavi del guasto: "portinaio:" = il portinaio non sveglia un agente (sveglia che non parte, agente che non ha scritto il suo giro, troppe sveglie in un giorno); "app:" = un'app non si apre; "db:" = un database non risponde; "giro:" = un lavoro o un agente è fermo o ha sbagliato l'ultimo giro ("giro:ebics-gc" = lo scarico automatico degli estratti PostFinance nel gestionale G&C: per errori di chiavi o codici della banca "Tocca Manda a Claude"); "richieste:" = richieste agli agenti ferme; "cron:" = un lavoro programmato non parte; "http:errori" = una funzione automatica risponde con un errore; "backup" = il backup su Drive.
+- Chiavi del guasto: "portinaio:" = il portinaio non sveglia un agente (sveglia che non parte, agente che non ha scritto il suo giro, troppe sveglie in un giorno); "app:" = un'app non si apre; "db:" = un database non risponde; "giro:" = un lavoro o un agente è fermo o ha sbagliato l'ultimo giro ("giro:ebics-gc" = lo scarico automatico degli estratti PostFinance nel gestionale G&C: per errori di chiavi o codici della banca "Tocca Manda a Claude"; "giro:backup-gc" = il salvataggio notturno del database G&C su Google Drive: "Tocca Manda a Claude"); "richieste:" = richieste agli agenti ferme; "cron:" = un lavoro programmato non parte; "http:errori" = una funzione automatica risponde con un errore; "backup" = il backup su Drive.
 
 Come rispondi:
 - In italiano, 2-4 righe corte, testo semplice (niente titoli, grassetti, link).
@@ -358,8 +387,8 @@ Deno.serve(async (req) => {
   try {
     const dati = await rest('rpc/guardiano_dati', { method: 'POST', body: '{}' })
     const adesso = Date.parse(dati.adesso)
-    const [app, db, ebics] = await Promise.all([controllaApp(), controllaGestionali(), controllaEbicsGc(adesso)])
-    problemi = [...app, ...db, ...ebics,...controllaGiri(dati, adesso), ...controllaRichieste(dati, adesso), ...controllaPortinaio(dati, adesso), ...controllaCron(dati), ...controllaErrori(dati)]
+    const [app, db, ebics, backupGc] = await Promise.all([controllaApp(), controllaGestionali(), controllaEbicsGc(adesso), controllaBackupGc(adesso)])
+    problemi = [...app, ...db, ...ebics, ...backupGc,...controllaGiri(dati, adesso), ...controllaRichieste(dati, adesso), ...controllaPortinaio(dati, adesso), ...controllaCron(dati), ...controllaErrori(dati)]
   } catch (e) {
     // Il guardiano stesso non riesce a leggere: lo segno come guasto (se almeno scrivere funziona).
     problemi = [{ chiave: 'guardiano', titolo: 'Il guardiano non riesce a fare i controlli', dettaglio: (e as Error).message.slice(0, 300) }]

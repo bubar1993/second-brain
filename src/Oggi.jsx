@@ -773,8 +773,8 @@ function ModificaPromemoria({ p, cambia, chiudi }) {
 // Guasti aperti trovati dal guardiano (ogni 15 minuti), compresi backup, copie e posta (prima avevano un avviso
 // ciascuno). "Manda a Claude" (21.10.2026): il guasto va in modifiche_claude già con l'ok, Claude lo trova
 // all'inizio della sessione sul PC.
-// giro:ebics-gc (17.11.2026): lo scarico estratti PostFinance gira nel gestionale G&C.
-const appDelGuasto = (chiave) => (/^(app|db):ceramex$/.test(chiave) ? 'ceramex' : /^(app|db):gc$/.test(chiave) || chiave === 'giro:ebics-gc' ? 'gc' : 'brain')
+// giro:ebics-gc (17.11.2026) e giro:backup-gc (20.11.2026): scarico estratti PostFinance e backup girano nel gestionale G&C.
+const appDelGuasto = (chiave) => (/^(app|db):ceramex$/.test(chiave) ? 'ceramex' : /^(app|db):gc$/.test(chiave) || chiave === 'giro:ebics-gc' || chiave === 'giro:backup-gc' ? 'gc' : 'brain')
 function AvvisoGuasti() {
   const { avvisa } = useApp()
   const [guasti, setGuasti] = useState([])

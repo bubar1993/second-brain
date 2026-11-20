@@ -2,44 +2,16 @@
 
 Note clienti Ceramex (trasloco dal gestionale), agente Ceramex, ordini Marazzi, Da seguire e Circolari (valgono anche per G&C).
 
-### Ceramex (fase 2)
-Le note clienti traslocano dal gestionale Ceramex così come sono: 1'438 note e 75 schede, nelle tabelle `clienti`, `note_clienti`, `note_regole`, `note_mail_viste`, `note_impostazioni`. Le regole restano le stesse:
-- una scheda per azienda;
-- note per mandante (Marazzi, Flaviker, Profilitec, Garbelotto, Altro);
-- 6 sezioni: problemi, campionature, offerte, ordini, accordi, comunicazioni;
-- gruppi e filiali (Bringhen);
-- casi Höhne e G&C;
-- apprendimento dalle correzioni.
-
-Nel gestionale resta solo un link.
-
-In più:
-- promemoria sui problemi fermi;
-- riassunto cliente prima di una visita;
-- lista unica delle promesse (fatte da Giovanni e fatte a lui);
-- campionature con due stati (richiesta → spedita);
-- viste per mandante;
-- persone di contatto per azienda;
-- circolari dei mandanti.
-
-Offerte, solleciti e allegati PDF restano nei gestionali.
-
-### Fase 2 (dalla lista delle fasi)
-
-2. Trasloco note Ceramex ← IN CORSO. Backup su Google Drive FATTO (11.10.2026): funzione `backup` ogni domenica notte → Drive giovannifabris@ceramex.ch, cartella BRAIN/Backup (dati e struttura tenuti 90 giorni, foto nuove in Foto/). Collegamento Google: client OAuth "Second Brain backup" nel progetto Google Cloud "Ceramex Gestionale". Esito in `backup_registro`; se fallisce l'app lo dice in Oggi. Tappa 1 FATTA (11.10.2026): copiate 75 schede (`aziende`, contatti dentro la scheda), 1'438 note (`note` con azienda_id, mandante, sezione…), 8 regole (`regole_agenti`), mail viste (`mail_viste`); stessi id del gestionale, quindi la copia si può rifare senza doppioni. Nell'app: Dentro → Aziende (fatta come nell'app Ceramex: mandanti, sezioni, filiali, vista per sezione o per data; per ora solo lettura). Fino allo switch le note clienti si correggono nel gestionale Ceramex. Tappa 2 FATTA (11.10.2026): copia automatica ogni 10 minuti. Le routine "Bozze mail" restano invariate e scrivono in Ceramex; la funzione `copia-ceramex` (pg_cron, token `copia_token` nel Vault, segreti `CERAMEX_DB_URL` e `COPIA_TOKEN`) legge Ceramex con `brain_lettore` e copia schede, note, regole e mail viste (stessi id); le note sparite da Ceramex vanno nel cestino. Esito in `copia_registro`; Oggi avvisa se fallisce o è ferma da più di un'ora. Password e token si rifanno con `node scripts/collega-ceramex.mjs` (poi va reimpostato l'hash in Ceramex). Tappa 3 FATTA il 12.10.2026 sera: l'agente Ceramex scrive le note direttamente nel second brain (vedi "Bozze Ceramex nell'app e agente Ceramex nel second brain"); da decidere con Giovanni quando cancellare le vecchie note dal gestionale. Parcheggiato: link "dalla mail" verso Spark. La chiave segreta Ceramex in `Documenti\ceramex\reader\.env.example` resta com'è (decisione di Giovanni, non riproporla).
-
-### Trasloco note Ceramex: chiusura (13.10.2026, ok di Giovanni passo per passo)
-Piano in 5 passi: 1 controllo, 2 stacco, 3 backup su Drive, 4 link al brain nell'app Ceramex al posto delle note, 5 cancellazione nel gestionale (dopo ~1 settimana, due conferme di Giovanni). Nessun altro usa le note nell'app Ceramex.
-- **Passo 1 FATTO (13.10):** gestionale 1'450 note = brain (1'302 area C `da_ceramex` identiche per id/testo/sezione/mandante/data/risolto/scartata + 148 della scheda "G&C", tutte in area G). Regole (10) e mail viste (65) tutte nel brain. Ultima nota scritta nel gestionale: 12.10 16:06.
-- **Passo 2 FATTO (13.10):** `copia-ceramex` copia solo schede clienti e bozze; niente più note/regole/mail viste e niente cestino delle note sparite (così cancellarle nel gestionale non tocca il brain). Note `da_ceramex` sbloccate nell'app (`Nota.jsx`); `da_ceramex` resta solo come segno d'origine (gli agenti continuano a non riscriverle). Regola del Capo aggiornata (md + routine).
-- **Passo 3 FATTO (13.10):** in Drive BRAIN/Backup `ceramex-note-2026-10-13.json.gz` (clienti, note_clienti 1'450, note_regole, note_mail_viste: tutto) e `ceramex-note-2026-10-13.csv` (da aprire in Fogli). Fatti dalla funzione `backup` con `{ "ceramex_note": true }`; il nome non inizia con "brain-", quindi la pulizia dei 90 giorni non li cancella. `note_impostazioni` non è nel backup (brain_lettore non la legge).
-- **Passo 4 FATTO (13.10):** app Ceramex (commit c579764 su `bubar1993/ceramex-app`, pubblicata da sola col push): "Note clienti" in Oggi apre il Second Brain, `/note` e `/note/:id` hanno solo "Apri nel Second Brain" (`#/aziende`, `#/azienda/<id>`, stesso id). Tolti `src/lib/note.ts` e le schermate vecchie.
-- Passo 5 (cancellare le note nel gestionale): in sospeso, solo con DUE conferme di Giovanni.
-
-### Note Ceramex scritte dall'agente nel second brain (dal 12.10.2026 sera)
-
-- **Tappa 3 (note):** dal 12.10.2026 le note clienti Ceramex le scrive l'agente direttamente nel second brain (note area C, fonte 'mail', da_ceramex false; mail_viste; regole_agenti area C agente 'note'), con l'utente DB `agente_ceramex` (solo area C + aggiungere note nel parcheggio G&C; token AGENTE_TOKEN_CERAMEX, `node scripts/collega-agente.mjs ceramex`). Nel gestionale Ceramex non si scrivono più note. Le vecchie note Ceramex restano là finché Giovanni non decide di cancellarle (non prima).
-- `copia-ceramex` ora copia anche `mail_bozze` → `bozze` (area C, canale 'gmail', stesso id; brain_lettore legge mail_bozze e mail_contatti(email, nome), ok di Giovanni) e copia le schede SOLO se cambiate nel gestionale (per non ricoprire quello che scrive l'agente qui). Dal 13.10.2026 non copia più note, regole e mail viste e non mette più niente nel cestino (vedi "Trasloco note Ceramex").
+### Note clienti Ceramex nel Brain (fase 2)
+- Dal 13.10.2026 le note clienti Ceramex stanno SOLO nel Brain, con le regole di prima: una scheda per azienda, note per mandante (Marazzi, Flaviker, Profilitec, Garbelotto, Altro), 6 sezioni (problemi, campionature, offerte, ordini, accordi, comunicazioni), gruppi e filiali (Bringhen), casi Höhne e G&C, apprendimento dalle correzioni. Offerte, solleciti e allegati PDF restano nei gestionali.
+- Copiate l'11.10.2026 con gli stessi id del gestionale (schede in `aziende`, note, regole in `regole_agenti`, mail viste). Le note copiate hanno `da_ceramex` = true: resta solo come segno d'origine (si correggono nell'app, gli agenti non le riscrivono).
+- Le scrive l'agente Ceramex dal 12.10.2026 sera (note area C, fonte 'mail'), utente DB `agente_ceramex` (solo area C + aggiungere note nel parcheggio G&C; token AGENTE_TOKEN_CERAMEX, `node scripts/collega-agente.mjs ceramex`); regole nel PASSO 5 di `agenti/agente-ceramex.md`. Nel gestionale Ceramex non si scrivono più note (ultima: 12.10.2026).
+- App Ceramex: `/note` e `/note/:id` mostrano solo "Apri nel Second Brain" → `#/quaderno/C` e `#/quaderno/C/<id>` (stesso id della scheda).
+- Trasloco in 5 passi (13.10.2026, ok di Giovanni passo per passo; nessun altro usa le note nell'app Ceramex): 1 controllo (1'450 note uguali nei due posti), 2 stacco della copia, 3 backup, 4 link nell'app Ceramex: FATTI. Backup del passo 3 in Drive BRAIN/Backup: `ceramex-note-2026-10-13.json.gz` e `ceramex-note-2026-10-13.csv` (funzione `backup` con `{ "ceramex_note": true }`; il nome non inizia con "brain-", quindi la pulizia dei 90 giorni non li cancella; `note_impostazioni` non c'è).
+- **Passo 5 (cancellare le note vecchie nel gestionale): in sospeso, senza data, solo con DUE conferme di Giovanni.**
+- `copia-ceramex` (pg_cron ogni 10 minuti, token `copia_token` nel Vault, segreti `CERAMEX_DB_URL` e `COPIA_TOKEN`) legge il gestionale con `brain_lettore` e copia SOLO le schede clienti (solo se cambiate nel gestionale, per non ricoprire quello che scrive l'agente) e `mail_bozze` → `bozze` (area C, canale 'gmail', stesso id). Dal 13.10.2026 non copia più note, regole e mail viste e non mette niente nel cestino (così cancellarle nel gestionale non tocca il Brain). Esito in `copia_registro`; Oggi avvisa se fallisce o è ferma da più di un'ora. Password e token si rifanno con `node scripts/collega-ceramex.mjs` (poi va reimpostato l'hash in Ceramex).
+- `brain_lettore` nel gestionale Ceramex legge solo `clienti`, `note_clienti`, `note_regole`, `note_mail_viste`, `mail_bozze` e di `mail_contatti` solo `email` e `nome` (ok di Giovanni; permessi letti nel DB il 20.11.2026). Non dargli altri permessi.
+- Backup del Brain su Drive: client OAuth "Second Brain backup" nel progetto Google Cloud "Ceramex Gestionale" (dettagli in `sicurezza-backup.md`). La chiave segreta Ceramex in `Documenti\ceramex\reader\.env.example` resta com'è (decisione di Giovanni, non riproporla). Parcheggiato: link "dalla mail" verso Spark.
 
 - Collegamento Gmail: client OAuth "Second Brain Gmail" (App desktop, progetto Google "Ceramex Gestionale", pubblico Interno), segreti GMAIL_CLIENT_ID/SECRET/REFRESH_TOKEN, permessi gmail.compose + gmail.readonly. Si rifà con `node scripts/collega-gmail.mjs <client_secret.json>` (serve il clic di Giovanni). Il vecchio file `client_secret_503995…json` nei Download è di un altro client e contiene chiavi aggiunte in fondo: non usarlo.
 
@@ -57,12 +29,9 @@ Piano in 5 passi: 1 controllo, 2 stacco, 3 backup su Drive, 4 link al brain nell
 - Doppioni (una volta alla settimana): l'agente chiede in "Domande per te"; col sì unisce. Schede: `aziende.unito_in` + note, persone, eventi, ordini, posta spostati; `copia-ceramex` e `copia-gc` rispettano le schede unite (mappano azienda_id). Note: una nota unita nuova, le vecchie nel cestino (imparata = true, così l'agente Ceramex non impara regole sbagliate).
 - Niente "clienti silenziosi", niente riassunto settimanale per mandante, niente vista per cantiere in Ceramex (decisioni di Giovanni).
 
-- Circolari aumenti prezzi in info@ (13.10.2026 notte, richiesta di Giovanni): messe a mano Marazzi/Ragno (Silvia Leoni, dal 1.12), Savoia (dal 2.11), ABK contributo energetico (dal 1.11), Gambini energy surcharge. Polis: nessuna mail di aumenti trovata in info@. L'agente ora riconosce il fornitore anche dal dominio del mittente (`fornitori.domini`), non solo da `posta.fornitore_id`: regola cambiata in `agenti/agente-seguire.md`; routine "Agente da seguire" aggiornata il 13.10.2026 sera.
-
 ### Note dei mandanti (30.10.2026, ok di Giovanni, piano controllato dall'antagonista)
 - Nel Quaderno Ceramex c'è la sezione "Mandanti" (vedi `schermate.md`).
 - Agente Ceramex, punto 4b del PASSO 5 (md + le 3 routine "Bozze mail Ceramex", aggiornate e confrontate IDENTICO il 30.10): le mail solo tra Giovanni e un mandante, senza cliente, diventano note con `azienda_id` null e `mandante` = il mandante. Le mail a tutti gli agenti, listini, aumenti, fiere e ferie restano circolari (agente "da seguire"); provvigioni fuori.
-- Recupero 29.07–30.10.2026 fatto da Claude in chat (6 aiutanti in sola lettura sulla Gmail, poi controllo doppioni): 29 note (Marazzi 20, Flaviker 6, Profilitec 3, Garbelotto 0) e 24 circolari di agosto–settembre (messe già "lette", per non far salire il numero). La ricerca Gmail si ferma a 50 risultati per volta: la copertura non è totale, soprattutto Flaviker.
 
 ### Fatture in arrivo: prova del prefiltro (05.11.2026, ok di Giovanni, piano controllato due volte dall'antagonista)
 - Idea di Giovanni: le fatture ricevute su Gmail Ceramex diventano schede nell'app Ceramex con i tasti Costo Ceramex (Gmail `INBOX/2025/Ricevute`, PDF su Drive per trimestre della data fattura), Costo G&C (inoltro a info@), Costo privato (mail in `INBOX/2025/Altro`, salvo sua indicazione), Non è una fattura. Il PDF entra solo dopo il tocco. Conferme d'ordine e simili non devono comparire.

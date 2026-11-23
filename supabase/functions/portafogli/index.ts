@@ -215,6 +215,7 @@ Deno.serve(async (req: Request) => {
       }
     }
     const confine = `sb_${crypto.randomUUID().replace(/-/g, '')}`
+    const alt = `alt_${crypto.randomUUID().replace(/-/g, '')}`
     const mail = [
       `From: Giovanni Fabris <${IO}>`,
       `To: ${a.join(', ')}`,
@@ -225,10 +226,20 @@ Deno.serve(async (req: Request) => {
       `Content-Type: multipart/mixed; boundary="${confine}"`,
       '',
       `--${confine}`,
+      // Testo + html (23.11.2026): con il solo text/plain Gmail sul telefono apre la bozza con la firma su una riga.
+      `Content-Type: multipart/alternative; boundary="${alt}"`,
+      '',
+      `--${alt}`,
       'Content-Type: text/plain; charset=UTF-8',
       'Content-Transfer-Encoding: base64',
       '',
       righe76(aBase64(new TextEncoder().encode(FIRMA.replace(/\n/g, '\r\n')))),
+      `--${alt}`,
+      'Content-Type: text/html; charset=UTF-8',
+      'Content-Transfer-Encoding: base64',
+      '',
+      righe76(aBase64(new TextEncoder().encode(`<div style="white-space:pre-wrap;font-family:Arial,Helvetica,sans-serif">${FIRMA.replace(/\n/g, '<br>')}</div>`))),
+      `--${alt}--`,
       ...allegati.map((x) => `--${confine}\r\n${x}`),
       `--${confine}--`,
       '',

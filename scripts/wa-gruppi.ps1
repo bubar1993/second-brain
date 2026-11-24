@@ -134,7 +134,7 @@ function Apri-WhatsApp {
   foreach ($attesa in 1..20) {
     $radice = $UIA::FromHandle($h)
     $foto = Foto-Albero $radice
-    if ((Casella-Ricerca $foto) -and ($foto | Where-Object { $_.Tipo -eq 'TabItem' })) { return $radice }
+    if (Casella-Ricerca $foto) { return $radice }
     if ($foto | Where-Object { $_.Nome -like '*codice QR*' -or $_.Nome -like '*Collega*telefono*' }) { throw 'WhatsApp Desktop non e'' collegato al telefono' }
     Start-Sleep -Seconds 2; [WaWin]::Sveglia($h)
   }
@@ -161,7 +161,8 @@ function Fine-Lista($foto) {
 # In ogni altro caso (Impostazioni, Profilo, Nuova chat, casella "Digita un messaggio") niente: il gruppo risulta non trovato.
 function Casella-Ricerca($foto) {
   $max = Fine-Lista $foto
-  $tutte = $foto | Where-Object { $_.I -lt $max -and $_.Tipo -eq 'TabItem' -and $_.Nome -eq 'Tutte' } | Select-Object -First 1
+  # Dal 20.11.2026 (WhatsApp Desktop 2.2645) il filtro "Tutte" e' un pulsante, prima era una scheda: valgono tutti e due.
+  $tutte = $foto | Where-Object { $_.I -lt $max -and $_.Tipo -in 'TabItem', 'Button' -and $_.Nome -eq 'Tutte' } | Select-Object -First 1
   if (-not $tutte) { return $null }
   $c = $foto | Where-Object { $_.I -lt $tutte.I -and $_.Tipo -eq 'Edit' } | Select-Object -First 1
   if (-not $c) { return $null }

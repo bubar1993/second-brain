@@ -46,13 +46,13 @@ I dettagli stanno in `docs/` (indice in fondo): prima di lavorare su un argoment
   - Ceramex: progetto Supabase `nouxqowregwnyqlrvqqo`, cartella `Documenti\ceramex` (solo `reader`).
   - G&C: progetto Supabase `hnpesqsteytwfgrsrygn`, cartella `Documenti\gestionale-gc` (`Documenti\gchomeconcepts` è la vecchia versione Base44, chiusa: non si usa).
 - **`brain_lettore`** è l'utente di sola lettura dentro i due gestionali. **Non dargli altri permessi.** Legge solo:
-  - Ceramex: `clienti`, `note_clienti`, `note_regole`, `note_mail_viste`, `mail_bozze` e di `mail_contatti` solo email e nome (copia automatica delle note e delle bozze).
+  - Ceramex: `clienti`, `note_clienti`, `note_regole`, `note_mail_viste`, `mail_bozze` e di `mail_contatti` solo email e nome (copia automatica delle schede e delle bozze; le tre tabelle note sono vuote dal 24.11.2026).
   - G&C: `clients`, `sites`, `price_list_suppliers`, `email_messages`, i soli riassunti della Copia AbaNinja in `modifiche_da_controllare` e, per il guardiano, le viste `brain.ebics_stato` (scarico PostFinance, ok di Giovanni 17.11.2026) e `brain.backup_stato` (backup notturno, ok di Giovanni 20.11.2026).
 - **Connettori Supabase:** quello di claude.ai vede solo l'organizzazione "G&C Home Concepts & Ceramex". **Non va spostato.** Le routine che scrivono nei gestionali usano il suo gemello **"Supabase agenti"**: senza, Supabase chiede una conferma per le modifiche e la routine si blocca. Non toglierlo e non cambiargli organizzazione (URL e quali routine: `docs/agenti-routine.md`).
 - Sul PC girano programmi che non vanno toccati: il lettore mail e il portale Marazzi (`lettore.mjs`, `portale.mjs` del gestionale Ceramex).
 - **Mail spostate solo da Giovanni:** nessuna mail (Gmail Ceramex o info@ G&C) si sposta, archivia, etichetta o cestina se Giovanni non l'ha scelta nell'app (Riordino casella). Unica eccezione: le liste di carico Ceramex. Gli agenti leggono e propongono soltanto. "Cestina Riepilogo Ceramex" è in pausa: non riaccenderla senza chiedere.
 - **Token e chiavi:** mai in chat, mai in file del progetto, mai su git. I file col prompt delle routine contengono token: solo nella cartella temporanea.
-- **Due conferme:** le vecchie note nel gestionale Ceramex si cancellano (passo 5, in sospeso) solo con DUE conferme di Giovanni. Le cose rischiose del Capo (mail, messaggi, cancellare, gestionali, spostare mail) partono solo dopo "Conferma" + "Sì, fallo" (`capo_conferme`).
+- **Due conferme:** le vecchie note nel gestionale Ceramex sono state cancellate il 24.11.2026 (passo 5); la loro copia di sicurezza nello schema `archivio` del gestionale si toglie solo con DUE conferme di Giovanni. Le cose rischiose del Capo (mail, messaggi, cancellare, gestionali, spostare mail) partono solo dopo "Conferma" + "Sì, fallo" (`capo_conferme`).
 - **Lavoro e Privato separati:** gli agenti di lavoro non leggono il Privato; le note private non finiscono mai nelle schede clienti.
 - Le routine vecchie si spengono, non si cancellano.
 
@@ -91,7 +91,7 @@ Agenti: routine claude.ai (ambiente "Second Brain"), ognuna col suo utente del d
 
 ## Fasi
 Fatte: 1 Base, 3 Calendario, 4 Chiedi. Restano (i numeri sono quelli usati nei docs):
-- **Fase 2**, trasloco note Ceramex: passi 1–4 fatti; il passo 5 (cancellare nel gestionale) è in sospeso. Vedi `docs/ceramex.md`.
+- **Fase 2**, trasloco note Ceramex: FATTA, tutti e 5 i passi (passo 5 il 24.11.2026). Resta solo la copia `archivio` nel gestionale. Vedi `docs/ceramex.md`.
 - **Fase 5**, G&C ← IN SOSPESO (scelta di Giovanni, 26.10.2026). Vedi `docs/gc.md`.
 - **Fase 6**, Privato ← IN CORSO (gemelli, liste, garanzie, Sonos). Vedi `docs/privato-gemelli.md`.
 - **Fase 7**, WhatsApp: collegato; restano idee (chiamate, foto). Vedi `docs/whatsapp.md`.

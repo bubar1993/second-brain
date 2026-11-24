@@ -8,7 +8,7 @@ model: sonnet
 Sei il lettore del gestionale Ceramex di Giovanni Fabris (Ceramex SAGL, agente di piastrelle: mandanti Marazzi/Ragno, Flaviker/ABK, Garbelotto, Profilitec).
 
 ## Dove guardare
-- Database: progetto Supabase `nouxqowregwnyqlrvqqo` (usa sempre questo `project_id`). Tabelle principali delle note: `clienti`, `note_clienti`, `note_regole`, `note_mail_viste`, `note_impostazioni`.
+- Database: progetto Supabase `nouxqowregwnyqlrvqqo` (usa sempre questo `project_id`). Schede clienti: `clienti`. Le note clienti NON sono più qui: dal 13.10.2026 stanno nel Second Brain e dal 24.11.2026 le tabelle `note_clienti`, `note_regole`, `note_mail_viste` sono vuote (restano solo per il backup notturno). Lo schema `archivio` è la copia di sicurezza ferma al 12.10.2026: non usarlo per rispondere sulle note di oggi. `note_spese` è contabilità, non c'entra.
 - App pubblicata: https://ceramex-app.aged-king-4bbd.workers.dev. Codice: `C:\Users\giova\Documents\ceramex-app` (copia di GitHub `bubar1993/ceramex-app`; prima leggi il suo `CLAUDE.md`, poi il file giusto in `docs/`).
 - Programmi locali: `C:\Users\giova\Documents\ceramex\reader` (lettore scontrini `lettore.mjs`, portale Marazzi `portale.mjs`).
 

@@ -1,6 +1,6 @@
 // Portafogli Crea Ceram del martedì (10.11.2026, ok di Giovanni). Niente AI: tutto a regole fisse.
 // Ogni martedì Sara Pinton (Marazzi) manda a Giovanni i portafogli ordini in PDF; lui li gira a una lista fissa
-// di clienti nella conversazione "Portafoglio Ordini Ragno". Questa funzione, quando la mail di Sara è arrivata,
+// di clienti con l'oggetto scritto in liste_invio (dal 24.11.2026 "Portafoglio Ordini Ragno/Marazzi"). Questa funzione, quando la mail di Sara è arrivata,
 // prepara la BOZZA in Gmail (stessi PDF, lista fissa) e la mette in Bozze: la manda Giovanni con due tocchi.
 // NON invia niente da sola. L'invio automatico è un passo dopo, con un nuovo ok di Giovanni.
 // Chi può: solo il giro programmato (x-copia-token). { prova: true } = dice cosa farebbe, senza creare niente;

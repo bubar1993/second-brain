@@ -19,7 +19,14 @@ Note fatte come quelle Ceramex. Al posto dei mandanti ci sono i fornitori di tip
 
 ### Fase 5 (dalla lista delle fasi)
 
-5. G&C ← IN SOSPESO (scelta di Giovanni, 26.10.2026; partita l'11.10.2026 sera). Vedi "G&C (fase 5)".
+5. G&C: FATTA (chiusa il 25.11.2026 con l'ok di Giovanni; partita l'11.10.2026 sera, in sospeso dal 26.10 al 24.11). Vedi "G&C (fase 5)".
+
+### Chiusura della fase 5 (25.11.2026, ok di Giovanni, piano controllato dall'antagonista)
+- **Fornitori:** `nome_breve` dato a Atmosfere Design, Clanea, Dado (Dado Ceramica), Ladiva, Profilitec. Righe nuove solo nel Brain, come Sichenia: Granulati Zandobbio, Eustone. Restano senza apposta: DSV, Vector Logistics, Transit Team (quasi solo fatture) e «Smedbo GmbH» (doppione di «Smedbo» nel gestionale: va unito lì, con l'ok di Giovanni).
+- **Regole dell'agente** (`agente-gc.md` riga dei fornitori e punto 8; routine ore piene aggiornata e IDENTICA): vale la tabella `fornitori`, non l'elenco scritto; una nota del parcheggio che parla solo di un fornitore va nel suo capitolo (non se nomina un cliente o una persona che non si trova, non le note `fonte = 'scritta'`, niente doppioni con lo stesso numero d'ordine).
+- **Parcheggio «G&C»:** da 43 note a 5. 28 nel capitolo del fornitore (Zanasi 10, Granulati Zandobbio 5, Marazzi 3, Faber 3, e una per TPWood, Wallk, Arcea, Bauce, Tessere, Ladiva, Eustone); 6 nelle schede LAB Service AG (3) e Cozza AG (3, le «Voitech»); 2 nella scheda nuova «Pavidea» (cliente, detto da Giovanni; solo nel Brain); 2 nel cestino (ordine Marazzi 20260481921, rif. «Komm Dominic»: Giovanni non sa cosa sia; se Marazzi manda un altro aggiornamento, Ordini Marazzi la riscrive). Restano: Chavannes («Lasciala lì» del 14.10), la nota scritta di Giovanni su Dado, Global Global, Archtailor, Art Keramik Romano.
+- **Com'era prima** (per tornare indietro): tutte nella scheda 823be55a…; il `mandante` era già quello di adesso, tranne queste che erano 'Altro': le 4 Zanasi 2b168814, 448984e5, fa6b9db5, e0f9e440; Marazzi 1bdf3659; Tessere b77ad06c; Ladiva ae292809; le 5 Granulati e la Eustone; le 6 di LAB (ora TPWood cd0d6dec, Polis 63c2b7d1, Altro ec7718bc) e Cozza (ora Zanasi). Fuori dal parcheggio, solo etichetta da 'Altro': Profilitec 817faa30 e 30d8a5cd (Staudt Carrera), Clanea 8d36ee35 (MANUIA), Ladiva 2d946fa9, 8df7dc34, cf8ceaab (AMINI).
+- Rilettura delle 5 mail vecchie di Clanea, Profilitec e Atmosfere Design chiesta all'agente con una riga in `richieste_agenti` (senza toccare `vista_il`).
 
 ### Rappresentanti: scheda Sariker AG (10.11.2026, ok di Giovanni, piano controllato dall'antagonista)
 - Sariker AG (Barbengo; Ermanno Dri e Ramon Zollinger; rappresentano Pamesa, Sichenia e altri) ha una scheda ditta normale in `aziende` area G (`a5394df7-24ca-4778-a198-a3e3eb6e1d5f`), fatta a mano: così ci sono le schede persona, il tasto nota e i WhatsApp. Non è un cliente. `email` e `domini` restano VUOTI apposta.

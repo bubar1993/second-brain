@@ -90,9 +90,8 @@ Una sola app (PWA installabile su Android, come le altre due) dove Giovanni tien
 Agenti: routine claude.ai (ambiente "Second Brain"), ognuna col suo utente del database tramite la funzione `agente-sql` e il suo token; regole in `agenti/*.md`. Il Capo coordina, lo Smistatore passa i lavori. Funzioni e migrazioni in `supabase/` (promemoria in `supabase/CLAUDE.md`).
 
 ## Fasi
-Fatte: 1 Base, 3 Calendario, 4 Chiedi. Restano (i numeri sono quelli usati nei docs):
+Fatte: 1 Base, 3 Calendario, 4 Chiedi, 5 G&C (chiusa il 25.11.2026, `docs/gc.md`). Restano (i numeri sono quelli usati nei docs):
 - **Fase 2**, trasloco note Ceramex: FATTA, tutti e 5 i passi (passo 5 il 24.11.2026). Resta solo la copia `archivio` nel gestionale. Vedi `docs/ceramex.md`.
-- **Fase 5**, G&C ← IN SOSPESO (scelta di Giovanni, 26.10.2026). Vedi `docs/gc.md`.
 - **Fase 6**, Privato ← IN CORSO (gemelli, liste, garanzie, Sonos). Vedi `docs/privato-gemelli.md`.
 - **Fase 7**, WhatsApp: collegato; restano idee (chiamate, foto). Vedi `docs/whatsapp.md`.
 - **Fase 8**, rifiniture: senza rete, widget, scorciatoia vocale, foto cercabili.

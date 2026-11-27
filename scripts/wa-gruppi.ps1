@@ -434,7 +434,11 @@ function Unisci($G, $idx, $righe) {
     if ($idx.ContainsKey($k)) {
       $rec = $idx[$k]
       if (-not $rec.mittente -and $r.Msg.mittente) { $rec.mittente = $r.Msg.mittente }
-      $pos = $G.IndexOf($rec)
+      $dove = $G.IndexOf($rec)
+      # stessa chiave di un messaggio ancora in attesa (due messaggi uguali nello stesso minuto, es. due foto):
+      # e' gia' contato, e non e' ancora in $G: senza questo salto InsertRange(-1) fermava tutto il gruppo (27.11.2026)
+      if ($dove -lt 0) { continue }
+      $pos = $dove
       if ($attesa.Count -gt 0) { $G.InsertRange($pos, $attesa); $pos += $attesa.Count; $attesa.Clear() }
     } else {
       $idx[$k] = $r.Msg; $nuovi++

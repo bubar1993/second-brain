@@ -12,6 +12,7 @@ Progetto second-brain `vgurncqvgulldolhetyr`. I dettagli delle singole funzioni 
 - Tabella nuova: rilanciare la migrazione `mcp_solo_lettura` (i token dei connettori non scrivono) e il blocco "capo vede tutto" della migrazione `capo`; dare i permessi solo agli agenti che servono (lavoro ≠ privato).
 - Funzione nuova chiamata dall'app con l'accesso di Giovanni: oltre a `utente.id === UTENTE`, rifiutare i token dei connettori con `daConnettore(jwt)` (`functions/_shared/accesso.ts`).
 - Funzione "security definer" nuova: revoke da public/anon, grant ad authenticated, service_role e ai ruoli agente_*.
+- `posta.tsv` e `note.tsv` (27.11.2026) sono colonne calcolate per la ricerca: non si scrivono e non vanno messe nei `select` (pesano quanto il testo). Colonna calcolata nuova su una tabella usata: `set lock_timeout = '5s'` in testa alla migrazione.
 - La lettura dal database va sempre a pezzi da 1000 (`tutte()`): PostgREST non dà più di 1000 righe.
 - `functions/_shared/strumenti.ts` è la fonte unica degli strumenti di sola lettura dell'AI: l'area la impone il server, mai il modello.
 - Prove: col copia_token e `prova: true` dove c'è (notifiche, rubrica pulisci, riordino-mail, chiedi-ai). Niente mail o notifiche di prova verso Giovanni.

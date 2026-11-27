@@ -1,10 +1,16 @@
 # Routine LISTE DI CARICO CERAMEX
 
-SPENTA dall'11.11.2026 (scelta di Giovanni): le liste di carico le archivia il suo filtro Gmail. Non cancellarla.
+**Chi gira adesso (dal 21.11.2026):** la vecchia attività Cowork `trig_01EU2Jcao1KofF63X1ze18AQ`, RIACCESA da Giovanni
+perché il suo filtro Gmail non archiviava più le liste (confermato da lui il 27.11.2026). Ogni giorno alle 6:52, Opus,
+ambiente cloud predefinito, tutti i connettori dell'account. Stesse regole dei punti 1–4 qui sotto, senza il punto 5:
+non scrive in `lavori_registro`, quindi non si vede in Agenti e il guardiano non la controlla (per vedere se gira:
+`list_runs`). Il 27.11 ha archiviato 14 liste. Non spegnerla senza chiedere.
+**La routine del Brain** `trig_01KsKntEhDqeUqBkfri43S5f` (Sonnet, solo Gmail, col registro) resta SPENTA dall'11.11.2026.
+Non cancellarla: è la versione da riaccendere se un giorno si vuole il giro in Agenti e nel guardiano (allora si spegne
+quella Cowork, mai tutte e due accese: stesso lavoro alla stessa ora).
 Regole decise il 12.10.2026 con Giovanni (le liste di carico restano come sono: solo archiviate, non salvate).
-Questo file è il prompt della routine claude.ai "Archivia liste di carico Ceramex" (ogni giorno alle 6:52),
-connettore Gmail + utente DB `agente_ceramex` solo per il registro (token AGENTE_TOKEN_CERAMEX al posto di <TOKEN>).
-Prima girava come attività Cowork (`trig_01EU2Jcao1KofF63X1ze18AQ`, spenta). Se cambi le regole qui, aggiorna anche la routine.
+Questo file è il prompt della routine del Brain (connettore Gmail + utente DB `agente_ceramex` solo per il registro,
+token AGENTE_TOKEN_CERAMEX al posto di <TOKEN>). Se cambi le regole qui, aggiorna anche la routine che gira.
 
 ---
 

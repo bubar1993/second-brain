@@ -3,9 +3,9 @@
 # scripts\copia-hostpoint.ps1 (solo quando Giovanni e' collegato a Windows: G: di Google Drive c'e' solo nella sua
 # sessione; se il PC era spento parte appena si riaccende).
 # Uso: powershell -ExecutionPolicy Bypass -File scripts\copia-hostpoint-installa.ps1
-#      (Destinazione = la cartella "My files" che OX Drive tiene allineata con Hostpoint)
+#      (Destinazione = la cartella "My files\G&C" che OX Drive tiene allineata con Hostpoint)
 # File solo ASCII: PowerShell 5 legge il file come ANSI.
-param([string]$Destinazione = 'C:\Users\giova\OX Drive\My files')
+param([string]$Destinazione = 'C:\Users\giova\OX Drive\My files\G&C')
 $ErrorActionPreference = 'Stop'
 $script = Join-Path $PSScriptRoot 'copia-hostpoint.ps1'
 if (-not (Test-Path -LiteralPath $Destinazione)) { throw "Manca la cartella di OX Drive: $Destinazione" }

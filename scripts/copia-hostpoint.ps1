@@ -22,7 +22,7 @@
 param(
   [switch]$Prova,
   [string]$Sorgente = 'G:\Il mio Drive\G&C\NUOVO GESTIONALE\BACK UP FILE',
-  [string]$Destinazione = 'C:\Users\giova\OX Drive\My files',
+  [string]$Destinazione = 'C:\Users\giova\OX Drive\My files\G&C',
   [int]$MinimoFile = 1000,
   [int]$GiorniDatabase = 60,
   [int]$TieniSempre = 14
@@ -72,7 +72,8 @@ try {
   if ($nSorgente -lt $MinimoFile) { throw "Nella cartella del backup ci sono solo $nSorgente file (minimo $MinimoFile): non copio niente." }
 
   # 3. La cartella di OX Drive deve esistere (la crea il programma di Hostpoint, non questo script).
-  # Scelta di Giovanni (27.11): le cartelle Clienti, Fornitori, Database... stanno direttamente in "My files".
+  # Scelta di Giovanni (27.11): le cartelle Clienti, Fornitori, Database... stanno in "My files\G&C" (le cartelle
+  # predefinite di OX Drive, Documents/Music/Pictures/Videos, non si possono togliere e restano a parte).
   if (-not (Test-Path -LiteralPath $Destinazione)) { throw "Manca la cartella di OX Drive: $Destinazione (il programma di Hostpoint e' installato e collegato?)" }
 
   # 4. Copia dei soli file nuovi. /XC /XN /XO = mai sovrascrivere un file che c'e' gia'.

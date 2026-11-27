@@ -59,6 +59,9 @@ const GIORNALIERI = [
   // se era spento parte appena si riaccende, per questo "entro" e' largo), l'agente gruppi scrive le note alle 5:30.
   { lavoro: 'wa-gruppi', nome: 'La lettura dei gruppi WhatsApp (di notte, dal PC)', entro: 10 },
   { lavoro: 'agente-gruppi', nome: 'L\'agente gruppi WhatsApp (giro delle 5:30)', entro: 8 },
+  // Seconda copia del backup G&C su Hostpoint Drive (27.11.2026): il PC la fa alle 5:30 (scripts/copia-hostpoint.ps1);
+  // se era spento parte appena si riaccende, per questo "entro" e' largo come per i gruppi WhatsApp.
+  { lavoro: 'copia-hostpoint', nome: 'La copia del backup G&C su Hostpoint (dal PC)', entro: 10 },
 ]
 const SETTIMANALI = [
   { lavoro: 'agente-gc-fornitori', nome: 'Il completamento fornitori G&C (venerdì)', giorni: 8 },

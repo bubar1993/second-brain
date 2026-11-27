@@ -14,7 +14,7 @@ Valgono quando cambi le regole degli agenti. I dettagli stanno in `docs/agenti-r
 - Il blocco "RICHIESTE DI GIOVANNI" sta in fondo alle regole: calendario, lavoro, privato, G&C ore piene, Ceramex ore piene, archiviazione (blocco 00).
 - Lavoro e Privato separati: gli agenti di lavoro non leggono il Privato; l'agente privato vede solo P.
 - Posta: gli agenti leggono e propongono (anche il Cestino, solo come proposta). Nessuna mail si sposta, etichetta o cestina se Giovanni non l'ha scelta nell'app. Unica eccezione: le liste di carico.
-- Gestionali: si leggono; scrivono solo le routine che lo facevano già, e solo nelle tabelle indicate nelle loro regole.
+- Gestionali: si leggono; scrivono solo le routine che lo facevano già, e solo nelle tabelle indicate nelle loro regole. Eccezione nuova (28.11.2026, ok di Giovanni): "Riassunti cantieri G&C" scrive nel gestionale G&C SOLO con `salva_riassunto_ai`.
 - Cose rischiose del Capo → `capo_conferme` (due tocchi di Giovanni).
 - `agente-sql` rifiuta `net.http_*`, blocchi DO, `plpgsql` e `create function` (18.10.2026): niente di questo nelle regole degli agenti del second brain.
 - Niente mail o notifiche di prova. Una prova che fa partire un agente può mandare una notifica al telefono di Giovanni: farla di giorno e dirglielo prima.
@@ -34,6 +34,7 @@ Valgono quando cambi le regole degli agenti. I dettagli stanno in `docs/agenti-r
 | `agente-riepilogo.md` | Cestina Riepilogo Ceramex `trig_013MZvzHbrRNeVLRt84pQSij` (IN PAUSA) |
 | `agente-fornitori-gc.md` | Completa fornitori scontrini `trig_01FgTpFW71zzgUVUgmdURN4s` |
 | `agente-archiviazione-gc.md` | Archiviazione email G&C `trig_01Go1LUFLhtADpTeZs2GjY8s` |
+| `agente-riassunti-gc.md` | Riassunti cantieri G&C `trig_01W8rBtjwLyBWf9AzAh8kcgq` (4:30 `CRON_TZ=Europe/Zurich`, dal 28.11.2026; solo `Supabase_agenti`, registro `agente-gc-riassunti`) |
 | `agente-smistatore.md` | Smistatore `trig_01EmGQxMLKmQgRjYHJw77p9L` (7:10 + portinaio) |
 | `agente-seguire.md` | Agente da seguire `trig_01DznF5caV1wjdxjt2bH1w2a` |
 | `agente-capo.md` | Agente capo `trig_01Hv5Y9LHytXiiX5L3xs2Nuw` (parte solo dal pulsante) |

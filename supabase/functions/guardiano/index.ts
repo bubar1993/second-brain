@@ -62,6 +62,8 @@ const GIORNALIERI = [
   // Seconda copia del backup G&C su Hostpoint Drive (27.11.2026): il PC la fa alle 5:30 (scripts/copia-hostpoint.ps1);
   // se era spento parte appena si riaccende, per questo "entro" e' largo come per i gruppi WhatsApp.
   { lavoro: 'copia-hostpoint', nome: 'La copia del backup G&C su Hostpoint (dal PC)', entro: 10 },
+  // Riassunti dei cantieri G&C (28.11.2026): routine trig_01W8rBtjwLyBWf9AzAh8kcgq alle 4:30 di Zurigo (CRON_TZ, anche d'estate).
+  { lavoro: 'agente-gc-riassunti', nome: 'I riassunti dei cantieri G&C (giro delle 4:30)', entro: 8 },
 ]
 const SETTIMANALI = [
   { lavoro: 'agente-gc-fornitori', nome: 'Il completamento fornitori G&C (venerdì)', giorni: 8 },

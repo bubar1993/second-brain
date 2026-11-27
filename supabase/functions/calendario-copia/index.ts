@@ -81,14 +81,27 @@ function tempi(inizio: string, fine: string | null, tutto: boolean, patch: boole
 }
 
 async function accesso(refresh: string) {
-  const tok = await (await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: Deno.env.get('GMAIL_CLIENT_ID')!, client_secret: Deno.env.get('GMAIL_CLIENT_SECRET')!,
-      refresh_token: refresh, grant_type: 'refresh_token',
-    }),
-  })).json()
+  // Google ogni tanto risponde "internal_failure" al rinnovo dell'accesso e poco dopo va (5 volte in 7 giorni,
+  // ogni volta un "Guasto" e un "Risolto" sul telefono di Giovanni): si riprova una volta dopo 3 secondi (27.11.2026).
+  // Non si riprova se Google dice che l'accesso non vale più.
+  // deno-lint-ignore no-explicit-any
+  let tok: any = {}
+  for (const tentativo of [1, 2]) {
+    try {
+      tok = await (await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: Deno.env.get('GMAIL_CLIENT_ID')!, client_secret: Deno.env.get('GMAIL_CLIENT_SECRET')!,
+          refresh_token: refresh, grant_type: 'refresh_token',
+        }),
+      })).json()
+    } catch (e) {
+      tok = { error: String((e as Error)?.message || e).slice(0, 80) }
+    }
+    if (tok.access_token || tentativo === 2 || ['invalid_grant', 'invalid_client', 'unauthorized_client'].includes(tok.error)) break
+    await new Promise((r) => setTimeout(r, 3000))
+  }
   if (!tok.access_token) throw new Error(`Google: ${tok.error || 'nessun accesso'}`)
   return { Authorization: `Bearer ${tok.access_token}` }
 }

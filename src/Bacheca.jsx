@@ -24,6 +24,7 @@ const AGENTI = [
 ]
 const DA_SOLI = [
   { codice: 'ordini', nome: 'Ordini Marazzi' },
+  { codice: 'liste', nome: 'Liste di carico' },
   { codice: 'fornitori', nome: 'Completa fornitori' },
   { codice: 'abaninja', nome: 'Copia AbaNinja' },
 ]

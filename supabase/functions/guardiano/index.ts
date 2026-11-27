@@ -52,6 +52,8 @@ const GIRI: Giro[] = [
 ]
 // Giri una volta al giorno o alla settimana: guasto se dopo l'ora "entro" di oggi non c'è ancora il giro.
 const GIORNALIERI = [
+  // Liste di carico (27.11.2026): di nuovo la routine del Brain, che scrive il giro (dal 21 al 27.11 girava la vecchia Cowork, senza registro).
+  { lavoro: 'agente-ceramex-liste', nome: 'L\'archiviazione delle liste di carico Ceramex (6:52)', entro: 9 },
   { lavoro: 'agente-smistatore', nome: 'Lo smistatore (giro delle 7:10)', entro: 9 },
   // Gruppi WhatsApp (13.11.2026): il PC li legge a mezzanotte e cinque (serve il PC acceso con WhatsApp Desktop;
   // se era spento parte appena si riaccende, per questo "entro" e' largo), l'agente gruppi scrive le note alle 5:30.
@@ -360,6 +362,9 @@ async function medico(p: Problema): Promise<string | null> {
   return testo ? semplice(testo).slice(0, 800) : null
 }
 
+// Il succo di un guasto senza date e numeri: se cambia, la causa non è più quella di prima (27.11.2026).
+const succo = (testo: string) => String(testo || '').replace(/\d+/g, '').replace(/\s+/g, ' ').trim().slice(0, 300)
+
 // Dopo i controlli, in sottofondo: un guasto senza spiegazione la riceve (se il Medico sbaglia, il guasto resta com'è).
 async function spiegaNuovi(nuovi: { id: string, p: Problema }[]) {
   for (const { id, p } of nuovi) {
@@ -396,7 +401,7 @@ Deno.serve(async (req) => {
   if (prova) return Response.json({ prova: true, problemi })
 
   await rest('guardiano_stato?id=eq.1', { method: 'PATCH', body: JSON.stringify({ ultimo_controllo: new Date().toISOString() }) }).catch(() => {})
-  const aperti: { id: string, chiave: string }[] = await rest('guasti?select=id,chiave&chiuso_il=is.null')
+  const aperti: { id: string, chiave: string, titolo: string, dettaglio: string | null }[] = await rest('guasti?select=id,chiave,titolo,dettaglio&chiuso_il=is.null')
   const adessoIso = new Date().toISOString()
   const nuovi: string[] = []
   const daSpiegare: { id: string, p: Problema }[] = []
@@ -404,7 +409,11 @@ Deno.serve(async (req) => {
   for (const p of problemi) {
     const gia = aperti.find((a) => a.chiave === p.chiave)
     if (gia) {
-      await rest(`guasti?id=eq.${gia.id}`, { method: 'PATCH', body: JSON.stringify({ titolo: p.titolo, dettaglio: p.dettaglio, visto_il: adessoIso }) })
+      // La spiegazione del Medico si riscrive se il guasto non è più quello di prima: titolo diverso, oppure (per i giri)
+      // un altro errore. Il 27.11.2026 i gruppi WhatsApp dicevano ancora "PC spento" mentre l'errore era nel programma.
+      const cambiato = gia.titolo !== p.titolo || (p.chiave.startsWith('giro:') && succo(gia.dettaglio || '') !== succo(p.dettaglio || ''))
+      await rest(`guasti?id=eq.${gia.id}`, { method: 'PATCH', body: JSON.stringify({ titolo: p.titolo, dettaglio: p.dettaglio, visto_il: adessoIso, ...(cambiato ? { spiegazione: null } : {}) }) })
+      if (cambiato) daSpiegare.push({ id: gia.id, p })
     } else {
       await rest('guasti?select=id', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(p) })
         .then((r) => { nuovi.push(p.titolo); if (r?.[0]?.id) daSpiegare.push({ id: r[0].id, p }) })

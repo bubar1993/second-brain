@@ -1,16 +1,17 @@
 # Routine LISTE DI CARICO CERAMEX
 
-**Chi gira adesso (dal 21.11.2026):** la vecchia attività Cowork `trig_01EU2Jcao1KofF63X1ze18AQ`, RIACCESA da Giovanni
-perché il suo filtro Gmail non archiviava più le liste (confermato da lui il 27.11.2026). Ogni giorno alle 6:52, Opus,
-ambiente cloud predefinito, tutti i connettori dell'account. Stesse regole dei punti 1–4 qui sotto, senza il punto 5:
-non scrive in `lavori_registro`, quindi non si vede in Agenti e il guardiano non la controlla (per vedere se gira:
-`list_runs`). Il 27.11 ha archiviato 14 liste. Non spegnerla senza chiedere.
-**La routine del Brain** `trig_01KsKntEhDqeUqBkfri43S5f` (Sonnet, solo Gmail, col registro) resta SPENTA dall'11.11.2026.
-Non cancellarla: è la versione da riaccendere se un giorno si vuole il giro in Agenti e nel guardiano (allora si spegne
-quella Cowork, mai tutte e due accese: stesso lavoro alla stessa ora).
+**Chi gira (dal 27.11.2026, ok di Giovanni, piano controllato dall'antagonista):** la routine del Brain
+`trig_01KsKntEhDqeUqBkfri43S5f`, ogni giorno alle 6:52 (Sonnet, ambiente "Second Brain", solo connettore Gmail, scrive il
+giro in `lavori_registro` come 'agente-ceramex-liste': si vede in Agenti e il guardiano la controlla entro le 9).
+Storia: spenta l'11.11.2026 perché le liste le archiviava il filtro Gmail di Giovanni; il filtro ha smesso di funzionare
+e il 21.11 Giovanni ha riacceso la vecchia attività Cowork `trig_01EU2Jcao1KofF63X1ze18AQ` (Opus, tutti i connettori,
+senza registro); il 27.11 scambiate: accesa questa, provata (giro delle 13:06 nel registro), SPENTA la Cowork.
+La Cowork non si cancella. Mai tutte e due accese (stesso lavoro alla stessa ora). Tornare indietro: riaccendere la
+Cowork, spegnere questa, togliere 'agente-ceramex-liste' da GIORNALIERI del guardiano e rimettere `spento: true` in `src/Agenti.jsx`.
+Se arriva il guasto "oggi non è partita" ma le liste non sono più in posta in arrivo: ha archiviato senza scrivere il giro.
 Regole decise il 12.10.2026 con Giovanni (le liste di carico restano come sono: solo archiviate, non salvate).
-Questo file è il prompt della routine del Brain (connettore Gmail + utente DB `agente_ceramex` solo per il registro,
-token AGENTE_TOKEN_CERAMEX al posto di <TOKEN>). Se cambi le regole qui, aggiorna anche la routine che gira.
+Questo file è il prompt della routine (connettore Gmail + utente DB `agente_ceramex` solo per il registro,
+token AGENTE_TOKEN_CERAMEX al posto di <TOKEN>). Se cambi le regole qui, aggiorna anche la routine.
 
 ---
 

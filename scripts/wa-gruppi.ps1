@@ -46,6 +46,14 @@ public static class WaWin {
   [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [StructLayout(LayoutKind.Sequential)] public struct UltimoTocco { public uint cb; public uint quando; }
+  [DllImport("user32.dll")] public static extern bool GetLastInputInfo(ref UltimoTocco p);
+  // Da quanti minuti nessuno tocca mouse o tastiera.
+  public static double FermoMinuti() {
+    var u = new UltimoTocco(); u.cb = 8;
+    if (!GetLastInputInfo(ref u)) return 0;
+    return unchecked((uint)Environment.TickCount - u.quando) / 60000.0;
+  }
   // La finestra principale di WhatsApp Desktop (quella che Giovanni vede).
   public static IntPtr Principale() {
     IntPtr t = IntPtr.Zero;
@@ -108,6 +116,24 @@ function WhatsApp-Davanti {
   $f = [WaWin]::Principale()
   return ($f -ne [IntPtr]::Zero -and [WaWin]::GetForegroundWindow() -eq $f)
 }
+# Mette giu' la finestra (6 = a icona E attiva un'altra finestra) e la riapre SENZA attivarla (4): cosi' non e' piu' davanti.
+function Togli-Davanti {
+  $f = [WaWin]::Principale()
+  if ($f -eq [IntPtr]::Zero) { return }
+  [void][WaWin]::ShowWindow($f, 6); Start-Sleep -Seconds 1; [void][WaWin]::ShowWindow($f, 4); Start-Sleep -Seconds 2
+}
+# Vero se Giovanni sta usando WhatsApp. La finestra puo' essere "davanti" senza che nessuno la usi (27.11.2026: il giro
+# ha aspettato mezz'ora per niente). Succede perche' il lettore stesso la attiva mentre legge e poi la rimetteva a icona
+# senza disattivarla. Quindi: se a inizio giro era a icona, o mouse e tastiera erano fermi da 10 minuti ($script:nessuno),
+# la si toglie da davanti. Se resta davanti lo stesso (nessun'altra finestra) vale come "in uso": da davanti segnerebbe
+# i messaggi come letti. Il tempo "fermo" si guarda a inizio giro: le mosse del lettore lo azzerano.
+$script:nessuno = $false
+function WhatsApp-In-Uso {
+  if (-not (WhatsApp-Davanti)) { return $false }
+  if (-not $script:nessuno -and [WaWin]::FermoMinuti() -lt 10) { return $true }
+  Togli-Davanti
+  return (WhatsApp-Davanti)
+}
 
 function Apri-WhatsApp {
   $h = Trova-Maniglia
@@ -124,11 +150,12 @@ function Apri-WhatsApp {
   if ($h -eq [IntPtr]::Zero) { throw 'WhatsApp Desktop non parte' }
   # ridotta a icona la pagina non si aggiorna (provato il 13.11.2026): si riapre SENZA portarla davanti e alla fine si rimette giu'
   $script:finestra = $fin; $script:eraIcona = $false
-  if ($fin -ne [IntPtr]::Zero -and [WaWin]::IsIconic($fin)) { $script:eraIcona = $true; [void][WaWin]::ShowWindow($fin, 4); Start-Sleep -Seconds 2 }
+  $script:nessuno = ([WaWin]::FermoMinuti() -ge 10)
+  if ($fin -ne [IntPtr]::Zero -and [WaWin]::IsIconic($fin)) { $script:eraIcona = $true; $script:nessuno = $true; [void][WaWin]::ShowWindow($fin, 4); Start-Sleep -Seconds 2 }
   # Se Giovanni sta usando WhatsApp (finestra davanti) non si tocca niente: gli cambierebbe la chat aperta e
   # segnerebbe i messaggi come letti. Il giro vero aspetta fino a mezz'ora, la prova no.
   $giri = $(if ($Prova -or $Elenca) { 1 } else { 30 })
-  foreach ($attesa in 1..$giri) { if (-not (WhatsApp-Davanti)) { break }; if ($attesa -lt $giri) { Start-Sleep -Seconds 60 } }
+  foreach ($attesa in 1..$giri) { if (-not (WhatsApp-In-Uso)) { break }; if ($attesa -lt $giri) { Start-Sleep -Seconds 60 } }
   if (WhatsApp-Davanti) { throw 'WhatsApp in primo piano: Giovanni lo sta usando, lettura saltata' }
   [WaWin]::Sveglia($h)
   foreach ($attesa in 1..20) {
@@ -544,14 +571,27 @@ function Chiama-Porta([string]$metodo, $corpo) {
   if (-not $tok) { throw 'Manca la variabile GRUPPI_TOKEN' }
   $par = @{ Uri = $PORTA; Method = $metodo; Headers = @{ 'x-gruppi-token' = $tok }; UseBasicParsing = $true; TimeoutSec = 60 }
   if ($corpo) { $par.Body = [Text.Encoding]::UTF8.GetBytes(($corpo | ConvertTo-Json -Depth 8 -Compress)); $par.ContentType = 'application/json; charset=utf-8' }
-  $r = Invoke-WebRequest @par
+  # Senza rete (il 26.11.2026 alle 00:05 "Impossibile risolvere il nome remoto": notte persa) si riprova: 4 tentativi,
+  # 90 secondi tra uno e l'altro. Se invece la porta risponde con un errore, l'errore e' quello e non si riprova.
+  # Riprovare un invio e' sicuro: i messaggi hanno l'impronta e la porta non li salva due volte.
+  $r = $null
+  foreach ($tentativo in 1..4) {
+    try { $r = Invoke-WebRequest @par; break }
+    catch {
+      if ($_.Exception.Response -or $tentativo -eq 4) { throw }
+      Scrivi-Registro ('rete: ' + $_.Exception.Message + ' (riprovo tra 90 secondi, tentativo ' + $tentativo + ' di 4)')
+      Start-Sleep -Seconds 90
+    }
+  }
   return ([Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray()) | ConvertFrom-Json)
 }
 
 # ================= giro =================
 $oggi = Get-Date
 $script:finestra = [IntPtr]::Zero; $script:eraIcona = $false
-function Rimetti-Finestra { if ($script:eraIcona -and $script:finestra -ne [IntPtr]::Zero) { try { [void][WaWin]::ShowWindow($script:finestra, 7) } catch {}; $script:eraIcona = $false } }
+# Rimette la finestra a icona. Se intanto e' diventata quella attiva si usa 6 (attiva un'altra finestra): con 7 restava
+# "davanti" anche da icona, e il giro dopo credeva che Giovanni la stesse usando (27.11.2026).
+function Rimetti-Finestra { if ($script:eraIcona -and $script:finestra -ne [IntPtr]::Zero) { try { [void][WaWin]::ShowWindow($script:finestra, $(if (WhatsApp-Davanti) { 6 } else { 7 })) } catch {}; $script:eraIcona = $false } }
 try {
   $radice = Apri-WhatsApp
 
@@ -578,7 +618,7 @@ try {
   $esito = New-Object System.Collections.Generic.List[object]
   $pacco = New-Object System.Collections.Generic.List[object]
   foreach ($g in $lista) {
-    if (WhatsApp-Davanti) { $esito.Add([pscustomobject]@{ gruppo = $g.nome; ok = $false; errore = 'WhatsApp in primo piano: lettura saltata' }); continue }
+    if (WhatsApp-In-Uso) { $esito.Add([pscustomobject]@{ gruppo = $g.nome; ok = $false; errore = 'WhatsApp in primo piano: lettura saltata' }); continue }
     # da dove leggere: dall'ultimo messaggio gia' salvato (al massimo 7 giorni indietro), la prima volta $Giorni giorni
     $da = $oggi.AddDays(-$Giorni).Date
     if ($g.ultimo) { $da = ([datetime]$g.ultimo).AddMinutes(-1); if ($da -lt $oggi.AddDays(-7)) { $da = $oggi.AddDays(-7) } }

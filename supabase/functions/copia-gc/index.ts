@@ -55,6 +55,8 @@ async function copia() {
       await sql`select id, message_id, direction, from_addr, from_name, to_addrs, cc_addrs, subject, sent_at, body_text,
                        attachments, client_id, site_id, supplier_id, note
                   from email_messages where removed_at is null and coalesce(saved_at, sent_at) > ${da}
+                   -- 27.11.2026: solo le mail di info@; quelle della casella dell'agente Denis restano nel gestionale.
+                   and owner_id = 'bdec6585-f0db-4b23-905a-36e5b874d13b'
                  order by sent_at`,
       // Riassunti della "Copia AbaNinja serale" (19.10.2026, ok di Giovanni): brain_lettore vede solo queste righe.
       await sql`select id, titolo, dettaglio, creato_il from modifiche_da_controllare

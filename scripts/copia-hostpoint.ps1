@@ -1,7 +1,7 @@
 # Seconda copia del backup G&C su Hostpoint Drive (27.11.2026, ok di Giovanni, piano controllato dall'antagonista).
 # Copia la cartella "BACK UP FILE" del Google Drive G&C (vista dal PC in G:) nella cartella che il programma
 # OX Drive di Hostpoint tiene allineata col Drive di info@. Lo script non parla con Hostpoint e non conosce
-# nessuna password: carica OX Drive.
+# nessuna password: carica OX Drive. Su Hostpoint Clienti e Fornitori vanno in G&C\Condivisibile (28.11).
 #
 # Regole:
 # - MAI sovrascrivere: si copiano solo i file che nella copia non ci sono ancora (robocopy /XC /XN /XO).
@@ -23,6 +23,7 @@ param(
   [switch]$Prova,
   [string]$Sorgente = 'G:\Il mio Drive\G&C\NUOVO GESTIONALE\BACK UP FILE',
   [string]$Destinazione = 'C:\Users\giova\OX Drive\My files\G&C',
+  [string]$NomeCondivisa = 'Condivisibile',
   [int]$MinimoFile = 1000,
   [int]$GiorniDatabase = 60,
   [int]$TieniSempre = 14
@@ -77,26 +78,41 @@ try {
   if (-not (Test-Path -LiteralPath $Destinazione)) { throw "Manca la cartella di OX Drive: $Destinazione (il programma di Hostpoint e' installato e collegato?)" }
 
   # 4. Copia dei soli file nuovi. /XC /XN /XO = mai sovrascrivere un file che c'e' gia'.
-  $arg = @($Sorgente, $Destinazione, '/E', '/XC', '/XN', '/XO', '/XF', 'desktop.ini', '*.tmp', '~$*',
-           '/R:2', '/W:5', '/NP', '/NDL', '/V', '/BYTES', "/UNILOG:$DETTAGLIO")
-  if ($Prova) { $arg += '/L' }
-  & robocopy.exe @arg | Out-Null
-  $codice = $LASTEXITCODE
-  $dati.codice_robocopy = $codice
-  # Riassunto dal registro di robocopy: riga "Files :" = Totale, Copiati, Saltati, Diversi, Non riusciti, Extra.
-  $righe = Get-Content -LiteralPath $DETTAGLIO -Encoding Unicode
-  $f = $righe | Where-Object { $_ -match '^\s*(Files|File)\s*:\s+\d' } | Select-Object -Last 1
-  if ($f) {
-    $n = [regex]::Matches($f, '\d+') | ForEach-Object { [int64]$_.Value }
-    if ($n.Count -ge 6) { $dati.copiati = $n[1]; $dati.gia_presenti = $n[2]; $dati.non_riusciti = $n[4] }
+  # Scelta di Giovanni (28.11): solo su Hostpoint, Clienti e Fornitori stanno in "G&C\Condivisibile" (cartella che
+  # lui condivide col socio); le altre cartelle restano direttamente in G&C. Su Google tutto resta com'e'.
+  # Tre giri di robocopy: tutto tranne Clienti e Fornitori -> G&C; Clienti -> Condivisibile\Clienti; Fornitori -> Condivisibile\Fornitori.
+  $condivisa = Join-Path $Destinazione $NomeCondivisa
+  $parti = @(
+    @{ da = $Sorgente; a = $Destinazione; extra = @('/XD', (Join-Path $Sorgente 'Clienti'), (Join-Path $Sorgente 'Fornitori')) },
+    @{ da = (Join-Path $Sorgente 'Clienti'); a = (Join-Path $condivisa 'Clienti'); extra = @() },
+    @{ da = (Join-Path $Sorgente 'Fornitori'); a = (Join-Path $condivisa 'Fornitori'); extra = @() }
+  )
+  $codice = 0; $copiati = 0; $giaPresenti = 0; $nonRiusciti = 0; $cambiati = 0
+  if (Test-Path -LiteralPath $DETTAGLIO) { Remove-Item -LiteralPath $DETTAGLIO -Confirm:$false }
+  $pezzo = Join-Path $CARTELLA 'copia-hostpoint-robocopy-parte.log'
+  foreach ($p in $parti) {
+    $arg = @($p.da, $p.a, '/E', '/XC', '/XN', '/XO', '/XF', 'desktop.ini', '*.tmp', '~$*') + $p.extra +
+           @('/R:2', '/W:5', '/NP', '/NDL', '/V', '/BYTES', "/UNILOG:$pezzo")
+    if ($Prova) { $arg += '/L' }
+    & robocopy.exe @arg | Out-Null
+    $codice = $codice -bor $LASTEXITCODE
+    $righe = Get-Content -LiteralPath $pezzo -Encoding Unicode
+    Add-Content -LiteralPath $DETTAGLIO -Value $righe -Encoding Unicode
+    # Riassunto dal registro di robocopy: riga "Files :" = Totale, Copiati, Saltati, Diversi, Non riusciti, Extra.
+    $f = $righe | Where-Object { $_ -match '^\s*(Files|File)\s*:\s+\d' } | Select-Object -Last 1
+    if ($f) {
+      $n = [regex]::Matches($f, '\d+') | ForEach-Object { [int64]$_.Value }
+      if ($n.Count -ge 6) { $copiati += $n[1]; $giaPresenti += $n[2]; $nonRiusciti += $n[4] }
+    }
+    # File che su Google hanno lo stesso nome ma sono cambiati: NON vengono copiati (regola "mai sovrascrivere").
+    # Etichette di robocopy /V: in inglese Newer/Older/Changed/Tweaked, sul Windows italiano "piu' recente", "piu' vecchio"...
+    $cambiati += @($righe | Where-Object { $_ -match '^\s*(Newer|Older|Changed|Tweaked|Modified|pi. recente|pi. vecchio|modificat\w*|cambiat\w*)\s' }).Count
+    # "Ignorati" di robocopy comprende anche i desktop.ini esclusi (etichetta "denominato" / "named").
+    $giaPresenti -= @($righe | Where-Object { $_ -match '^\s*(named|denominat\w*)\s' }).Count
   }
-  # File che su Google hanno lo stesso nome ma sono cambiati: NON vengono copiati (regola "mai sovrascrivere").
-  # Etichette di robocopy /V: in inglese Newer/Older/Changed/Tweaked, sul Windows italiano "piu' recente", "piu' vecchio"...
-  $cambiati = @($righe | Where-Object { $_ -match '^\s*(Newer|Older|Changed|Tweaked|Modified|pi. recente|pi. vecchio|modificat\w*|cambiat\w*)\s' }).Count
+  Remove-Item -LiteralPath $pezzo -Confirm:$false -ErrorAction SilentlyContinue
+  $dati.codice_robocopy = $codice; $dati.copiati = $copiati; $dati.gia_presenti = $giaPresenti; $dati.non_riusciti = $nonRiusciti
   $dati.cambiati_non_copiati = $cambiati
-  # "Ignorati" di robocopy comprende anche i desktop.ini esclusi (etichetta "denominato" / "named").
-  $esclusi = @($righe | Where-Object { $_ -match '^\s*(named|denominat\w*)\s' }).Count
-  if ($null -ne $dati.gia_presenti) { $dati.gia_presenti = $dati.gia_presenti - $esclusi }
   if ($codice -ge 8) { throw "robocopy ha dato errore (codice $codice): alcuni file non sono stati copiati. Dettaglio in $DETTAGLIO" }
 
   # 5. Pulizia della sola cartella Database della copia.
